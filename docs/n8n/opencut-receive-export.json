@@ -1,0 +1,32 @@
+{
+  "name": "OpenCut - Receive rendered video",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "opencut-video",
+        "options": {}
+      },
+      "id": "2e63cfaa-b5ed-43ec-8271-27c7d2d8d618",
+      "name": "Receive OpenCut render",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "d052179d-6256-4249-8312-f4dfb30973cf"
+    }
+  ],
+  "pinData": {},
+  "connections": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "83f35da2-72c5-45a7-a3de-aa05c061460e",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
