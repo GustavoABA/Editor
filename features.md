@@ -31,6 +31,7 @@ Princípios obrigatórios:
 | Stickers | Busca, abas All/Flags/Shapes e contêiner overflow-y-auto | Corrigir scroll efetivo e altura, acrescentar categoria **Stickers**, ampliar catálogo e navegação |
 | Sounds | Pesquisa, Freesound, ScrollArea, busca paginada e favoritos | Corrigir scroll observável, filtros, tratamento de licenças e ampliar fontes legalmente integráveis |
 | Automação | Ollama, Auto Cut e conexões n8n/MCP | Multi-IA, continuidade por checkpoints e HyperFrames |
+| MCP remoto | Endpoint Streamable HTTP/LAN na porta 3101 e bearer token | F09: túnel ngrok liga/desliga, URL MCP remota, credenciais configuradas na UI e acesso seguro |
 | Proporção | Project info/Settings permite trocar o tamanho do canvas | Reposicionar inteligentemente **todos os elementos editáveis** da composição |
 | HyperFrames | Não foi localizada uma integração dedicada no projeto na inspeção | Novo painel e pipeline de composição + render |
 | Importação por link | Não foi localizada aba específica de Links na inspeção | Importadores autorizados, embeddings e captura exportável quando tecnicamente possível |
@@ -134,6 +135,15 @@ Princípios obrigatórios:
 - Mostrar provedor efetivamente utilizado e eventos de troca (“NVIDIA indisponível; retomado no Ollama a partir do checkpoint 3”).
 - Sem cobrança surpresa: sinalizar quando um modelo pode consumir créditos ou ter cobrança; permitir exigir confirmação para uso pago.
 
+### Acesso às credenciais na interface (obrigatório, sem editar arquivos manualmente)
+
+- **Todas as credenciais necessárias a recursos opcionais devem ter campo próprio na interface**: NVIDIA NIM, OpenAI API (ChatGPT não equivale automaticamente a créditos da API), Anthropic/Claude, DeepSeek, ngrok quando aplicável e provedores futuros. Campos devem trazer o nome exato do segredo, link para documentação oficial, opção **Salvar / Testar / Alterar / Remover**, status e mensagem de erro útil.
+- Para Ollama, oferecer **URL do servidor e modelo**, com credenciais somente se o endpoint configurado realmente exigir autenticação. Não presumir API key obrigatória para Ollama local.
+- O campo pode aparecer em **Settings > IA** e, por atalho contextual, em **HyperFrames > Gerar com IA**. Os dois lugares usam a **mesma configuração persistida no backend**, sem duplicar segredos nem armazená-los no projeto.
+- Ordenação padrão de fallback para geração HyperFrames: **NVIDIA -> OpenAI -> Anthropic/Claude -> Ollama (último recurso)**, sujeita a disponibilidade, credenciais, capacidade do modelo e confirmação de eventuais custos. Permitir ajustar prioridades manualmente.
+- **Modelo e provedor escolhidos aparecem perto do botão Gerar**, juntamente com status de conexão, indicação local/nuvem, seletor de modo (automático/manual) e atalho **Configurar API**. Sem chave válida, mostrar configuração necessária e nunca prometer que uma chamada será realizada.
+- Credenciais são enviadas somente por HTTPS (exceto loopback confiável), ficam criptografadas/armazenadas no servidor por mecanismo apropriado, são mascaradas após salvar e **nunca retornam em respostas de leitura para o navegador**. Os campos UI servem para cadastrar/substituir/remover; requests de geração usam configuração server-side.
+
 ### Arquitetura
 
 - Serviço **AI Provider Router** exclusivamente backend; interface padronizada de capabilities, modelos, invocação, limites, erro e cancelamento.
@@ -182,6 +192,13 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 6. Exportar o projeto com o clipe renderizado corretamente, incluindo áudio quando compatível.
 7. Permitir que IA gere/edite **uma representação declarativa de composição** e solicite renderização; sempre exigir revisão e permitir desfazer.
 8. Guardar templates reutilizáveis locais, com miniaturas e metadados de versão. Criar no futuro biblioteca ORUME para anúncios de live.
+
+### Configuração da IA no próprio bloco HyperFrames
+
+- Dentro da seção **HyperFrames**, imediatamente abaixo dos controles de **Gerar com IA**, incluir painel compacto **IA conectada** com seletor de provedor/modelo, estado **Conectado / Não configurado / Indisponível**, botão **Configurar API** e **Testar conexão**.
+- No primeiro uso, permitir cadastrar o segredo diretamente em um modal dessa seção, reutilizando o armazenamento e as validações de **F03**. Nunca obrigar o usuário a abrir `.env`, Docker ou código-fonte para adicionar uma chave.
+- Permitir escolher entre **Automático (NVIDIA -> OpenAI -> Claude -> Ollama como fallback final)** e **Manual**, com mensagens claras para falha/limites/quotas, aprovação de custos e compatibilidade de modelo com geração de composição.
+- Geração de HTML/CSS/JS e planos de alteração passam por backend F03, sanitização, prévia, aprovação e proteções F01; **a chave jamais deve ser interpolada no HTML/JS gerado**.
 
 ### Integração técnica proposta
 
@@ -393,6 +410,65 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ---
 
+## F09 — MCP externo via ngrok, controlado pela interface (P1 — acesso remoto seguro)
+
+### Objetivo e restrição obrigatória
+
+Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra rede) se conectem ao **MCP Streamable HTTP já existente** para ler o projeto e aplicar edições no editor aberto. **Não substituir o endpoint LAN, não criar ponte MCP de outro fornecedor e não usar Cloudflare, Tailscale ou outro túnel: o único provedor de túnel remoto nesta feature é o ngrok.** O túnel não significa, por si só, disponibilizar a interface web completa do editor em outra rede: isso seria outro escopo, com autenticação própria.
+
+### Localização e experiência de uso
+
+- Na aba existente **MCP**, inserir no topo um controle visível **Acesso pela rede / ngrok**. Preservar status atual do servidor, URL MCP LAN, bearer token e bloco de configuração copiável.
+- Apresentar **dois endereços distintos**, cada um com botão Copiar e com sua configuração MCP pronta:
+  1. **MCP local (LAN):** URL atual `http://IP_DA_REDE:3101/mcp`, sempre disponível enquanto o serviço local estiver ativo.
+  2. **MCP externo (ngrok):** `https://DOMINIO_REAL_GERADO_PELO_NGROK/mcp`, exibido **somente depois que o túnel estiver realmente ativo e testado**. Nunca inventar uma URL ou mostrar o endereço LAN como se fosse externo.
+- Botões **Iniciar túnel**, **Desligar túnel**, **Copiar URL externa**, **Copiar configuração MCP remota** e **Testar conexão**; estado visível: Desligado, Iniciando, Online, Desligando, Erro. Mostrar último erro e opção Tentar novamente.
+- Área recolhível **Configurar ngrok** dentro da própria aba: **Authtoken do agente** (necessário para abrir o túnel), **API Key ngrok** (somente quando for necessária para gerenciar recursos da conta; não exigir para o túnel simples), domínio reservado opcional **se a conta permitir**, Salvar / Testar credenciais / Trocar / Remover e indicação de limites/plano. Incluir links oficiais para obtenção de cada segredo.
+- Exibir o **caminho /mcp**, transporte **Streamable HTTP**, indicador de autenticação, origem do serviço e aviso de que o editor/sessão deve permanecer aberto para comandos interativos. O fluxo de cópia deve usar a URL efetivamente retornada pelo ngrok, sem adivinhar subdomínio.
+- Diferenciar explicitamente **acesso ao MCP por IA remota** de **acesso ao editor web por navegador**. O túnel padrão expõe apenas o MCP da porta 3101, **não** o frontend na porta 3100 nem endpoints n8n.
+
+### Implantação e comportamento do túnel
+
+- O backend administra o agente ngrok (SDK oficial ou processo gerenciado verificado na plataforma/contêiner), direcionando o tráfego HTTPS externo ao serviço MCP interno na **porta 3101**. No Docker Compose, resolver corretamente os endereços internos; no Windows, documentar a opção de execução e sua persistência.
+- O botão liga/desliga deve iniciar ou encerrar **efetivamente a sessão ngrok**, com idempotência, mutex/controle de processo e limpeza após falha. Desligar deve derrubar o acesso externo sem interromper o MCP LAN nem o editor.
+- Consultar o ngrok para recuperar **URL pública real e status atual**. Ao reiniciar o serviço, reconciliar o estado; não mostrar “Online” por haver processo vivo sem teste do encaminhamento. Reconexões não devem criar túneis duplicados.
+- Permitir definir se o túnel volta ativo após reiniciar (padrão **desligado**), persistindo somente a preferência; nunca ligar o túnel silenciosamente após reset/erro de autenticação.
+- Preservar transporte MCP Streamable HTTP, métodos, headers, requisições longas e streaming conforme comportamento do servidor. Verificar compatibilidade do cliente MCP remoto com autenticação por Bearer/custom headers; alguns clientes podem exigir transporte ou autenticação específica.
+- Configurações copiáveis para **LAN** e **Remoto** não devem conter segredos por padrão: oferecer ação separada e explícita **Copiar com token** com alerta de confidencialidade. Em caso de troca/revogação de token, as configurações copiáveis devem refletir a nova credencial apenas após autenticação.
+
+### Credenciais e segurança obrigatória
+
+- **Authtoken ngrok não é API Key ngrok.** O authtoken autentica o agente que cria o túnel; a API Key administra recursos via API. Campos independentes e opcionais conforme necessidade, nunca solicitar uma API Key para substituir indevidamente o authtoken.
+- Reutilizar o cofre de credenciais backend de F03, com escopo de administrador, masking, rotação, remoção, redaction de logs e sem retornar valores em GET. Não guardar chaves em localStorage, payload do projeto, bundles, logs, erros, MCP outputs ou GitHub.
+- **Pré-requisito de exposição pública:** bearer token MCP próprio, forte e rotacionável, desvinculado de `BETTER_AUTH_SECRET`. O Compose atual deriva `OPENCUT_AUTOMATION_TOKEN` de `BETTER_AUTH_SECRET`; separar esses valores antes de publicar o túnel. Não usar credencial administrativa genérica como chave pública.
+- Aplicar autenticação e autorização em **todas as ferramentas MCP e endpoints relevantes**, não apenas na interface. Impedir acesso anônimo, reforçar controles contra brute force, limitar taxa, validar Origin/Host quando pertinente e reduzir superfície de rede. Em caso de credencial ausente/segurança falha, **bloquear o botão Iniciar** com orientação para resolver.
+- Separar, quando viável, token de leitura de token com permissão de **editar/exportar** e oferecer revogar/rotacionar sessões. Alterações remotas continuam sujeitas a F01, validação de plano, confirmação de ação sensível e auditoria.
+- Exibir alerta ao ativar: **“O MCP ficará acessível pela internet para quem possuir as credenciais autorizadas.”** Não divulgar link e token juntos em prompts, vídeos, prints ou repositório.
+- Encerramento do túnel deve invalidar rota remota ativa; um domínio reservado pode permanecer reservado na conta, mas não deve estar encaminhando para a aplicação após desligar.
+- Tratar limites, disponibilidade e custos ngrok de acordo com a conta real; não pressupor domínio estático ou recursos pagos no plano gratuito.
+
+### Critérios de aceitação
+
+- [ ] Aba MCP exibe URL LAN e, após ativação bem-sucedida, URL pública ngrok HTTPS distinta, ambas com ações Copiar/Configuração.
+- [ ] Usuário configura **Authtoken** e, se realmente necessário, **API Key ngrok** diretamente na UI; segredos nunca retornam em leitura.
+- [ ] Botões Iniciar/Desligar executam operações reais, são idempotentes e exibem status/erros confiáveis.
+- [ ] MCP remoto autenticado lê a sessão e executa comandos permitidos, inclusive após atravessar o ngrok, sem alterar o comportamento LAN.
+- [ ] Sem token MCP dedicado ou com autenticação mal configurada, o túnel **não inicia**.
+- [ ] Desligar encerra o acesso externo mas preserva serviços/URLs LAN; reinício respeita a política de não reativação automática.
+- [ ] O frontend web, a API geral e os webhooks n8n **não** ficam expostos acidentalmente pelo túnel MCP.
+- [ ] MCP remoto, IA e ações globais obedecem proteções F01, confirmação, autorização e logs sanitizados.
+- [ ] Testes de URL dinâmica/reservada, perda de conexão, troca de chaves, 401/403, vários cliques, reinício Docker/Windows e streaming MCP.
+- [ ] Guia PT-BR de configuração e revogação, com aviso de custos e segurança, acompanhado de teste real cliente externo.
+
+**Áreas iniciais:** componentes da aba MCP atualmente utilizada pelo editor (reidentificar no código antes de implementar), `apps/mcp/src/server.ts`, transporte HTTP do MCP, `docker-compose.yml`, serviços/backend de integrações e credenciais, `docs/lan-automation.md`.
+
+**Fontes primárias para implementação:**
+- https://ngrok.com/docs/start
+- https://ngrok.com/docs/gateway/endpoints/http
+- https://ngrok.com/docs/gateway/endpoints/agent-cli-quickstart
+
+---
+
 ## 9. Contratos transversais entre recursos
 
 ### Timeline e comandos
@@ -439,6 +515,7 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 | **1 — Proteções** | F01 por layer/clipe, políticas para comandos, Undo/Redo e MCP | Fase 0 | P0 |
 | **2 — UX e áudio** | F05 Stickers, F06 scroll/pesquisa/licenças, F02 normalizador LUFS | F01 para normalizador | P1 |
 | **3 — IA roteada** | F03 provedores, Settings IA, checkpoints e fallback real | F01 + infraestrutura de jobs | P1 |
+| **3A — MCP remoto** | F09 controles ngrok na aba MCP, cofre/segredos, token MCP separado, túnel seguro e testes externos | MCP LAN atual + armazenamento seguro + auditoria de autenticação | P1 |
 | **4 — Geometria inteligente** | F08 modal e conversão geométrica, depois visão/tracking IA | F01 e F03 para modo IA | P2 |
 | **5 — HyperFrames** | F04 painel, composição, clipe, render server e IA | F01 + pipeline de assets + F03 opcional para geração | P2 |
 | **6 — Links e embeds** | F07 URLs diretas/GIF, previews oficiais e iframe com diagnósticos | Pipeline de assets + render isolado | P2/P3 |
@@ -466,6 +543,10 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 - **PR-16:** YouTube/Twitch/Pinterest embeds e status de exportabilidade.
 - **PR-17:** Web/iframe com sandbox/captura autorizada e testes anti-SSRF.
 - **PR-18:** documentação de operação, compatibilidade e checklist release.
+- **PR-19:** F09 auditoria de autenticação MCP e token dedicado separado de BETTER_AUTH_SECRET.
+- **PR-20:** F09 gestão segura do ngrok no backend, status, liga/desliga e testes de rede.
+- **PR-21:** F09 interface MCP com duas URLs, Authtoken/API Key, cópia segura e documentação.
+- **PR-22:** F03/F04 atalho de configuração da IA no HyperFrames, testes de credenciais e fallback NVIDIA -> OpenAI -> Claude -> Ollama.
 
 ---
 
@@ -493,6 +574,8 @@ Um recurso só é considerado **concluído** quando:
 - Sounds: buscas longas com filtro de licença comercial, paginação, favoritos e scroll.
 - Converter gameplay 16:9 para short 9:16 com webcam, legenda e overlay protegido; verificar centro de interesse e não sobreposição.
 - HyperFrames HTML animado em clip sobreposto; comparação visual de frames selecionados entre preview e render.
+- Sem NVIDIA disponível, HyperFrames exibe a falha, retoma do checkpoint validado via OpenAI, depois Claude e somente por último Ollama compatível; todas as chaves são cadastradas pela UI.
+- MCP remoto: entrar com token próprio por URL ngrok, executar leitura/edição autorizada, desligar túnel e confirmar inacessibilidade externa sem interromper a LAN.
 - GIF local animado com transparência; iframe de site bloqueador deve mostrar erro claro.
 - Tentativa de link em endereço privado/loopback redirecionado: importador bloqueia e registra erro seguro.
 
@@ -533,6 +616,8 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 - FFmpeg loudnorm/EBU R128: https://ffmpeg.org/ffmpeg-filters.html#loudnorm
 - NVIDIA NIM Developer FAQ: https://docs.api.nvidia.com/nim/docs/product
+- ngrok Quickstart (authtoken x API Key): https://ngrok.com/docs/start
+- ngrok HTTP Agent Endpoints e segurança: https://ngrok.com/docs/gateway/endpoints/http
 - HyperFrames studio: https://hyperframes.app/docs/5-packages/studio
 - HyperFrames producer: https://hyperframes.app/docs/5-packages/producer
 - HyperFrames core: https://hyperframes.app/docs/5-packages/core
@@ -544,5 +629,6 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-12:** adicionado **F09** (MCP externo por **ngrok exclusivamente**, com ativação/desativação pela aba MCP, URLs LAN/remota, gestão de Authtoken/API Key, segurança e testes); detalhados F03/F04 para configuração de IA por interface e fallback de HyperFrames NVIDIA -> OpenAI -> Claude -> Ollama. **Somente documentação; código não alterado.**
 - **2026-11-10:** criada primeira especificação consolidada a partir dos requisitos do proprietário e inspeção dos arquivos da branch main. **Somente documentação planejada; nenhum recurso implementado, instalação iniciada ou teste executado nesta etapa.**
 - Os próximos PRs devem atualizar este arquivo com status de cada Fxx: Planejado / Em andamento / Testado / Concluído / Bloqueado, link para PR/commit, data e evidência de teste.
