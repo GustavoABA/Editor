@@ -1,6 +1,8 @@
-# FEATURES.md — Plano de evolução do Editor (OpenCut Classic / ORUME)
+# FEATURES.md — Roadmap priorizado do Editor (OpenCut Classic / ORUME)
 
-> **Estado:** planejamento técnico; nenhuma funcionalidade abaixo foi implementada por este documento.
+> **Estado:** planejamento técnico; as funcionalidades novas listadas aqui não são implementadas apenas por atualizar este documento.
+> **Ordem aprovada em 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. Sounds (F06) está adiado.
+> **A numeração Fxx identifica funcionalidades; NÃO indica prioridade.** A seção 10 é a referência obrigatória de fases e dependências.
 >
 > **Criado em:** 2026-11-10
 >
@@ -10,12 +12,29 @@
 
 ## 0. Objetivo, princípios e escopo
 
+### Ordem obrigatória de entrega (13/11/2026)
+
+| Fase | ID | Entrega determinada pelo proprietário |
+|---|---|---|
+| **1** | **F02** | Normalizar o áudio de todos os clipes e vídeos de maneira uniforme, com LUFS, controle de picos, prévia e exportação |
+| **2** | **F03** | NVIDIA em primeiro lugar; integrar outras IAs por API/token, fallback e opção de **IA personalizada via JavaScript/Node.js** |
+| **3** | **F04** | HyperFrames conectado à IA, com composição orientada/sincronizada por **trilha de áudio**, exportação horizontal e vertical |
+| **4** | **F07** | Aba **Links e mídias** para imagens, GIFs, vídeos, YouTube, Twitch e lives, distinguindo prévia de importação/exportação |
+| **5** | **F05** | **Corrigir apenas o scroll dos Stickers**; manter visual, categorias, pesquisa e catálogo atuais |
+| **6** | **F09** | MCP externo **exclusivamente via ngrok**, ativação na UI, URLs LAN/remota, autenticação |
+| **7 — penúltima** | **F01** | Proteção de camada/clipe e integração com as funções já implementadas |
+| **8 — última** | **F08** | Conversão inteligente de proporção/reposicionamento |
+| **Adiado, sem fase** | **F06** | **Sounds: não mexer agora**, sem ajustes ou expansão até nova decisão |
+
+**Regra de dependências:** F01 **não é pré-requisito** para F02, F03, F04, F07, F05 ou F09. Até a fase 7, usar seleção de escopo, autorização, prévia, confirmação e Undo/Redo; após implementar F01, adaptar essas funções ao bloqueio. Não adiantar F08 nem F06 para antecipar melhorias opcionais.
+
+
 Transformar o Editor em um ambiente de edição de vídeo com **operações globais seguras**, automações por IA, animações HTML/HyperFrames, importação de mídias autorizadas, bibliotecas navegáveis e adaptação inteligente de formatos para vídeos horizontais e verticais.
 
 Princípios obrigatórios:
 
 1. **Edição não destrutiva:** preservar arquivos de origem e registrar as transformações como estado reversível; oferecer visualização antes de aplicar e Undo/Redo.
-2. **Respeitar proteção de camadas e clipes** em toda ação automatizada/global (Auto Cut, áudio, conversão de formato, IA, MCP e extensões).
+2. **A proteção de camadas será implementada somente na fase 7.** Antes disso, operações globais usam escopo/seleção explícitos, validação e reversibilidade; após F01, passam a respeitar bloqueios também em IA, MCP, Auto Cut, áudio e HyperFrames.
 3. **Preview = exportação:** não declarar um elemento exportável apenas porque ele aparece no navegador; o render deve produzir o mesmo resultado ou explicar por que não é possível.
 4. **Uma única representação de projeto/timeline:** evitar divergência entre preview web, exportação no servidor, Rust/WASM e comandos MCP.
 5. **IA assistiva e verificável:** roteador multi-provedor, planos validados, checkpoints, confirmação de alterações e comportamento determinístico.
@@ -27,70 +46,35 @@ Princípios obrigatórios:
 
 | Área | Já existe no código | Lacuna proposta |
 |---|---|---|
-| Áudio | apps/web/src/media/audio-mastering.ts: limitador de picos e tratamento de buffer | Normalização perceptual em LUFS, seletiva, reversível e consistente no export |
-| Stickers | Busca, abas All/Flags/Shapes e contêiner overflow-y-auto | Corrigir scroll efetivo e altura, acrescentar categoria **Stickers**, ampliar catálogo e navegação |
-| Sounds | Pesquisa, Freesound, ScrollArea, busca paginada e favoritos | Corrigir scroll observável, filtros, tratamento de licenças e ampliar fontes legalmente integráveis |
-| Automação | Ollama, Auto Cut e conexões n8n/MCP | Multi-IA, continuidade por checkpoints e HyperFrames |
+| Áudio | apps/web/src/media/audio-mastering.ts: limitador de picos e tratamento de buffer | **Fase 1:** normalização LUFS de clipes/faixas/mix, sem depender de F01 |
+| Stickers | Busca, abas All/Flags/Shapes e contêiner overflow-y-auto | **Fase 5:** corrigir SOMENTE o scroll; NÃO alterar categoria, catálogo ou visual |
+| Sounds | Pesquisa, Freesound, ScrollArea, busca paginada e favoritos | **F06 adiado:** manter o recurso inalterado até nova decisão |
+| Automação | Ollama, Auto Cut e conexões n8n/MCP | **Fase 2:** NVIDIA preferida, IAs por token e personalizada JS/Node.js; **fase 3:** HyperFrames com áudio |
 | MCP remoto | Endpoint Streamable HTTP/LAN na porta 3101 e bearer token | F09: túnel ngrok liga/desliga, URL MCP remota, credenciais configuradas na UI e acesso seguro |
 | Proporção | Project info/Settings permite trocar o tamanho do canvas | Reposicionar inteligentemente **todos os elementos editáveis** da composição |
-| HyperFrames | Não foi localizada uma integração dedicada no projeto na inspeção | Novo painel e pipeline de composição + render |
+| HyperFrames | Integração dedicada não confirmada na inspeção anterior; revisar e reaproveitar a base existente antes de codificar | **Fase 3:** composição com IA, sincronização por áudio, exportação horizontal/vertical |
 | Importação por link | Não foi localizada aba específica de Links na inspeção | Importadores autorizados, embeddings e captura exportável quando tecnicamente possível |
 
 > **Não implementado** significa que a integração nova não foi identificada na inspeção; sempre pesquisar novamente o código antes de abrir PR. **Problema reportado** (como ausência de scroll na prática) não significa que o código correspondente não exista.
 
 ---
 
-## F01 — Proteção de camada/clipe contra edição geral (P0 — fundação)
-
-### Experiência de uso
-
-- Na lateral de cada **layer/faixa** da timeline, adicionar botão com cadeado/escudo e tooltip **“Não afetar por edição geral”**.
-- Oferecer mesma ação no menu contextual do clipe ou seleção de clipes.
-- Estados claros: **Livre**, **Protegido contra edição geral** e **Proteção herdada da faixa**; ícone visível mesmo com painel compacto.
-- Quando protegido, o item deve permanecer **inalterado** diante de comandos globais: normalizar, Auto Cut, ajuste de proporção, efeitos em massa, IA, MCP, transições em massa, alinhamento automático, exclusões gerais etc.
-- A proteção de **faixa** tem precedência e protege todos os seus clipes; desmarcar clipe isolado não pode ultrapassar faixa protegida.
-- Edição manual explícita de item protegido deve solicitar **desbloqueio antes de alterar**; não remover proteção silenciosamente.
-- A opção “proteger seleção”, com indicador de quantidade, deve ficar disponível no menu de contexto.
-
-### Semântica obrigatória
-
-- Modelar proteção persistente no documento para faixa e elemento (ex.: globalEditProtected; nome final sujeito à modelagem).
-- Definir um serviço/predicado central de permissão para alterações com contexto: origem (manual/global/IA/MCP), alvos, tipo de comando e estado de proteção.
-- **Não basta desativar botões de UI:** validar novamente no command handler e na aplicação dos planos IA/MCP. Backend e render não devem ignorar os flags.
-- Antes de executar operações globais, criar snapshot dos alvos elegíveis e dos protegidos; exibir quantidade: “X elementos serão modificados; Y protegidos serão ignorados”.
-- Auto Cut exige atenção adicional: **não encurtar, mover, dividir ou desalinhar** elementos protegidos. Em cortes de silêncio que alteram a duração da timeline, não deslocar material protegido sem autorização. Se houver conflito estrutural, bloquear o corte específico, informar o motivo e permitir ajustar a seleção; não prometer que basta “pular” o clipe.
-- Em operações de resize de canvas, a cena/projeto pode mudar, mas posição, tamanho, keyframes e transform dos elementos protegidos devem permanecer matematicamente inalterados; avisar sobre possível perda de enquadramento.
-- Preservar status na duplicação, salvamento, importação/exportação do projeto, undo/redo e reconstrução do histórico.
-- Proteções não são DRM: servem para garantir comportamento do editor, não para impedir que o proprietário altere o arquivo de origem.
-
-### Critérios de aceitação
-
-- [ ] Botão visível por faixa e ação por clipe/seleção.
-- [ ] Uma faixa protegida permanece bit a bit igual em suas propriedades após ações gerais (exceto dados voláteis de UI).
-- [ ] Auto Cut não altera nem desloca mídia protegida e informa conflito.
-- [ ] Chamadas MCP e planos IA respeitam exatamente as mesmas regras.
-- [ ] A edição individual de item protegido exige desbloqueio.
-- [ ] Flag persiste após salvar, fechar e reabrir e passa por Undo/Redo corretamente.
-- [ ] Testes unitários da matriz de permissões e testes de integração com múltiplas faixas.
-
-**Áreas iniciais:** apps/web/src/commands/timeline, apps/web/src/timeline, apps/web/src/core/managers/timeline-manager.ts, apps/web/src/automation, apps/mcp/src/server.ts, modelos de projeto.
-
----
-
-## F02 — Normalizador global de áudio por loudness (P1)
+## F02 — Normalizador global de áudio por loudness (FASE 1 — máxima prioridade)
 
 ### UX
 
 - Novo comando **“Normalizar áudio”** no grupo de operações gerais e na aba IA & Automação.
-- Escopo padrão: **todo o projeto, exceto faixas/clipes protegidos**; opção para “somente selecionados” e escolha explícita de faixas.
+- **Padrão: todo o projeto** (clipes/vídeos/faixas de áudio), buscando loudness percebido consistente entre origens diferentes. Permitir normalização por clipe, por faixa ou pelo mix, com opção de incluir/excluir manualmente clipes e de normalizar apenas a seleção. **Não aguardar F01**: proteção automática de faixa/clipe será integrada na fase 7.
 - Perfis iniciais configuráveis (valores sugeridos, não obrigação de plataforma):
   - **Voz/vídeo online:** alvo inicial -16 LUFS integrados, true peak máximo -1,5 dBTP;
   - **Podcast/voz estéreo:** alvo inicial -16 LUFS; mono opcional -19 LUFS;
   - **Personalizado:** LUFS integrado, limite de true peak, loudness range e método.
 - Exibir análise **antes/depois**: LUFS integrados, true peak, ganho previsto, faixas incluídas/protegidas e possibilidade de clipping.
-- Modos: normalizar **cada faixa elegível** ou **o mix elegível**; informar que normalizar cada elemento isoladamente não garante nível uniforme do mix final.
+- Medir e ajustar **por clipe, por faixa ou pelo mix**; oferecer conferência do mix final. Normalização por elemento isolado não garante volume uniforme quando há várias trilhas sobrepostas.
 - Manter música e voz com balanço coerente: prévia A/B, controle de volume, opção futura de ducking de trilha; não comprimir dinâmicas sem avisar.
 - Preservar sincronização, fade, mixagem e keyframes de volume sempre que possível.
+
+**Meta de qualidade:** tornar fala e vídeos de origens diferentes perceptualmente consistentes, com limite de true peak e comparação antes/depois. Mesmo LUFS não elimina ruído ou timbres distintos; não prometer 'perfeição' automática sem tratamento adicional.
 
 ### Implementação proposta
 
@@ -100,12 +84,12 @@ Princípios obrigatórios:
 4. Definir ponto de aplicação na cadeia: áudio original -> volume/keyframes e efeitos por faixa -> normalização conforme escopo -> mix -> limiter/true peak final (ordem exata validada em testes).
 5. Compartilhar as mesmas configurações no **preview** e no **render final**; se a implementação de preview diferir do render, indicar e medir o desvio.
 6. Casos especiais: áudio sem sinal, fontes corrompidas, vídeo com múltiplos canais, silêncio, voz muito baixa, arquivos enormes, troca de sample rate.
-7. Expor operação via MCP e roteador IA apenas após a política F01 estar pronta.
+7. Implementar controles e operação desde a fase 1, com escopo, confirmação e Undo/Redo. Expor às integrações compatíveis quando estáveis; só adicionar a validação de F01 na fase 7, sem bloquear o normalizador.
 
 ### Critérios de aceitação
 
 - [ ] Um botão executa a análise e oferece aplicar/cancelar.
-- [ ] Faixas protegidas não recebem ganho nem alteração de seus parâmetros.
+- [ ] Clipes/faixas excluídos manualmente do escopo não são alterados; quando F01 existir (fase 7), respeitar também a proteção automática.
 - [ ] Resultado respeita alvo e limite de pico dentro de tolerância definida nos testes.
 - [ ] Preview e export são coerentes; nenhuma alteração de duração/sincronização.
 - [ ] Undo/Redo, persistência e reabertura funcionam.
@@ -117,7 +101,7 @@ Princípios obrigatórios:
 
 ---
 
-## F03 — Settings > IA: provedores, modelos e roteamento com fallback (P1)
+## F03 — Settings > IA: provedores, modelos e roteamento com fallback (FASE 2)
 
 ### Localização e aparência
 
@@ -128,10 +112,11 @@ Princípios obrigatórios:
   - **OpenAI API**;
   - **Anthropic (Claude API)**;
   - **DeepSeek API**;
-  - **Outros** por adaptador que atenda contrato do roteador.
+  - **IA personalizada (JavaScript/Node.js)**: cadastro de qualquer serviço de IA compatível por URL, token/API key, modelo, headers, corpo de requisição e parser da resposta, com possibilidade de escrever um adaptador simples em JS/Node no backend.
+- **Outros** por adaptador que atenda contrato do roteador.
 - Cada item deve oferecer: habilitar/desabilitar, modelo, status de conexão, configuração de chave no servidor, teste de conexão, prioridade de fallback, capacidade suportada, limite de custo/tokens e indicação se o serviço é local ou em nuvem.
 - Modelo padrão **por tipo de tarefa** (planejamento de edição, entendimento de texto, visão/análise visual, geração de composição HyperFrames, revisão de resultados); não presumir que todos suportam imagens/áudio.
-- Modos: automático por prioridade/capacidade, preferir modelos locais, menor custo e manual.
+- Modos: automático por prioridade/capacidade, preferir modelos locais, menor custo e manual. **NVIDIA deve ser o provedor preferido por padrão**, se autenticação, capacidade e quota estiverem válidas; os demais e as IAs personalizadas podem ser ordenados pelo usuário.
 - Mostrar provedor efetivamente utilizado e eventos de troca (“NVIDIA indisponível; retomado no Ollama a partir do checkpoint 3”).
 - Sem cobrança surpresa: sinalizar quando um modelo pode consumir créditos ou ter cobrança; permitir exigir confirmação para uso pago.
 
@@ -140,9 +125,16 @@ Princípios obrigatórios:
 - **Todas as credenciais necessárias a recursos opcionais devem ter campo próprio na interface**: NVIDIA NIM, OpenAI API (ChatGPT não equivale automaticamente a créditos da API), Anthropic/Claude, DeepSeek, ngrok quando aplicável e provedores futuros. Campos devem trazer o nome exato do segredo, link para documentação oficial, opção **Salvar / Testar / Alterar / Remover**, status e mensagem de erro útil.
 - Para Ollama, oferecer **URL do servidor e modelo**, com credenciais somente se o endpoint configurado realmente exigir autenticação. Não presumir API key obrigatória para Ollama local.
 - O campo pode aparecer em **Settings > IA** e, por atalho contextual, em **HyperFrames > Gerar com IA**. Os dois lugares usam a **mesma configuração persistida no backend**, sem duplicar segredos nem armazená-los no projeto.
-- Ordenação padrão de fallback para geração HyperFrames: **NVIDIA -> OpenAI -> Anthropic/Claude -> Ollama (último recurso)**, sujeita a disponibilidade, credenciais, capacidade do modelo e confirmação de eventuais custos. Permitir ajustar prioridades manualmente.
+- Ordenação padrão de fallback para geração HyperFrames: **NVIDIA -> OpenAI -> Anthropic/Claude -> DeepSeek (se configurado) -> Ollama (último recurso)**, sujeita a disponibilidade, credenciais, capacidade do modelo e confirmação de eventuais custos. Permitir ajustar prioridades manualmente.
 - **Modelo e provedor escolhidos aparecem perto do botão Gerar**, juntamente com status de conexão, indicação local/nuvem, seletor de modo (automático/manual) e atalho **Configurar API**. Sem chave válida, mostrar configuração necessária e nunca prometer que uma chamada será realizada.
 - Credenciais são enviadas somente por HTTPS (exceto loopback confiável), ficam criptografadas/armazenadas no servidor por mecanismo apropriado, são mascaradas após salvar e **nunca retornam em respostas de leitura para o navegador**. Os campos UI servem para cadastrar/substituir/remover; requests de geração usam configuração server-side.
+
+### Requisito obrigatório: provedores personalizados com chamadas JavaScript/Node.js
+
+- Interface deve permitir cadastrar e testar uma IA não listada, sem editar o núcleo do editor: nome, endpoint, modelo, token, método HTTP, headers, corpo da chamada e extração da resposta.
+- Fornecer contrato documentado e exemplo curto para adaptador JavaScript/Node.js **executado apenas no backend**. Integrar o adaptador às mesmas tarefas, fallback, limites e checkpoints dos provedores oficiais.
+- Para segurança, começar por configuração declarativa de HTTP; qualquer execução de código fornecido pelo usuário deve ser feita em **sandbox isolada**, sem acesso a segredos alheios, arquivos, rede interna ou execução arbitrária do host, com limites de memória/tempo.
+- Credenciais personalizadas também devem ser cadastradas pela interface, mascaradas e armazenadas só no servidor.
 
 ### Arquitetura
 
@@ -164,19 +156,21 @@ Fonte oficial: https://docs.api.nvidia.com/nim/docs/product
 
 ### Critérios de aceitação
 
-- [ ] Usuário cadastra e testa individualmente ao menos Ollama, NVIDIA NIM, OpenAI, Anthropic e DeepSeek (quando há credenciais e endpoints válidos).
+- [ ] Usuário cadastra e testa Ollama, NVIDIA NIM, OpenAI, Anthropic, DeepSeek e pelo menos **uma IA personalizada por adaptador JS/Node**, com token quando necessário.
 - [ ] Ranking e escolha de modelo persistem por usuário/servidor, com configuração clara.
 - [ ] Em falha retriável, um segundo provedor compatível recebe somente o estado validado e conclui o próximo passo.
 - [ ] Erros de autenticação, custo ou capacidade inadequada produzem mensagens compreensíveis sem loop infinito.
 - [ ] Nunca expor chaves no navegador, código-fonte, logs ou histórico MCP.
-- [ ] A IA não consegue modificar item protegido nem aplicar plano não validado.
+- [ ] A IA não aplica plano não validado; após F01 (fase 7), também deve respeitar itens protegidos.
 - [ ] Job pode ser retomado após reiniciar a interface sem repetir ações já aplicadas.
 
 **Áreas iniciais:** apps/web/src/automation, apps/web/src/app/api/automation, apps/web/src/server-automation, apps/web/src/env, apps/mcp/src/server.ts, componentes da área de Settings.
 
 ---
 
-## F04 — HyperFrames dentro de IA & Automação (P2)
+## F04 — HyperFrames dentro de IA & Automação (FASE 3)
+
+**Prioridade imediata após o roteador IA:** confirmar e reaproveitar o que já estiver construído de HyperFrames, conectá-lo aos provedores da fase 2 e colocá-lo para funcionar na edição e na exportação. **Não depender de F01**, F09 ou F08.
 
 ### Posição exigida
 
@@ -185,13 +179,15 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 ### Fluxos pretendidos
 
 1. Criar uma **composição animada** com HTML/CSS/JS e/ou por instrução textual à IA.
-2. Escolher duração, resolução, FPS e fundo transparente quando houver suporte.
+2. Escolher duração, resolução, FPS, fundo transparente quando disponível e **orientação horizontal/vertical** com presets **16:9 e 9:16** mais formato personalizado.
 3. Editar/visualizar propriedades e templates: títulos, lower thirds, anúncios, stickers animados, contadores, banners, composição de GIF/HTML, overlays para vídeo.
 4. Pré-visualizar com controles Play/Pause/Seek e inserir a composição como um **clipe temporizado na timeline** do Editor.
 5. Movimentar, cortar duração, organizar sobre outras faixas, pré-compor, alterar escala e parâmetros; respeitar F01.
-6. Exportar o projeto com o clipe renderizado corretamente, incluindo áudio quando compatível.
-7. Permitir que IA gere/edite **uma representação declarativa de composição** e solicite renderização; sempre exigir revisão e permitir desfazer.
-8. Guardar templates reutilizáveis locais, com miniaturas e metadados de versão. Criar no futuro biblioteca ORUME para anúncios de live.
+6. **Usar a camada de áudio da timeline para criar e sincronizar animações**: leitura de waveform/energia, batidas e marcações temporais; opcionalmente fala/transcrição com consentimento, para orientar a geração de elementos por IA.
+7. **Exportar vídeo e áudio sincronizados**, incluindo o som da timeline e eventual áudio próprio da composição sem duplicação, com alinhamento de início/fim, FPS e offset.
+8. Garantir reprodução e exportação em **horizontal (16:9) e vertical (9:16)** com o mesmo enquadramento visto no preview.
+9. Permitir que IA gere/edite **uma representação declarativa de composição** e solicite renderização; sempre exigir revisão e permitir desfazer.
+10. Guardar templates reutilizáveis locais, com miniaturas e metadados de versão. Criar no futuro biblioteca ORUME para anúncios de live.
 
 ### Configuração da IA no próprio bloco HyperFrames
 
@@ -209,7 +205,7 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
   - **@hyperframes/player**: reprodução de composições;
   - **@hyperframes/producer** ou CLI: conversão HTML -> MP4/WebM via FFmpeg.
 - Não simplesmente colocar outro editor desconectado: criar **HyperFramesClip** ou objeto de composição associado a assets/versionamento e timeline.
-- Mapeamento temporal: frame rate, início/fim, keyframes, transições, áudio, dimensões, offset de tempo.
+- Mapeamento temporal: frame rate, início/fim, keyframes, transições, trilhas de áudio, sincronização A/V, waveform/beat markers, dimensões **16:9/9:16**, offset de tempo.
 - Estratégia de render: composição HTML segura -> serviço isolado/captura determinística -> asset cacheado com hash -> compositor da timeline -> export final.
 - Pré-renderizar quando a renderização interativa ficar pesada. Invalidar cache quando composição, fonte, duração, tamanho ou parâmetros mudarem.
 - Isolar HTML/JS de terceiros em sandbox, com allowlist de recursos e sem acesso à rede interna, tokens ou filesystem do host. Definir política CSP; proibir scripts arbitrários não confiáveis por padrão.
@@ -218,10 +214,10 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 ### Critérios de aceitação
 
 - [ ] HyperFrames aparece abaixo de Auto Cut com rolagem funcional.
-- [ ] Composição HTML simples pode ser criada, editada, pré-visualizada e adicionada à timeline.
+- [ ] Composição HTML pode ser criada, editada, pré-visualizada e adicionada à timeline em **16:9 e 9:16**.
 - [ ] Render e preview exibem mesmos elementos, tempos e posições em testes determinísticos.
-- [ ] Render final funciona sem usuário precisar gravar a tela.
-- [ ] Proteções F01 e Undo/Redo funcionam para composições.
+- [ ] Render final em **horizontal ou vertical** funciona sem gravar a tela e preserva sincronismo de áudio da timeline.
+- [ ] Undo/Redo funciona para composições; integração à proteção de F01 será feita depois, na **fase 7**.
 - [ ] Conteúdo malicioso e URLs internas não obtêm acesso à infraestrutura.
 
 **Referências oficiais:**
@@ -232,68 +228,9 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 
 ---
 
-## F05 — Stickers: categoria visível, busca e rolagem (P1 — UX)
+## F07 — Links: YouTube, Twitch, Pinterest/GIF, arquivos externos e iframe (FASE 4 — essencial)
 
-### Comportamento desejado
-
-- No cabeçalho das subcategorias existentes (All, Flags, Shapes), incluir **Stickers** **ao lado de Shapes**; a área já tem busca: melhorar, não duplicar.
-- Separar visualmente **Stickers** (adesivos/emojis/figuras) de **Shapes** (formas) e **Flags**. “All” agrega todas as fontes disponíveis.
-- Barra de pesquisa fixa ao topo do painel, filtragem por nome/tags/categoria; resultados rápidos e feedback quando não há itens.
-- Lista/grade **com scroll vertical próprio**, sem ficar encoberta por abas inferiores ou por container pai. Rolagem com mouse, touchpad, toque e teclado.
-- Abas horizontais não devem sobrepor a lista, nem desaparecer. Controlar overflow e min-height em todos os ancestrais flex.
-- Layout responsivo, lazy loading, paginação/virtualização quando houver catálogo grande, preview nítido e indicação de falha de carregamento.
-- Considerar importação de pack de stickers pelo usuário, observando licença/atribuição.
-
-### Diagnóstico guiado pelo código
-
-- apps/web/src/stickers/categories.ts lista All, Flags e Shapes; acrescentar categoria Stickers e adequar tipos/provider/registry.
-- apps/web/src/stickers/components/assets-view.tsx **já tem Input e overflow-y-auto**. Reproduzir em viewport pequeno com centenas de itens; inspecionar altura dos contêineres, tab bar, z-index, roda do mouse, flex-1/min-h-0 e seletor de scroll correto.
-- Conferir que a busca atual não perde categoria, resultados e posição ao alternar abas.
-
-### Critérios de aceitação
-
-- [ ] Aba Stickers posicionada ao lado de Shapes.
-- [ ] Centenas de itens podem ser acessados do primeiro ao último.
-- [ ] Busca retorna itens corretos por nome e mantém filtragem selecionada.
-- [ ] Drag-and-drop para timeline continua funcional.
-- [ ] Sem sobreposição, vazamento de scroll ou regressão em tela pequena.
-- [ ] Acessível via teclado, com labels e loading.
-
----
-
-## F06 — Sounds: consertar scroll, pesquisa e catálogo ampliado (P1/P2)
-
-### Comportamento desejado
-
-- Corrigir rolagem vertical do painel Sounds e da aba Saved, mantendo a pesquisa/filtros visíveis.
-- Manter a busca existente e adicionar filtros progressivos: duração, tipo (efeito/música/ambiente), licença, uso comercial, fonte e favoritos.
-- Paginação/infinite scroll confiável, indicação de carregamento, fim de resultados e preservação de posição ao voltar à aba.
-- Biblioteca de efeitos, música e áudio ambiente **com origem e licenças visíveis por asset**; botão ouvir e inserir na timeline.
-- Aumentar fontes públicas **quando o serviço permitir integração em editor**. Prioridade: aprimorar Freesound já existente; avaliar bibliotecas com API/licença adequada antes de integrar.
-- Criar biblioteca **local de sons do usuário** com categorias e tags e importação de arquivos autorizados.
-- Nunca presumir que “grátis para usar em um vídeo” significa “grátis para redistribuir dentro de uma biblioteca ou app”. Validar licença de conteúdo, API e termos individualmente.
-
-### Diagnóstico do código
-
-- apps/web/src/sounds/components/assets-view.tsx **já usa ScrollArea, busca, saved e useInfiniteScroll**.
-- apps/web/src/app/api/sounds/search/route.ts **já usa Freesound**. Investigar integração, validade da chave, paginação, filtragem de licenças e erros.
-- Há um alerta de revisão: verificar se **commercial_only** foi realmente repassado do query parsing ao backend e se a consulta jamais inclui material não comercial no filtro de uso comercial. Não assumir que o filtro atual é suficiente sem teste.
-- Diagnosticar scroll da ScrollArea e containers TabsContent/parent com pequeno viewport.
-
-### Critérios de aceitação
-
-- [ ] Scroll funciona com resultados e favoritos em desktop/mobile.
-- [ ] Busca, paginação e troca de abas preservam estado correto.
-- [ ] Cada arquivo mostra título, origem, licença e, quando necessário, atribuição.
-- [ ] Filtro “uso comercial” exclui licenças incompatíveis nos testes.
-- [ ] Upload de áudio próprio e inserção na timeline funcionam.
-- [ ] Novos catálogos entram somente após checagem documentada de API/licença.
-
-**Fonte para avaliar, não incorporar automaticamente:** https://freesound.org/
-
----
-
-## F07 — Links: YouTube, Twitch, Pinterest/GIF, arquivos externos e iframe (P2/P3)
+**Objetivo imediato:** carregar fotos, GIFs e vídeos diretamente de links permitidos; permitir prévia de **vídeos YouTube, Twitch e lives** dentro do editor. A aba é parte central do fluxo de edição, **não depende de F01**. Distinguir claramente `visualizável`, `importável` e `exportável`: embeds de players podem funcionar como prévia mas não podem ser presumidos exportáveis ou baixáveis.
 
 ### Nova aba **Links**
 
@@ -330,9 +267,9 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 ### Critérios de aceitação
 
 - [ ] Aba Links com input e detecção do tipo de URL.
-- [ ] Link direto de MP4 e GIF autorizado é importado e renderiza.
+- [ ] URLs diretas de **foto/imagem (PNG/JPEG/WebP), MP4 e GIF** autorizado são importadas para a timeline e renderizam.
 - [ ] GIF animado com loop, timing e transparência compatíveis.
-- [ ] YouTube e Twitch abrem embed oficial quando permitido e indicam status real de exportação.
+- [ ] **YouTube, vídeos/lives Twitch** abrem em embed oficial quando permitido; informar que visualização não significa que o vídeo possa ser exportado no MP4 sem asset e direitos válidos.
 - [ ] Link Pinterest não promete GIF caso o pin não exponha arquivo permitido.
 - [ ] Iframe retorna aviso quando o site bloqueia incorporação; render não produz vídeo vazio silenciosamente.
 - [ ] Falhas de URL, permissão, CORS, timeout e export mostram diagnóstico claro.
@@ -345,7 +282,128 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ---
 
-## F08 — Project Info > **Auto-converter formato** (P2 — recurso principal)
+## F05 — Stickers: apenas corrigir scroll (FASE 5)
+
+**Decisão:** não modificar categorias, catálogo, aparência, busca nem organização do painel Stickers. A única mudança solicitada é **corrigir a rolagem vertical**: ao ter muitos itens, a lista cresce, mas não permite rolar até o fim.
+
+### Investigação e correção restrita
+
+- Reproduzir bug com muitos stickers e viewport pequeno.
+- Corrigir altura e overflow do contêiner correto; inspecionar `min-h-0`, layout flex, barras de abas e sobreposição.
+- Permitir rolar por mouse, touchpad, toque e teclado; manter busca e categorias visíveis.
+- Não introduzir nova aba Stickers, bibliotecas extras, redesign, imagens ou filtros além do necessário para solucionar o bug.
+
+### Critérios de aceitação
+
+- [ ] Scroll chega do primeiro ao último sticker.
+- [ ] Abas, catálogo, busca, drag-and-drop e visual existentes permanecem iguais.
+- [ ] Sem regressão em telas menores.
+
+**Áreas iniciais:** `apps/web/src/stickers/components/assets-view.tsx` e ancestrais do layout.
+
+---
+
+## F09 — MCP externo via ngrok, controlado pela interface (FASE 6)
+
+**Ordem:** executar depois de F05 e antes de F01 e F08. A fase 6 reaproveita o cofre de credenciais de F03 e aplica permissões atuais sem esperar o sistema de bloqueio de camadas. Atualizar política de proteção quando F01 for implementada.
+
+### Objetivo e restrição obrigatória
+
+Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra rede) se conectem ao **MCP Streamable HTTP já existente** para ler o projeto e aplicar edições no editor aberto. **Não substituir o endpoint LAN, não criar ponte MCP de outro fornecedor e não usar Cloudflare, Tailscale ou outro túnel: o único provedor de túnel remoto nesta feature é o ngrok.** O túnel não significa, por si só, disponibilizar a interface web completa do editor em outra rede: isso seria outro escopo, com autenticação própria.
+
+### Localização e experiência de uso
+
+- Na aba existente **MCP**, inserir no topo um controle visível **Acesso pela rede / ngrok**. Preservar status atual do servidor, URL MCP LAN, bearer token e bloco de configuração copiável.
+- Apresentar **dois endereços distintos**, cada um com botão Copiar e com sua configuração MCP pronta:
+  1. **MCP local (LAN):** URL atual `http://IP_DA_REDE:3101/mcp`, sempre disponível enquanto o serviço local estiver ativo.
+  2. **MCP externo (ngrok):** `https://DOMINIO_REAL_GERADO_PELO_NGROK/mcp`, exibido **somente depois que o túnel estiver realmente ativo e testado**. Nunca inventar uma URL ou mostrar o endereço LAN como se fosse externo.
+- Botões **Iniciar túnel**, **Desligar túnel**, **Copiar URL externa**, **Copiar configuração MCP remota** e **Testar conexão**; estado visível: Desligado, Iniciando, Online, Desligando, Erro. Mostrar último erro e opção Tentar novamente.
+- Área recolhível **Configurar ngrok** dentro da própria aba: **Authtoken do agente** (necessário para abrir o túnel), **API Key ngrok** (somente quando for necessária para gerenciar recursos da conta; não exigir para o túnel simples), domínio reservado opcional **se a conta permitir**, Salvar / Testar credenciais / Trocar / Remover e indicação de limites/plano. Incluir links oficiais para obtenção de cada segredo.
+- Exibir o **caminho /mcp**, transporte **Streamable HTTP**, indicador de autenticação, origem do serviço e aviso de que o editor/sessão deve permanecer aberto para comandos interativos. O fluxo de cópia deve usar a URL efetivamente retornada pelo ngrok, sem adivinhar subdomínio.
+- Diferenciar explicitamente **acesso ao MCP por IA remota** de **acesso ao editor web por navegador**. O túnel padrão expõe apenas o MCP da porta 3101, **não** o frontend na porta 3100 nem endpoints n8n.
+
+### Implantação e comportamento do túnel
+
+- O backend administra o agente ngrok (SDK oficial ou processo gerenciado verificado na plataforma/contêiner), direcionando o tráfego HTTPS externo ao serviço MCP interno na **porta 3101**. No Docker Compose, resolver corretamente os endereços internos; no Windows, documentar a opção de execução e sua persistência.
+- O botão liga/desliga deve iniciar ou encerrar **efetivamente a sessão ngrok**, com idempotência, mutex/controle de processo e limpeza após falha. Desligar deve derrubar o acesso externo sem interromper o MCP LAN nem o editor.
+- Consultar o ngrok para recuperar **URL pública real e status atual**. Ao reiniciar o serviço, reconciliar o estado; não mostrar “Online” por haver processo vivo sem teste do encaminhamento. Reconexões não devem criar túneis duplicados.
+- Permitir definir se o túnel volta ativo após reiniciar (padrão **desligado**), persistindo somente a preferência; nunca ligar o túnel silenciosamente após reset/erro de autenticação.
+- Preservar transporte MCP Streamable HTTP, métodos, headers, requisições longas e streaming conforme comportamento do servidor. Verificar compatibilidade do cliente MCP remoto com autenticação por Bearer/custom headers; alguns clientes podem exigir transporte ou autenticação específica.
+- Configurações copiáveis para **LAN** e **Remoto** não devem conter segredos por padrão: oferecer ação separada e explícita **Copiar com token** com alerta de confidencialidade. Em caso de troca/revogação de token, as configurações copiáveis devem refletir a nova credencial apenas após autenticação.
+
+### Credenciais e segurança obrigatória
+
+- **Authtoken ngrok não é API Key ngrok.** O authtoken autentica o agente que cria o túnel; a API Key administra recursos via API. Campos independentes e opcionais conforme necessidade, nunca solicitar uma API Key para substituir indevidamente o authtoken.
+- Reutilizar o cofre de credenciais backend de F03, com escopo de administrador, masking, rotação, remoção, redaction de logs e sem retornar valores em GET. Não guardar chaves em localStorage, payload do projeto, bundles, logs, erros, MCP outputs ou GitHub.
+- **Pré-requisito de exposição pública:** bearer token MCP próprio, forte e rotacionável, desvinculado de `BETTER_AUTH_SECRET`. O Compose atual deriva `OPENCUT_AUTOMATION_TOKEN` de `BETTER_AUTH_SECRET`; separar esses valores antes de publicar o túnel. Não usar credencial administrativa genérica como chave pública.
+- Aplicar autenticação e autorização em **todas as ferramentas MCP e endpoints relevantes**, não apenas na interface. Impedir acesso anônimo, reforçar controles contra brute force, limitar taxa, validar Origin/Host quando pertinente e reduzir superfície de rede. Em caso de credencial ausente/segurança falha, **bloquear o botão Iniciar** com orientação para resolver.
+- Separar, quando viável, token de leitura de token com permissão de **editar/exportar** e oferecer revogar/rotacionar sessões. Alterações remotas continuam sujeitas a F01, validação de plano, confirmação de ação sensível e auditoria.
+- Exibir alerta ao ativar: **“O MCP ficará acessível pela internet para quem possuir as credenciais autorizadas.”** Não divulgar link e token juntos em prompts, vídeos, prints ou repositório.
+- Encerramento do túnel deve invalidar rota remota ativa; um domínio reservado pode permanecer reservado na conta, mas não deve estar encaminhando para a aplicação após desligar.
+- Tratar limites, disponibilidade e custos ngrok de acordo com a conta real; não pressupor domínio estático ou recursos pagos no plano gratuito.
+
+### Critérios de aceitação
+
+- [ ] Aba MCP exibe URL LAN e, após ativação bem-sucedida, URL pública ngrok HTTPS distinta, ambas com ações Copiar/Configuração.
+- [ ] Usuário configura **Authtoken** e, se realmente necessário, **API Key ngrok** diretamente na UI; segredos nunca retornam em leitura.
+- [ ] Botões Iniciar/Desligar executam operações reais, são idempotentes e exibem status/erros confiáveis.
+- [ ] MCP remoto autenticado lê a sessão e executa comandos permitidos, inclusive após atravessar o ngrok, sem alterar o comportamento LAN.
+- [ ] Sem token MCP dedicado ou com autenticação mal configurada, o túnel **não inicia**.
+- [ ] Desligar encerra o acesso externo mas preserva serviços/URLs LAN; reinício respeita a política de não reativação automática.
+- [ ] O frontend web, a API geral e os webhooks n8n **não** ficam expostos acidentalmente pelo túnel MCP.
+- [ ] MCP remoto, IA e ações globais exigem confirmação, autorização e logs sanitizados; respeitarão também F01 após a fase 7.
+- [ ] Testes de URL dinâmica/reservada, perda de conexão, troca de chaves, 401/403, vários cliques, reinício Docker/Windows e streaming MCP.
+- [ ] Guia PT-BR de configuração e revogação, com aviso de custos e segurança, acompanhado de teste real cliente externo.
+
+**Áreas iniciais:** componentes da aba MCP atualmente utilizada pelo editor (reidentificar no código antes de implementar), `apps/mcp/src/server.ts`, transporte HTTP do MCP, `docker-compose.yml`, serviços/backend de integrações e credenciais, `docs/lan-automation.md`.
+
+**Fontes primárias para implementação:**
+- https://ngrok.com/docs/start
+- https://ngrok.com/docs/gateway/endpoints/http
+- https://ngrok.com/docs/gateway/endpoints/agent-cli-quickstart
+
+---
+
+## F01 — Proteção de camada/clipe contra edição geral (FASE 7 — penúltima)
+
+**Regra:** implementar este recurso **somente após F02, F03, F04, F07, F05 e F09**. Não é dependência para nenhum deles. Ao adicionar bloqueio, integrar retroativamente com comandos de edição, IA, MCP e HyperFrames já existentes, preservando compatibilidade e Undo/Redo.
+
+### Experiência de uso
+
+- Na lateral de cada **layer/faixa** da timeline, adicionar botão com cadeado/escudo e tooltip **“Não afetar por edição geral”**.
+- Oferecer mesma ação no menu contextual do clipe ou seleção de clipes.
+- Estados claros: **Livre**, **Protegido contra edição geral** e **Proteção herdada da faixa**; ícone visível mesmo com painel compacto.
+- Quando protegido, o item deve permanecer **inalterado** diante de comandos globais: normalizar, Auto Cut, ajuste de proporção, efeitos em massa, IA, MCP, transições em massa, alinhamento automático, exclusões gerais etc.
+- A proteção de **faixa** tem precedência e protege todos os seus clipes; desmarcar clipe isolado não pode ultrapassar faixa protegida.
+- Edição manual explícita de item protegido deve solicitar **desbloqueio antes de alterar**; não remover proteção silenciosamente.
+- A opção “proteger seleção”, com indicador de quantidade, deve ficar disponível no menu de contexto.
+
+### Semântica obrigatória
+
+- Modelar proteção persistente no documento para faixa e elemento (ex.: globalEditProtected; nome final sujeito à modelagem).
+- Definir um serviço/predicado central de permissão para alterações com contexto: origem (manual/global/IA/MCP), alvos, tipo de comando e estado de proteção.
+- **Não basta desativar botões de UI:** validar novamente no command handler e na aplicação dos planos IA/MCP. Backend e render não devem ignorar os flags.
+- Antes de executar operações globais, criar snapshot dos alvos elegíveis e dos protegidos; exibir quantidade: “X elementos serão modificados; Y protegidos serão ignorados”.
+- Auto Cut exige atenção adicional: **não encurtar, mover, dividir ou desalinhar** elementos protegidos. Em cortes de silêncio que alteram a duração da timeline, não deslocar material protegido sem autorização. Se houver conflito estrutural, bloquear o corte específico, informar o motivo e permitir ajustar a seleção; não prometer que basta “pular” o clipe.
+- Em operações de resize de canvas, a cena/projeto pode mudar, mas posição, tamanho, keyframes e transform dos elementos protegidos devem permanecer matematicamente inalterados; avisar sobre possível perda de enquadramento.
+- Preservar status na duplicação, salvamento, importação/exportação do projeto, undo/redo e reconstrução do histórico.
+- Proteções não são DRM: servem para garantir comportamento do editor, não para impedir que o proprietário altere o arquivo de origem.
+
+### Critérios de aceitação
+
+- [ ] Botão visível por faixa e ação por clipe/seleção.
+- [ ] Uma faixa protegida permanece bit a bit igual em suas propriedades após ações gerais (exceto dados voláteis de UI).
+- [ ] Auto Cut não altera nem desloca mídia protegida e informa conflito.
+- [ ] Chamadas MCP e planos IA respeitam exatamente as mesmas regras.
+- [ ] A edição individual de item protegido exige desbloqueio.
+- [ ] Flag persiste após salvar, fechar e reabrir e passa por Undo/Redo corretamente.
+- [ ] Testes unitários da matriz de permissões e testes de integração com múltiplas faixas.
+
+**Áreas iniciais:** apps/web/src/commands/timeline, apps/web/src/timeline, apps/web/src/core/managers/timeline-manager.ts, apps/web/src/automation, apps/mcp/src/server.ts, modelos de projeto.
+
+---
+
+## F08 — Project Info > **Auto-converter formato** (FASE 8 — última entrega)
 
 ### UX
 
@@ -410,62 +468,11 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ---
 
-## F09 — MCP externo via ngrok, controlado pela interface (P1 — acesso remoto seguro)
+## F06 — Sounds (ADIADO: NÃO MODIFICAR AGORA)
 
-### Objetivo e restrição obrigatória
+**Decisão de 13/11/2026:** a aba Sounds fica **inteiramente fora deste ciclo de trabalho**. Não alterar pesquisa, rolagem, favoritos, layout, filtros, catálogo ou fontes. A expansão planejada anteriormente permanece apenas como ideia de backlog, **sem prioridade, implementação ou PR nesta etapa**.
 
-Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra rede) se conectem ao **MCP Streamable HTTP já existente** para ler o projeto e aplicar edições no editor aberto. **Não substituir o endpoint LAN, não criar ponte MCP de outro fornecedor e não usar Cloudflare, Tailscale ou outro túnel: o único provedor de túnel remoto nesta feature é o ngrok.** O túnel não significa, por si só, disponibilizar a interface web completa do editor em outra rede: isso seria outro escopo, com autenticação própria.
-
-### Localização e experiência de uso
-
-- Na aba existente **MCP**, inserir no topo um controle visível **Acesso pela rede / ngrok**. Preservar status atual do servidor, URL MCP LAN, bearer token e bloco de configuração copiável.
-- Apresentar **dois endereços distintos**, cada um com botão Copiar e com sua configuração MCP pronta:
-  1. **MCP local (LAN):** URL atual `http://IP_DA_REDE:3101/mcp`, sempre disponível enquanto o serviço local estiver ativo.
-  2. **MCP externo (ngrok):** `https://DOMINIO_REAL_GERADO_PELO_NGROK/mcp`, exibido **somente depois que o túnel estiver realmente ativo e testado**. Nunca inventar uma URL ou mostrar o endereço LAN como se fosse externo.
-- Botões **Iniciar túnel**, **Desligar túnel**, **Copiar URL externa**, **Copiar configuração MCP remota** e **Testar conexão**; estado visível: Desligado, Iniciando, Online, Desligando, Erro. Mostrar último erro e opção Tentar novamente.
-- Área recolhível **Configurar ngrok** dentro da própria aba: **Authtoken do agente** (necessário para abrir o túnel), **API Key ngrok** (somente quando for necessária para gerenciar recursos da conta; não exigir para o túnel simples), domínio reservado opcional **se a conta permitir**, Salvar / Testar credenciais / Trocar / Remover e indicação de limites/plano. Incluir links oficiais para obtenção de cada segredo.
-- Exibir o **caminho /mcp**, transporte **Streamable HTTP**, indicador de autenticação, origem do serviço e aviso de que o editor/sessão deve permanecer aberto para comandos interativos. O fluxo de cópia deve usar a URL efetivamente retornada pelo ngrok, sem adivinhar subdomínio.
-- Diferenciar explicitamente **acesso ao MCP por IA remota** de **acesso ao editor web por navegador**. O túnel padrão expõe apenas o MCP da porta 3101, **não** o frontend na porta 3100 nem endpoints n8n.
-
-### Implantação e comportamento do túnel
-
-- O backend administra o agente ngrok (SDK oficial ou processo gerenciado verificado na plataforma/contêiner), direcionando o tráfego HTTPS externo ao serviço MCP interno na **porta 3101**. No Docker Compose, resolver corretamente os endereços internos; no Windows, documentar a opção de execução e sua persistência.
-- O botão liga/desliga deve iniciar ou encerrar **efetivamente a sessão ngrok**, com idempotência, mutex/controle de processo e limpeza após falha. Desligar deve derrubar o acesso externo sem interromper o MCP LAN nem o editor.
-- Consultar o ngrok para recuperar **URL pública real e status atual**. Ao reiniciar o serviço, reconciliar o estado; não mostrar “Online” por haver processo vivo sem teste do encaminhamento. Reconexões não devem criar túneis duplicados.
-- Permitir definir se o túnel volta ativo após reiniciar (padrão **desligado**), persistindo somente a preferência; nunca ligar o túnel silenciosamente após reset/erro de autenticação.
-- Preservar transporte MCP Streamable HTTP, métodos, headers, requisições longas e streaming conforme comportamento do servidor. Verificar compatibilidade do cliente MCP remoto com autenticação por Bearer/custom headers; alguns clientes podem exigir transporte ou autenticação específica.
-- Configurações copiáveis para **LAN** e **Remoto** não devem conter segredos por padrão: oferecer ação separada e explícita **Copiar com token** com alerta de confidencialidade. Em caso de troca/revogação de token, as configurações copiáveis devem refletir a nova credencial apenas após autenticação.
-
-### Credenciais e segurança obrigatória
-
-- **Authtoken ngrok não é API Key ngrok.** O authtoken autentica o agente que cria o túnel; a API Key administra recursos via API. Campos independentes e opcionais conforme necessidade, nunca solicitar uma API Key para substituir indevidamente o authtoken.
-- Reutilizar o cofre de credenciais backend de F03, com escopo de administrador, masking, rotação, remoção, redaction de logs e sem retornar valores em GET. Não guardar chaves em localStorage, payload do projeto, bundles, logs, erros, MCP outputs ou GitHub.
-- **Pré-requisito de exposição pública:** bearer token MCP próprio, forte e rotacionável, desvinculado de `BETTER_AUTH_SECRET`. O Compose atual deriva `OPENCUT_AUTOMATION_TOKEN` de `BETTER_AUTH_SECRET`; separar esses valores antes de publicar o túnel. Não usar credencial administrativa genérica como chave pública.
-- Aplicar autenticação e autorização em **todas as ferramentas MCP e endpoints relevantes**, não apenas na interface. Impedir acesso anônimo, reforçar controles contra brute force, limitar taxa, validar Origin/Host quando pertinente e reduzir superfície de rede. Em caso de credencial ausente/segurança falha, **bloquear o botão Iniciar** com orientação para resolver.
-- Separar, quando viável, token de leitura de token com permissão de **editar/exportar** e oferecer revogar/rotacionar sessões. Alterações remotas continuam sujeitas a F01, validação de plano, confirmação de ação sensível e auditoria.
-- Exibir alerta ao ativar: **“O MCP ficará acessível pela internet para quem possuir as credenciais autorizadas.”** Não divulgar link e token juntos em prompts, vídeos, prints ou repositório.
-- Encerramento do túnel deve invalidar rota remota ativa; um domínio reservado pode permanecer reservado na conta, mas não deve estar encaminhando para a aplicação após desligar.
-- Tratar limites, disponibilidade e custos ngrok de acordo com a conta real; não pressupor domínio estático ou recursos pagos no plano gratuito.
-
-### Critérios de aceitação
-
-- [ ] Aba MCP exibe URL LAN e, após ativação bem-sucedida, URL pública ngrok HTTPS distinta, ambas com ações Copiar/Configuração.
-- [ ] Usuário configura **Authtoken** e, se realmente necessário, **API Key ngrok** diretamente na UI; segredos nunca retornam em leitura.
-- [ ] Botões Iniciar/Desligar executam operações reais, são idempotentes e exibem status/erros confiáveis.
-- [ ] MCP remoto autenticado lê a sessão e executa comandos permitidos, inclusive após atravessar o ngrok, sem alterar o comportamento LAN.
-- [ ] Sem token MCP dedicado ou com autenticação mal configurada, o túnel **não inicia**.
-- [ ] Desligar encerra o acesso externo mas preserva serviços/URLs LAN; reinício respeita a política de não reativação automática.
-- [ ] O frontend web, a API geral e os webhooks n8n **não** ficam expostos acidentalmente pelo túnel MCP.
-- [ ] MCP remoto, IA e ações globais obedecem proteções F01, confirmação, autorização e logs sanitizados.
-- [ ] Testes de URL dinâmica/reservada, perda de conexão, troca de chaves, 401/403, vários cliques, reinício Docker/Windows e streaming MCP.
-- [ ] Guia PT-BR de configuração e revogação, com aviso de custos e segurança, acompanhado de teste real cliente externo.
-
-**Áreas iniciais:** componentes da aba MCP atualmente utilizada pelo editor (reidentificar no código antes de implementar), `apps/mcp/src/server.ts`, transporte HTTP do MCP, `docker-compose.yml`, serviços/backend de integrações e credenciais, `docs/lan-automation.md`.
-
-**Fontes primárias para implementação:**
-- https://ngrok.com/docs/start
-- https://ngrok.com/docs/gateway/endpoints/http
-- https://ngrok.com/docs/gateway/endpoints/agent-cli-quickstart
+**Retomada:** somente após nova solicitação do proprietário. F06 não é pré-requisito de F02 (normalização) nem de F04 (HyperFrames).
 
 ---
 
@@ -475,12 +482,12 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 Definir **global-edit transaction** com:
 - idempotency key, job ID, versão do projeto e timestamp;
-- conjunto de faixas/clipes permitidos e protegidos calculado antes da operação;
+- conjunto de faixas/clipes explicitamente incluídos/excluídos antes da operação; na fase 7, acrescentar conjunto de elementos protegidos;
 - tipo de ação, parâmetros validados, prévia/diff e rollback;
 - ações atômicas para Undo/Redo (ou rollback explícito ao falhar);
-- validação em UI + command handler + servidor, aplicando política F01.
+- validação em UI + command handler + servidor para autorização e escopo desde a fase 1; integrar política de proteção F01 na fase 7.
 
-Criar comandos MCP **apenas após implementação estável**, por exemplo: normalize_audio, set_global_edit_protection, convert_aspect_ratio, import_link_asset, create_hyperframes_composition e route_ai_job. Estes nomes são **propostas**, não ferramentas já existentes.
+Criar comandos MCP assim que cada recurso estiver estável, sem aguardar F01 para áudio/IA/HyperFrames/Links. Comando ilustrativo de proteção apenas na fase 7 e conversão apenas na fase 8. Nomes exemplificativos (normalize_audio, set_global_edit_protection, convert_aspect_ratio, import_link_asset, create_hyperframes_composition, route_ai_job), **não ferramentas já existentes**.
 
 ### Render e assets
 
@@ -507,46 +514,34 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 
 ---
 
-## 10. Roadmap de implementação e dependências
+## 10. Roadmap de implementação e dependências — ORDEM OBRIGATÓRIA
 
-| Fase | Entregas | Dependências | Prioridade |
+**Esta tabela substitui as prioridades P0/P1/P2 antigas. F01 não é fundação; Sounds está congelado.**
+
+| Fase | ID | Entrega | Dependências obrigatórias |
 |---|---|---|---|
-| **0 — Fundação e testes** | Auditoria dos modelos de projeto, contratos de comandos, testes de preview/export, diagnóstico de scroll | Base atual | P0 |
-| **1 — Proteções** | F01 por layer/clipe, políticas para comandos, Undo/Redo e MCP | Fase 0 | P0 |
-| **2 — UX e áudio** | F05 Stickers, F06 scroll/pesquisa/licenças, F02 normalizador LUFS | F01 para normalizador | P1 |
-| **3 — IA roteada** | F03 provedores, Settings IA, checkpoints e fallback real | F01 + infraestrutura de jobs | P1 |
-| **3A — MCP remoto** | F09 controles ngrok na aba MCP, cofre/segredos, token MCP separado, túnel seguro e testes externos | MCP LAN atual + armazenamento seguro + auditoria de autenticação | P1 |
-| **4 — Geometria inteligente** | F08 modal e conversão geométrica, depois visão/tracking IA | F01 e F03 para modo IA | P2 |
-| **5 — HyperFrames** | F04 painel, composição, clipe, render server e IA | F01 + pipeline de assets + F03 opcional para geração | P2 |
-| **6 — Links e embeds** | F07 URLs diretas/GIF, previews oficiais e iframe com diagnósticos | Pipeline de assets + render isolado | P2/P3 |
-| **7 — Polimento** | Performance, regressão, mobile, docs, observabilidade, licenças | Todas anteriores | P2 |
+| **1** | F02 | Normalização LUFS uniforme de clipes, faixas e mix; preview A/B e exportação | Áudio/render existentes; **sem F01** |
+| **2** | F03 | NVIDIA preferencial, OpenAI, Claude, DeepSeek, Ollama; tokens, fallback, checkpoints e adaptador JS/Node personalizado | Backend de credenciais/roteador; **sem F01** |
+| **3** | F04 | HyperFrames com IA, clipes e áudio sincronizado, composição horizontal/vertical, render real | F03 para IA; pipeline de composição; **sem F01** |
+| **4** | F07 | Links para imagens, GIFs, vídeos e prévia YouTube/Twitch/lives | URLs/autorização/assets; **sem F01** |
+| **5** | F05 | Somente bug de rolagem dos Stickers; não alterar aparência/catálogo | Painel atual; **sem F01** |
+| **6** | F09 | MCP via ngrok, URLs LAN/remota e controles de acesso na UI | MCP atual e credenciais F03; **sem F01** |
+| **7 (penúltima)** | F01 | Proteção persistente de camadas/clipes, aplicada aos recursos anteriores | Áudio, IA, HyperFrames, Links, MCP já prontos |
+| **8 (última)** | F08 | Conversão inteligente com geometria, IA, tracking e proteção | F01 + F03 |
+| **Adiado** | F06 | Sounds: não alterar nada neste ciclo | Nenhuma |
 
-**Ordem de valor rápido:** primeiro corrigir scroll/categorias, implantar proteção e normalização; depois roteador IA; em seguida conversão inteligente; por fim HyperFrames e importação externa complexa. Dependências permitem entregar UX em paralelo à fundação.
+### Lotes de trabalho sugeridos, na mesma ordem
 
-### Subtarefas sugeridas para PRs pequenos
+1. **F02:** medidor LUFS e true peak, operação global/por clipe, seleção manual, preview, ajustes reversíveis e export.
+2. **F03:** Settings IA, NVIDIA preferencial, OpenAI/Claude/DeepSeek/Ollama, adaptação simples JS/Node no backend, tokens na interface, testes e fallback seguro.
+3. **F04:** confirmar/reaproveitar base HyperFrames, geração por IA, clipe na timeline, uso da trilha de áudio para animações, formatos 16:9/9:16 e render sincronizado.
+4. **F07:** aba Links, importação permitida de imagens/GIFs/vídeos e previews YouTube/Twitch/lives, com status real de exportação.
+5. **F05:** corrigir apenas o scroll dos Stickers e executar testes de não regressão.
+6. **F09:** gestão ngrok, segurança, token MCP dedicado, URL LAN/remota e controles de iniciar/desligar.
+7. **F01:** proteção de faixa/clipe e integração retroativa ao que já funciona; testes de comandos, IA e MCP.
+8. **F08:** auto-conversão por regras geométricas, depois IA/tracking e suavização, com preview/export consistente.
 
-- **PR-01:** testes de regressão e auditoria do modelo de projeto.
-- **PR-02:** proteção persistida + ícones/toggles de faixa/clipe.
-- **PR-03:** enforcement F01 em todos os comandos globais/Auto Cut/MCP.
-- **PR-04:** Stickers category + scroll/catálogo.
-- **PR-05:** Sounds scroll + revisão de licenças/filtro e busca.
-- **PR-06:** análise LUFS e preview de aplicação.
-- **PR-07:** efeitos não destrutivos de normalização e integração com render.
-- **PR-08:** Settings > IA + armazenamento seguro e modelos de capability.
-- **PR-09:** adaptadores e teste de NVIDIA/OpenAI/Anthropic/DeepSeek/Ollama.
-- **PR-10:** jobs/checkpoints/fallback e testes de injeção de falhas.
-- **PR-11:** Auto-converter geométrico com preview/diff e Undo.
-- **PR-12:** reframing de vídeo e IA por keyframes suavizados.
-- **PR-13:** HyperFrames studio/player/producer em ambiente isolado.
-- **PR-14:** clipe HyperFrames na timeline e export real.
-- **PR-15:** Links: importação de arquivos diretos/GIF permitidos.
-- **PR-16:** YouTube/Twitch/Pinterest embeds e status de exportabilidade.
-- **PR-17:** Web/iframe com sandbox/captura autorizada e testes anti-SSRF.
-- **PR-18:** documentação de operação, compatibilidade e checklist release.
-- **PR-19:** F09 auditoria de autenticação MCP e token dedicado separado de BETTER_AUTH_SECRET.
-- **PR-20:** F09 gestão segura do ngrok no backend, status, liga/desliga e testes de rede.
-- **PR-21:** F09 interface MCP com duas URLs, Authtoken/API Key, cópia segura e documentação.
-- **PR-22:** F03/F04 atalho de configuração da IA no HyperFrames, testes de credenciais e fallback NVIDIA -> OpenAI -> Claude -> Ollama.
+**F06 Sounds: NÃO criar tarefas, PRs ou dependências neste ciclo.** Adiar até uma instrução posterior explícita.
 
 ---
 
@@ -556,7 +551,7 @@ Um recurso só é considerado **concluído** quando:
 
 1. Há testes unitários dos modelos, restrições e transformações.
 2. Há testes de integração que percorrem UI -> estado do projeto -> ação -> preview -> render final.
-3. Proteção F01 foi verificada contra ação manual, global, IA, MCP, Auto Cut e conversão de formato quando aplicável.
+3. Nas fases 1–6, validar escopo manual, autorização e reversibilidade **sem exigir F01**. Na fase 7 em diante, verificar também proteção F01 nas edições globais, IA, MCP, Auto Cut e conversão.
 4. Persistência após save/reload, histórico Undo/Redo e projetos antigos foram verificados.
 5. Há testes com timeline complexa, mídias ausentes, áudios em múltiplas faixas e dimensões diferentes.
 6. Há testes de performance e memória com dezenas/centenas de clips e centenas/milhares de stickers/sounds no catálogo; limites definidos na fase 0.
@@ -565,15 +560,15 @@ Um recurso só é considerado **concluído** quando:
 9. Existe documentação de uso em PT-BR, migração de projeto e configuração Docker/LAN.
 10. Passam lint, typecheck, testes automatizados e build compatíveis com o projeto; nenhuma regressão nos fluxos atuais de n8n/Ollama/MCP.
 
-### Cenários de teste prioritários
+### Cenários de teste (executar por fase; os testes F01 só passam a ser exigidos na fase 7)
 
-- 3 faixas de áudio, uma protegida, com normalization em massa; conferir LUFS e integridade da faixa protegida.
+- **Fase 1:** 3 faixas de áudio com loudness desigual e clipes excluídos manualmente; conferir LUFS/true peak e integridade da exclusão. **Após fase 7**, repetir com uma faixa protegida.
 - Auto Cut remove silêncio ao lado de faixa protegida: deve preservar sincronização ou bloquear trecho conflitante.
 - Roteamento IA: modelo A responde 429 na etapa 3; modelo B recebe checkpoint 2, conclui só a etapa 3 sem repetir alterações.
-- 1.000 stickers: buscar item distante e chegar ao fim por scroll sem encobrir abas.
-- Sounds: buscas longas com filtro de licença comercial, paginação, favoritos e scroll.
+- **Fase 5:** 1.000 stickers: chegar ao fim por scroll sem encobrir abas e sem alterar layout/catálogo.
+- **Sounds adiado:** não executar alterações de pesquisa, filtros, scroll ou catálogo neste ciclo.
 - Converter gameplay 16:9 para short 9:16 com webcam, legenda e overlay protegido; verificar centro de interesse e não sobreposição.
-- HyperFrames HTML animado em clip sobreposto; comparação visual de frames selecionados entre preview e render.
+- **Fase 3:** HyperFrames HTML animado sincronizado ao áudio, em 16:9 e 9:16, comparando quadros da prévia/exportação e sincronismo A/V.
 - Sem NVIDIA disponível, HyperFrames exibe a falha, retoma do checkpoint validado via OpenAI, depois Claude e somente por último Ollama compatível; todas as chaves são cadastradas pela UI.
 - MCP remoto: entrar com token próprio por URL ngrok, executar leitura/edição autorizada, desligar túnel e confirmar inacessibilidade externa sem interromper a LAN.
 - GIF local animado com transparência; iframe de site bloqueador deve mostrar erro claro.
@@ -585,7 +580,7 @@ Um recurso só é considerado **concluído** quando:
 
 Essas decisões **não impedem o planejamento**, mas precisam ser documentadas em PR/ADR antes do código correspondente:
 
-- A proteção do clipe prevalece sobre desbloqueio de faixa? **Padrão proposto:** faixas protegidas prevalecem e ações manuais exigem desbloqueio.
+- **Decisão somente para fase 7:** a proteção do clipe prevalece sobre desbloqueio de faixa? **Padrão proposto:** faixas protegidas prevalecem e ações manuais exigem desbloqueio.
 - O normalizador atua na faixa individual ou no mix completo? **Padrão proposto:** usuário escolhe; preview e metering deixam o escopo explícito.
 - Quais modelos NVIDIA e provedores suportam os recursos visuais realmente necessários? **Validar capabilities, preço e quota antes de listar como disponíveis.**
 - O HTML HyperFrames será guardado como fonte por projeto ou asset versionado? **Preferir fonte versionada + render cacheado.**
@@ -629,6 +624,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-13:** **reorganização de planejamento conforme proprietário:** F02 > F03 > F04 > F07 > F05 > F09 > F01 > F08; F06 (Sounds) adiado. F01 não bloqueia as primeiras seis fases. F03 ganhou IA personalizada em JavaScript/Node.js e preferência NVIDIA; F04 ganhou áudio sincronizado e 16:9/9:16; F05 limitado a scroll; F07 priorizado para mídias e links. **Somente documentação: nenhum código de funcionalidade alterado.**
 - **2026-11-12:** adicionado **F09** (MCP externo por **ngrok exclusivamente**, com ativação/desativação pela aba MCP, URLs LAN/remota, gestão de Authtoken/API Key, segurança e testes); detalhados F03/F04 para configuração de IA por interface e fallback de HyperFrames NVIDIA -> OpenAI -> Claude -> Ollama. **Somente documentação; código não alterado.**
 - **2026-11-10:** criada primeira especificação consolidada a partir dos requisitos do proprietário e inspeção dos arquivos da branch main. **Somente documentação planejada; nenhum recurso implementado, instalação iniciada ou teste executado nesta etapa.**
 - Os próximos PRs devem atualizar este arquivo com status de cada Fxx: Planejado / Em andamento / Testado / Concluído / Bloqueado, link para PR/commit, data e evidência de teste.
