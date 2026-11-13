@@ -143,7 +143,7 @@ Princípios obrigatórios:
 - Distinguir falhas **retriáveis** (timeout/5xx/429, com backoff e respeito ao Retry-After) de falhas **não retriáveis** (sem permissão, parâmetros inválidos, custo bloqueado); circuit breaker e cooldown.
 - Persistir **jobs estruturados**, checkpoints e eventos: job ID, snapshot/revisão do projeto, etapa executada, entrada saneada, saída validada, ações já confirmadas e ações pendentes.
 - **Fallback não “continua magicamente” uma geração interrompida.** A transferência acontece no último checkpoint validado; o novo modelo recebe um resumo de estado, dados necessários e o contrato de saída. Respostas parciais inválidas são descartadas.
-- JSON/schema de plano com validação estrita, operação idempotente quando aplicável, limite de tentativas, prevenção de duplicidade, revalidação F01 e aprovação antes de mutação da timeline.
+- JSON/schema de plano com validação estrita, operação idempotente quando aplicável, limite de tentativas, prevenção de duplicidade e aprovação antes de mutação da timeline; **revalidar F01 quando a proteção existir (fase 7)**.
 - Concorrência: fila por projeto, lock de versão/revisão otimista, interrupção/cancelamento, persistência após reload; não deixar duas IAs editarem o mesmo projeto simultaneamente sem isolamento.
 - Verificar privacidade: arquivos de mídia NÃO devem ser enviados à nuvem por padrão; solicitar opt-in por tipo de mídia.
 - Observabilidade sem vazamento: métricas de latência, quantidade de tokens/custo quando fornecidos, motivo do fallback e logs redigidos.
@@ -182,7 +182,7 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 2. Escolher duração, resolução, FPS, fundo transparente quando disponível e **orientação horizontal/vertical** com presets **16:9 e 9:16** mais formato personalizado.
 3. Editar/visualizar propriedades e templates: títulos, lower thirds, anúncios, stickers animados, contadores, banners, composição de GIF/HTML, overlays para vídeo.
 4. Pré-visualizar com controles Play/Pause/Seek e inserir a composição como um **clipe temporizado na timeline** do Editor.
-5. Movimentar, cortar duração, organizar sobre outras faixas, pré-compor, alterar escala e parâmetros; respeitar F01.
+5. Movimentar, cortar duração, organizar sobre outras faixas, pré-compor, alterar escala e parâmetros; **após a fase 7**, respeitar também F01.
 6. **Usar a camada de áudio da timeline para criar e sincronizar animações**: leitura de waveform/energia, batidas e marcações temporais; opcionalmente fala/transcrição com consentimento, para orientar a geração de elementos por IA.
 7. **Exportar vídeo e áudio sincronizados**, incluindo o som da timeline e eventual áudio próprio da composição sem duplicação, com alinhamento de início/fim, FPS e offset.
 8. Garantir reprodução e exportação em **horizontal (16:9) e vertical (9:16)** com o mesmo enquadramento visto no preview.
@@ -194,7 +194,7 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 - Dentro da seção **HyperFrames**, imediatamente abaixo dos controles de **Gerar com IA**, incluir painel compacto **IA conectada** com seletor de provedor/modelo, estado **Conectado / Não configurado / Indisponível**, botão **Configurar API** e **Testar conexão**.
 - No primeiro uso, permitir cadastrar o segredo diretamente em um modal dessa seção, reutilizando o armazenamento e as validações de **F03**. Nunca obrigar o usuário a abrir `.env`, Docker ou código-fonte para adicionar uma chave.
 - Permitir escolher entre **Automático (NVIDIA -> OpenAI -> Claude -> Ollama como fallback final)** e **Manual**, com mensagens claras para falha/limites/quotas, aprovação de custos e compatibilidade de modelo com geração de composição.
-- Geração de HTML/CSS/JS e planos de alteração passam por backend F03, sanitização, prévia, aprovação e proteções F01; **a chave jamais deve ser interpolada no HTML/JS gerado**.
+- Geração de HTML/CSS/JS e planos de alteração passam por backend F03, sanitização, prévia e aprovação; **na fase 7**, integrar também as proteções F01. **A chave jamais deve ser interpolada no HTML/JS gerado**.
 
 ### Integração técnica proposta
 
@@ -337,7 +337,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 - Reutilizar o cofre de credenciais backend de F03, com escopo de administrador, masking, rotação, remoção, redaction de logs e sem retornar valores em GET. Não guardar chaves em localStorage, payload do projeto, bundles, logs, erros, MCP outputs ou GitHub.
 - **Pré-requisito de exposição pública:** bearer token MCP próprio, forte e rotacionável, desvinculado de `BETTER_AUTH_SECRET`. O Compose atual deriva `OPENCUT_AUTOMATION_TOKEN` de `BETTER_AUTH_SECRET`; separar esses valores antes de publicar o túnel. Não usar credencial administrativa genérica como chave pública.
 - Aplicar autenticação e autorização em **todas as ferramentas MCP e endpoints relevantes**, não apenas na interface. Impedir acesso anônimo, reforçar controles contra brute force, limitar taxa, validar Origin/Host quando pertinente e reduzir superfície de rede. Em caso de credencial ausente/segurança falha, **bloquear o botão Iniciar** com orientação para resolver.
-- Separar, quando viável, token de leitura de token com permissão de **editar/exportar** e oferecer revogar/rotacionar sessões. Alterações remotas continuam sujeitas a F01, validação de plano, confirmação de ação sensível e auditoria.
+- Separar, quando viável, token de leitura de token com permissão de **editar/exportar** e oferecer revogar/rotacionar sessões. Alterações remotas exigem validação de plano, confirmação de ações sensíveis e auditoria; **após a fase 7**, passam a respeitar também F01.
 - Exibir alerta ao ativar: **“O MCP ficará acessível pela internet para quem possuir as credenciais autorizadas.”** Não divulgar link e token juntos em prompts, vídeos, prints ou repositório.
 - Encerramento do túnel deve invalidar rota remota ativa; um domínio reservado pode permanecer reservado na conta, mas não deve estar encaminhando para a aplicação após desligar.
 - Tratar limites, disponibilidade e custos ngrok de acordo com a conta real; não pressupor domínio estático ou recursos pagos no plano gratuito.
@@ -554,7 +554,7 @@ Um recurso só é considerado **concluído** quando:
 3. Nas fases 1–6, validar escopo manual, autorização e reversibilidade **sem exigir F01**. Na fase 7 em diante, verificar também proteção F01 nas edições globais, IA, MCP, Auto Cut e conversão.
 4. Persistência após save/reload, histórico Undo/Redo e projetos antigos foram verificados.
 5. Há testes com timeline complexa, mídias ausentes, áudios em múltiplas faixas e dimensões diferentes.
-6. Há testes de performance e memória com dezenas/centenas de clips e centenas/milhares de stickers/sounds no catálogo; limites definidos na fase 0.
+6. Há testes de performance/memória dos recursos efetivamente modificados; testar stickers na fase 5, **sem exigir testes de expansão de Sounds** (adiado). Definir limites ao iniciar cada fase.
 7. A exportação final não ignora silenciosamente nenhum elemento; se um embed não for exportável, erro pré-exportação é explícito.
 8. Segurança do render, das URLs e dos tokens está coberta; falhas não deixam servidor/container acessível externamente.
 9. Existe documentação de uso em PT-BR, migração de projeto e configuração Docker/LAN.
