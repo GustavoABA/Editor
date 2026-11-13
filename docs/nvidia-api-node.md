@@ -4,6 +4,12 @@
 >
 > A integração gráfica prevista em `features.md` (F03) deve deixar o usuário selecionar os três modelos, cadastrar **uma NVIDIA API key**, editar o prompt e copiar o código Node gerado sem expor a chave.
 
+## Importante: este gerador é DIFERENTE do executor personalizado
+
+Este arquivo descreve o modo **Gerar código** dos presets NVIDIA. O usuário também exige uma opção separada **Personalizada — Código Node.js completo**, em que pode colar seu próprio arquivo com `import axios from 'axios'`, funções, payload e tratamento de erros, e clicar **EXECUTAR** para rodá-lo num runner Node isolado. A funcionalidade **não pode se limitar a gerar ou copiar snippets**.
+
+**Plano detalhado do editor de código executável:** [Executor Node.js personalizado](custom-node-api-runner.md).
+
 ## Modelos previstos
 
 | Seleção na UI | `model` | Observação de disponibilidade |
