@@ -1,7 +1,7 @@
 # FEATURES.md — Roadmap priorizado do Editor (OpenCut Classic / ORUME)
 
 > **Estado:** planejamento técnico; as funcionalidades novas listadas aqui não são implementadas apenas por atualizar este documento.
-> **Ordem aprovada em 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. Sounds (F06) está adiado.
+> **Ordem aprovada em 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. **F10 (continuar projeto PC ↔ celular)** entra somente depois dessas oito fases como evolução futura de baixa prioridade. Sounds (F06) continua adiado.
 > **A numeração Fxx identifica funcionalidades; NÃO indica prioridade.** A seção 10 é a referência obrigatória de fases e dependências.
 >
 > **Criado em:** 2026-11-10
@@ -23,13 +23,14 @@
 | **5** | **F05** | **Corrigir apenas o scroll dos Stickers**; manter visual, categorias, pesquisa e catálogo atuais |
 | **6** | **F09** | MCP externo **exclusivamente via ngrok**, ativação na UI, URLs LAN/remota, autenticação |
 | **7 — penúltima** | **F01** | Proteção de camada/clipe e integração com as funções já implementadas |
-| **8 — última** | **F08** | Conversão inteligente de proporção/reposicionamento |
+| **8 — última do ciclo prioritário** | **F08** | Conversão inteligente de proporção/reposicionamento |
+| **9 — futuro, sem antecipar** | **F10** | **Salvar projeto no servidor sem renderizar e continuar edição no celular**, via Ctrl+S no PC, salvamento completo de timeline e mídias originais, reabertura autenticada em outro dispositivo | 
 | **Adiado, sem fase** | **F06** | **Sounds: não mexer agora**, sem ajustes ou expansão até nova decisão |
 
-**Regra de dependências:** F01 **não é pré-requisito** para F02, F03, F04, F07, F05 ou F09. Até a fase 7, usar seleção de escopo, autorização, prévia, confirmação e Undo/Redo; após implementar F01, adaptar essas funções ao bloqueio. Não adiantar F08 nem F06 para antecipar melhorias opcionais.
+**Regra de dependências:** F01 **não é pré-requisito** para F02, F03, F04, F07, F05 ou F09. Até a fase 7, usar seleção de escopo, autorização, prévia, confirmação e Undo/Redo; após implementar F01, adaptar essas funções ao bloqueio. Não adiantar F08 nem F06 para antecipar melhorias opcionais. **F10 é fase futura, subordinada à conclusão das oito prioridades atuais; não bloqueia nenhuma delas.**
 
 
-Transformar o Editor em um ambiente de edição de vídeo com **operações globais seguras**, automações por IA, animações HTML/HyperFrames, importação de mídias autorizadas, bibliotecas navegáveis e adaptação inteligente de formatos para vídeos horizontais e verticais.
+Transformar o Editor em um ambiente de edição de vídeo com **operações globais seguras**, automações por IA, animações HTML/HyperFrames, importação de mídias autorizadas, bibliotecas navegáveis e adaptação inteligente de formatos para vídeos horizontais e verticais. **Futuramente (F10)**, oferecer continuidade do mesmo projeto editável entre PC e celular com armazenamento no servidor e sem render antecipado.
 
 Princípios obrigatórios:
 
@@ -493,7 +494,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ---
 
-## F01 — Proteção de camada/clipe contra edição geral (FASE 7 — penúltima)
+## F01 — Proteção de camada/clipe contra edição geral (FASE 7 — penúltima do ciclo prioritário)
 
 **Regra:** implementar este recurso **somente após F02, F03, F04, F07, F05 e F09**. Não é dependência para nenhum deles. Ao adicionar bloqueio, integrar retroativamente com comandos de edição, IA, MCP e HyperFrames já existentes, preservando compatibilidade e Undo/Redo.
 
@@ -532,7 +533,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ---
 
-## F08 — Project Info > **Auto-converter formato** (FASE 8 — última entrega)
+## F08 — Project Info > **Auto-converter formato** (FASE 8 — última entrega do ciclo prioritário)
 
 ### UX
 
@@ -597,6 +598,45 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ---
 
+## F10 — Salvar e continuar projetos entre PC e celular (FASE 9 — FUTURO, baixa prioridade)
+
+> **Decisão do proprietário (13/11/2026):** implementar **somente depois de F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08**, sem alterar a ordem delas. F10 não é pré-requisito para outras melhorias. **F06 Sounds permanece adiado.**
+>
+> **Objetivo:** iniciar a edição no computador, pressionar **Ctrl+S** e salvar no **servidor o projeto ainda editável com todas as mídias necessárias**, sem gerar um MP4 final. Mais tarde, abrir pelo navegador do celular, continuar a **editar de verdade** e concluir o trabalho no celular ou voltar ao PC.
+
+### Experiência de uso esperada
+
+1. **No PC**, abrir um projeto existente e pressionar **Ctrl+S** (no Mac, **Cmd+S**); também oferecer botão visível **Salvar projeto no servidor**. Exibir `Alterações não salvas`, `Enviando mídias (X/Y)`, `Salvo e sincronizado` ou `Falha/pendente`. Capturar o atalho somente quando o editor está ativo, sem quebrar atalhos de outros campos.
+2. O comando salva uma **versão não destrutiva da edição**: timeline com cortes, trims, faixas, posicionamento, efeitos, transições, keyframes, legendas, áudio, parâmetros de normalização, composições/HTML/arquivos HyperFrames e referências a assets. **Guardar também os arquivos de origem** (vídeo, áudio, imagens, GIFs e outros assets exportáveis) que ainda só existam no PC, **no armazenamento do servidor**. Não basta salvar paths como `C:\\...`, `blob:` ou `file:`; o celular não pode acessá-los.
+3. Fazer **upload resumível por partes**, verificação de integridade/hash, deduplicação quando possível, limite/quota configurável e controle de espaço. O projeto só recebe status **Sincronizado** após confirmar **metadados e todas as mídias indispensáveis**; antes disso, permitir reenvio sem perder o trabalho e mostrar quais arquivos faltam. Não renderizar/achatá-lo para sincronizar.
+4. **No celular**, acessar a versão web responsiva do Editor no mesmo servidor, fazer login, abrir a lista **Meus projetos** e escolher **Continuar edição**. Restaurar clipes e seus tempos, fontes, overlays, efeitos, HyperFrames e áudio com as mesmas posições/ajustes; oferecer preview e interação touch com timeline (selecionar, mover, cortar, ajustar, salvar). **Não entregar um player somente leitura.**
+5. Botão **Salvar** acessível no celular (sem exigir teclado); mudanças persistem no mesmo projeto do servidor, para poder retornar ao PC. Autosave opcional/rascunhos ou checkpoints de recuperação são desejáveis; Ctrl+S/save manual continua obrigatório.
+6. Separar **Salvar projeto** de **Exportar/renderizar vídeo**: salvar nunca deve exigir MP4 final, apenas armazenar estado editável e assets; exportar acontece por pedido do usuário e pode ser feito pelo serviço de render do servidor quando disponível.
+7. Permitir armazenamento self-hosted persistente (volume/objeto) e configuração de capacidade, limpeza de órfãos, backup e restauração. Proxies de baixa resolução/miniaturas/ondas de áudio no celular **podem** otimizar preview, mas **originais permanecem no servidor** para edição/exportação de qualidade.
+8. O acesso do celular pela **mesma LAN** pode usar URL privada protegida. Em outra rede, exigir rota HTTPS autenticada e explicitamente configurada para **frontend + mídia**. **Não confundir o túnel ngrok da F09, que expõe apenas MCP, com acesso web/mobile.** Não abrir portas publicamente sem autenticação/autorização, proteção de upload e TLS.
+9. Se PC e celular abrirem o mesmo projeto simultaneamente, implementar **revisões/versionamento**, lock por projeto ou detecção explícita de conflitos e escolha de versão; não sobrescrever mudanças silenciosamente. Registrar último salvamento, dispositivo e erros de sincronização.
+10. Mídias externas de URLs/embeds (F07): salvar o asset completo **somente quando o usuário tiver acesso e permissão de obtenção**; caso contrário guardar referência e explicar que visualização, disponibilidade offline e exportação podem ser limitadas. Nunca prometer download universal de YouTube/Twitch.
+11. Preservar a proposta de privacidade do Editor: **armazenamento central no servidor escolhido pelo proprietário, não envio automático a serviços de terceiros**; ativar sincronização explicitamente, esclarecer consumo de disco/banda, autenticar por usuário/projeto e **não colocar tokens de IA, chaves da NVIDIA/ngrok ou segredos no projeto sincronizado**.
+12. Diferenciar o que já existe do que será desenvolvido: a branch atual possui componentes de projeto, mas **não foi comprovado um fluxo completo de persistência remota de todos os originais com edição mobile**; realizar auditoria antes do primeiro PR de F10. Não declarar F10 implementado por existência de `Save` local.
+
+### Critérios de aceitação de F10
+
+- [ ] Um projeto com **vídeo original + música + GIF + textos/legendas + cortes + HyperFrames** salva com Ctrl+S no PC, incluindo todos os assets indispensáveis, sem renderização.
+- [ ] Status `Salvo e sincronizado` só aparece após confirmar upload e integridade dos originais; teste com vídeo grande, interrupção de rede e retomada.
+- [ ] Celular abre o projeto com os mesmos cortes, tempos, faixas e efeitos e pode **editar** (não apenas assistir), salvar e retomar o mesmo projeto no PC.
+- [ ] Preview/proxy mobile não reduz qualidade dos originais usados na renderização.
+- [ ] Projeto, assets e histórico continuam presentes após reiniciar browser/PC/servidor, com volumes persistentes e política de backup.
+- [ ] Outro dispositivo não depende de `file:`/`blob:`/caminho local do PC para carregar mídias.
+- [ ] Duas sessões concorrentes não causam perda silenciosa de alterações.
+- [ ] Acesso LAN/externo exige autenticação; a rota do MCP F09 não é reutilizada como acesso web sem configuração independente.
+- [ ] Funciona com interface touch no celular para operações fundamentais de edição e sem upload involuntário a nuvem pública.
+- [ ] Nenhuma chave de API ou segredo fica exposto no projeto salvo, mídias ou logs.
+
+**Plano detalhado:** [docs/cross-device-project-sync.md](docs/cross-device-project-sync.md).
+**Áreas para auditoria inicial:** persistência/modelos de projeto em `apps/web/src/project`, gerenciamento de timeline e assets em `apps/web/src`, armazenamento Docker/volumes, autenticação em `apps/web/src/app/api/auth`, render server e UI responsiva. **Caminhos indicativos; confirmar componentes reais antes de codificar.**
+
+---
+
 ## F06 — Sounds (ADIADO: NÃO MODIFICAR AGORA)
 
 **Decisão de 13/11/2026:** a aba Sounds fica **inteiramente fora deste ciclo de trabalho**. Não alterar pesquisa, rolagem, favoritos, layout, filtros, catálogo ou fontes. A expansão planejada anteriormente permanece apenas como ideia de backlog, **sem prioridade, implementação ou PR nesta etapa**.
@@ -656,7 +696,8 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 | **5** | F05 | Somente bug de rolagem dos Stickers; não alterar aparência/catálogo | Painel atual; **sem F01** |
 | **6** | F09 | MCP via ngrok, URLs LAN/remota e controles de acesso na UI | MCP atual e credenciais F03; **sem F01** |
 | **7 (penúltima)** | F01 | Proteção persistente de camadas/clipes, aplicada aos recursos anteriores | Áudio, IA, HyperFrames, Links, MCP já prontos |
-| **8 (última)** | F08 | Conversão inteligente com geometria, IA, tracking e proteção | F01 + F03 |
+| **8 (última do ciclo prioritário)** | F08 | Conversão inteligente com geometria, IA, tracking e proteção | F01 + F03 |
+| **9 (futuro, baixa prioridade)** | F10 | **Ctrl+S salva projeto editável + mídias originais no servidor; reabrir/editar pelo celular e continuar no PC, sem renderizar** | Auditoria de persistência, armazenamento de originais, login, UI mobile, sincronização/concorrência. **Só depois das fases 1–8** |
 | **Adiado** | F06 | Sounds: não alterar nada neste ciclo | Nenhuma |
 
 ### Lotes de trabalho sugeridos, na mesma ordem
@@ -669,8 +710,9 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 6. **F09:** gestão ngrok, segurança, token MCP dedicado, URL LAN/remota e controles de iniciar/desligar.
 7. **F01:** proteção de faixa/clipe e integração retroativa ao que já funciona; testes de comandos, IA e MCP.
 8. **F08:** auto-conversão por regras geométricas, depois IA/tracking e suavização, com preview/export consistente.
+9. **F10 (somente depois):** auditoria de projetos/mídias atuais; Ctrl+S + snapshot no servidor; upload persistente, retomável e verificável de todos os originais; autenticação/Meus projetos; mobile editor touch; salvar/retomar no PC; testes de interrupção, concorrência e acesso remoto seguro.
 
-**F06 Sounds: NÃO criar tarefas, PRs ou dependências neste ciclo.** Adiar até uma instrução posterior explícita.
+**F10 é backlog futuro após o ciclo prioritário**, sem implementações antecipadas nem bloqueios das fases anteriores. **F06 Sounds: NÃO criar tarefas, PRs ou dependências neste ciclo.** Adiar até uma instrução posterior explícita.
 
 ---
 
@@ -753,6 +795,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-13 (continuidade PC ↔ celular):** adicionada **F10**, após todas as oito prioridades existentes. Planejado **Ctrl+S salva estado editável e todos os arquivos originais no servidor sem render**, status de sincronização, reabertura e edição real por celular, retorno ao PC, autenticação, versionamento, upload resumível, armazenamento persistente e preview/proxy mobile; detalhes em `docs/cross-device-project-sync.md`. **Apenas documentação; nenhuma implementação.**
 - **2026-11-13 (execução Node personalizada):** esclarecimento do requisito: usuário deve poder **colar um arquivo Node.js inteiro e executar de verdade no Editor**, com `axios`, imports, streaming, credenciais por variáveis de ambiente, logs, salvar como provedor e usar no HyperFrames. Apenas gerar/copiar código **não atende**. Planejado runner isolado com segurança; referência `docs/custom-node-api-runner.md`. **Somente documentação, sem implementação.**
 - **2026-11-13 (presets NVIDIA e código Node):** estabelecida inclusão obrigatória de **Nemotron 3 Nano Omni**, **Kimi K3** e **Gemma 4 31B** nos cartões NVIDIA; um token NVIDIA configurado na UI, teste real e **gerador/copiador de chamadas Node.js** com prompt editável. Página individual Kimi K3 indica **Free Endpoint Deprecated**, portanto modelo fica listado sem promessas até teste autenticado. Criada referência `docs/nvidia-api-node.md`. **Somente documentação, nenhum editor/integração implementado.**
 - **2026-11-13 (integração Kimi):** verificada documentação oficial de **Kimi K3.1 Pro**, suporte a entrada de vídeo e texto como saída. A página NVIDIA Build ainda declara API programática indisponível para esse modelo; incluído **adaptador Moonshot API** com token pela UI, endpoint/modelo verificados, e plano F04 para análise visual + transcrição/áudio separado + geração/execução de HyperFrames. **Somente documentação, sem código, credenciais ou chamadas pagas.**
