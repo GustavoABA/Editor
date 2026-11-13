@@ -108,7 +108,7 @@ Princípios obrigatórios:
 - Na **engrenagem/Settings**, adicionar área **IA**, próxima às configurações de integração/MCP. Usar seção dedicada, sem ocultar o MCP existente.
 - Listar provedores em cartões configuráveis e ordenáveis:
   - **Ollama (local)**;
-  - **NVIDIA NIM / API Catalog**;
+  - **NVIDIA NIM / API Catalog**: incluir obrigatoriamente presets individuais **Nemotron 3 Nano Omni**, **Kimi K3** e **Gemma 4 31B**, cada qual com seleção, status, configuração de API key herdada da conta NVIDIA, teste de chamada e botão **Gerar/copiar código Node.js**;
   - **OpenAI API**;
   - **Anthropic (Claude API)**;
   - **DeepSeek API**;
@@ -124,11 +124,51 @@ Princípios obrigatórios:
 ### Acesso às credenciais na interface (obrigatório, sem editar arquivos manualmente)
 
 - **Todas as credenciais necessárias a recursos opcionais devem ter campo próprio na interface**: NVIDIA NIM, **Moonshot (MOONSHOT_API_KEY para Kimi K3.1 Pro)**, OpenAI API (ChatGPT não equivale automaticamente a créditos da API), Anthropic/Claude, DeepSeek, ngrok quando aplicável e provedores futuros. Campos devem trazer o nome exato do segredo, link para documentação oficial, opção **Salvar / Testar / Alterar / Remover**, status e mensagem de erro útil.
+- Para **NVIDIA**, apresentar um campo **NVIDIA_API_KEY** compartilhado pelos três modelos (e demais modelos da mesma conta), com opção de usar credencial/perfil alternativo por preset, sem exigir três chaves diferentes. Todos os três modelos devem aparecer na interface mesmo quando a API de um estiver indisponível; nesse caso desabilitar apenas sua chamada e mostrar motivo, nunca ocultar o preset.
 - Para Ollama, oferecer **URL do servidor e modelo**, com credenciais somente se o endpoint configurado realmente exigir autenticação. Não presumir API key obrigatória para Ollama local.
 - O campo pode aparecer em **Settings > IA** e, por atalho contextual, em **HyperFrames > Gerar com IA**. Os dois lugares usam a **mesma configuração persistida no backend**, sem duplicar segredos nem armazená-los no projeto.
 - Ordenação padrão de fallback para geração HyperFrames: **NVIDIA (somente modelos com API funcional) -> Moonshot/Kimi K3.1 Pro (se habilitado e com créditos) -> OpenAI -> Anthropic/Claude -> DeepSeek -> Ollama (último recurso)**, sujeita a disponibilidade, credenciais, modalidade da tarefa, capacidade do modelo e confirmação dos custos. Permitir prioridade manual. **A seleção por tarefa é obrigatória:** modelos de texto não podem receber diretamente vídeo/áudio se não oferecerem essa capacidade; usar transcrição e quadros extraídos como alternativa autorizada.
 - **Modelo e provedor escolhidos aparecem perto do botão Gerar**, juntamente com status de conexão, indicação local/nuvem, seletor de modo (automático/manual) e atalho **Configurar API**. Sem chave válida, mostrar configuração necessária e nunca prometer que uma chamada será realizada.
 - Credenciais são enviadas somente por HTTPS (exceto loopback confiável), ficam criptografadas/armazenadas no servidor por mecanismo apropriado, são mascaradas após salvar e **nunca retornam em respostas de leitura para o navegador**. Os campos UI servem para cadastrar/substituir/remover; requests de geração usam configuração server-side.
+
+### Presets NVIDIA obrigatórios + criador de chamadas Node.js copiáveis
+
+**Requisito do proprietário, 13/11/2026: a tela de IA deve aceitar os três modelos abaixo explicitamente, não depender de campo genérico ou de código editado à mão.**
+
+| Nome exibido na interface | ID exato para `model` | Entrada anunciada | Status encontrado na documentação em 13/11/2026 |
+|---|---|---|---|
+| **Nemotron 3 Nano Omni** | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | texto, imagem, vídeo, áudio | `Free Endpoint: Available` |
+| **Kimi K3** (não confundir com K3.1 Pro) | `moonshotai/kimi-k3` | texto, imagem; saída texto | A **página individual** exibe `Free Endpoint: Deprecated`; documentação de chamada ainda existe. Manter o preset, mas **não prometer uso gratuito nem disponibilidade** até teste real com chave |
+| **Gemma 4 31B** | `google/gemma-4-31b-it` | texto, imagem, vídeo anunciados | `Free Endpoint: Available`; testar payload real de vídeo antes de habilitar esse formato |
+
+**Endpoint padrão dos três presets:** `POST https://integrate.api.nvidia.com/v1/chat/completions`, `Authorization: Bearer <NVIDIA_API_KEY>`, `Content-Type: application/json`. Para uma mesma conta NVIDIA, reutilizar **uma chave compartilhada**, com status **por modelo** (a chave válida para a conta não garante modelo liberado).
+
+**Experiência de interface em Settings > IA > NVIDIA:**
+1. Campo único e seguro **API key NVIDIA** com Salvar / Alterar / Remover / Testar, sem mostrar o segredo salvo; permitir credenciais distintas opcionais por perfil.
+2. Três cartões visíveis, habilitar/desabilitar, modelo/ID, modalidade suportada, status **Disponível / Indisponível / Descontinuado / Sem acesso / Não testado**, e botão **Testar chamada** (real, não apenas validar formato da chave).
+3. **Aba "Chamada API (Node.js)"** para cada cartão: usuário pode escrever/editar o **prompt**, parâmetros compatíveis (`max_tokens`, temperatura, `stream`), selecionar modelo, montar mensagens JSON e visualizar **código Node.js completo**, com ações **Copiar código**, **Copiar cURL** (opcional), **Testar com backend** e **Copiar resultado**. Mostrar erros HTTP 401, 403, 404, 410, 429, 5xx sem falsos sucessos.
+4. **Suporte a código Node personalizado**: além dos presets, permitir ao usuário colar/editar o formato de uma chamada customizada para outra IA, salvar como preset e testar sem gravar chave no snippet. Não executar JS arbitrário no navegador; funções personalizadas somente em executor backend isolado conforme seção seguinte.
+5. **O código copiado nunca contém token real**: usar `process.env.NVIDIA_API_KEY` e indicar como defini-la no ambiente Node. O Editor faz chamadas internas pelo backend usando o cofre de credenciais. Nunca inserir chave em `localStorage`, commit, log, histórico MCP ou HTML HyperFrames.
+6. Compatibilidade mínima do gerador: **Node.js 18+**, `fetch` nativo, JSON sem streaming por padrão (`stream: false`). Só exibir parâmetros particulares de cada modelo depois de validar a documentação; testes de conteúdo multimodal por modalidade, sem confundir `image_url` com upload de vídeo/áudio.
+7. Na automação/HyperFrames, deixar escolher **Nemotron Omni para análise audiovisual**, **Kimi K3 para análise de imagens e geração de código** (somente se endpoint disponível), **Gemma 4 31B para texto/imagens e tarefas compatíveis**, com escolha manual ou fallback baseado em **capabilities realmente testadas**. Nunca afirmar que Kimi K3 lê vídeo diretamente.
+
+**Modelo de código Node copiável:** `docs/nvidia-api-node.md` contém a referência de implementação e os três identificadores. O gerador na interface deve preencher automaticamente `model`, `messages` e parâmetros com base na escolha do usuário, sem expor credenciais.
+
+**Testes obrigatórios deste recurso**
+- [ ] Três cartões aparecem mesmo quando uma rota está descontinuada ou sem API.
+- [ ] Uma mesma NVIDIA API key é armazenada com segurança e pode ser usada nos três, **se** autorizado pelo serviço.
+- [ ] Teste de texto individual com cada ID registra status HTTP e erro real; no Kimi K3 `Deprecated`, mostrar status/alternativa, sem rotular falsamente como grátis.
+- [ ] Botão **Copiar código Node.js** produz programa sintaticamente válido com `fetch`, variável de ambiente e modelo escolhido, sem segredo real.
+- [ ] Usuário edita prompt e parâmetros, copia código atualizado e pode testar a mesma chamada pelo backend sem colocar chave no frontend.
+- [ ] Modelos são selecionáveis em HyperFrames conforme capacidade documentada/testada; falha faz fallback ou erro compreensível, nunca edição fictícia.
+- [ ] Gerador não afirma entrada de áudio/vídeo onde apenas texto/imagem foi verificado.
+
+**Fontes primárias consultadas (a disponibilidade pode mudar):**
+- Nemotron: https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+- Kimi K3: https://build.nvidia.com/moonshotai/kimi-k3
+- Kimi K3 API Reference (documentação ≠ disponibilidade): https://docs.api.nvidia.com/nim/reference/moonshotai-kimi-k3-infer
+- Gemma 4: https://build.nvidia.com/google/gemma-4-31b-it
+- Políticas de prototipagem NVIDIA NIM: https://docs.api.nvidia.com/nim/docs/product
 
 ### Requisito obrigatório: provedores personalizados com chamadas JavaScript/Node.js
 
@@ -188,7 +228,7 @@ Fonte oficial: https://docs.api.nvidia.com/nim/docs/product
 
 ### Critérios de aceitação
 
-- [ ] Usuário cadastra e testa Ollama, NVIDIA NIM, **Moonshot/Kimi K3.1 Pro**, OpenAI, Anthropic, DeepSeek e pelo menos **uma IA personalizada por adaptador JS/Node**, com token quando necessário e disponibilidade real do endpoint.
+- [ ] Usuário cadastra e testa Ollama, **presets NVIDIA Nemotron 3 Nano Omni, Kimi K3 e Gemma 4 31B**, **Moonshot/Kimi K3.1 Pro** (rota independente), OpenAI, Anthropic, DeepSeek e pelo menos **uma IA personalizada por adaptador JS/Node**, com token quando necessário e disponibilidade real do endpoint.
 - [ ] Ranking e escolha de modelo persistem por usuário/servidor, com configuração clara.
 - [ ] Em falha retriável, um segundo provedor compatível recebe somente o estado validado e conclui o próximo passo.
 - [ ] Erros de autenticação, custo ou capacidade inadequada produzem mensagens compreensíveis sem loop infinito.
@@ -578,7 +618,7 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 | Fase | ID | Entrega | Dependências obrigatórias |
 |---|---|---|---|
 | **1** | F02 | Normalização LUFS uniforme de clipes, faixas e mix; preview A/B e exportação | Áudio/render existentes; **sem F01** |
-| **2** | F03 | NVIDIA preferencial **quando disponível**, Moonshot/Kimi K3.1 Pro via API oficial (vídeo), OpenAI, Claude, DeepSeek, Ollama; tokens, fallback e adaptador JS/Node | Backend de credenciais/roteador; **sem F01** |
+| **2** | F03 | **Presets NVIDIA obrigatórios Nemotron 3 Nano Omni, Kimi K3 e Gemma 4 31B**, com API key, teste real, **gerador de chamadas Node.js copiáveis**; Moonshot/Kimi K3.1 Pro independente, outros provedores e fallback | Backend de credenciais/roteador; **sem F01** |
 | **3** | F04 | HyperFrames: edição assistida por Kimi com análise de vídeo, contexto de áudio/transcrição, clipes e render sincronizado horizontal/vertical | F03 para IA; pipeline de composição; **sem F01** |
 | **4** | F07 | Links para imagens, GIFs, vídeos e prévia YouTube/Twitch/lives | URLs/autorização/assets; **sem F01** |
 | **5** | F05 | Somente bug de rolagem dos Stickers; não alterar aparência/catálogo | Painel atual; **sem F01** |
@@ -590,7 +630,7 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 ### Lotes de trabalho sugeridos, na mesma ordem
 
 1. **F02:** medidor LUFS e true peak, operação global/por clipe, seleção manual, preview, ajustes reversíveis e export.
-2. **F03:** Settings IA, NVIDIA preferencial quando disponível, **Moonshot/Kimi K3.1 Pro com video input**, OpenAI/Claude/DeepSeek/Ollama, adaptação JS/Node no backend, tokens na UI, smoke tests e fallback seguro. **Não declarar Kimi via NVIDIA funcional sem teste real.**
+2. **F03:** Settings IA, **três presets NVIDIA (Nemotron 3 Nano Omni, Kimi K3 e Gemma 4 31B)**, chave NVIDIA compartilhada, teste de chamada por modelo, **geração e cópia de código Node 18+**, campo de prompt e chamadas customizadas, **Moonshot/Kimi K3.1 Pro** por rota própria, outros provedores e fallback seguro. **Kimi K3 está marcado Deprecated na página individual; não declarar gratuidade/disponibilidade até teste real; Kimi K3.1 Pro NVIDIA permanece sem API.**
 3. **F04:** confirmar/reaproveitar base HyperFrames, **análise visual via Kimi/Moonshot com consentimento**, transcrição e beats por serviço adequado, geração de plano de animação com timestamps, clipe na timeline, formatos 16:9/9:16 e render sincronizado.
 4. **F07:** aba Links, importação permitida de imagens/GIFs/vídeos e previews YouTube/Twitch/lives, com status real de exportação.
 5. **F05:** corrigir apenas o scroll dos Stickers e executar testes de não regressão.
@@ -681,6 +721,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-13 (presets NVIDIA e código Node):** estabelecida inclusão obrigatória de **Nemotron 3 Nano Omni**, **Kimi K3** e **Gemma 4 31B** nos cartões NVIDIA; um token NVIDIA configurado na UI, teste real e **gerador/copiador de chamadas Node.js** com prompt editável. Página individual Kimi K3 indica **Free Endpoint Deprecated**, portanto modelo fica listado sem promessas até teste autenticado. Criada referência `docs/nvidia-api-node.md`. **Somente documentação, nenhum editor/integração implementado.**
 - **2026-11-13 (integração Kimi):** verificada documentação oficial de **Kimi K3.1 Pro**, suporte a entrada de vídeo e texto como saída. A página NVIDIA Build ainda declara API programática indisponível para esse modelo; incluído **adaptador Moonshot API** com token pela UI, endpoint/modelo verificados, e plano F04 para análise visual + transcrição/áudio separado + geração/execução de HyperFrames. **Somente documentação, sem código, credenciais ou chamadas pagas.**
 - **2026-11-13:** **reorganização de planejamento conforme proprietário:** F02 > F03 > F04 > F07 > F05 > F09 > F01 > F08; F06 (Sounds) adiado. F01 não bloqueia as primeiras seis fases. F03 ganhou IA personalizada em JavaScript/Node.js e preferência NVIDIA; F04 ganhou áudio sincronizado e 16:9/9:16; F05 limitado a scroll; F07 priorizado para mídias e links. **Somente documentação: nenhum código de funcionalidade alterado.**
 - **2026-11-12:** adicionado **F09** (MCP externo por **ngrok exclusivamente**, com ativação/desativação pela aba MCP, URLs LAN/remota, gestão de Authtoken/API Key, segurança e testes); detalhados F03/F04 para configuração de IA por interface e fallback de HyperFrames NVIDIA -> OpenAI -> Claude -> Ollama. **Somente documentação; código não alterado.**
