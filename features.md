@@ -112,20 +112,21 @@ Princípios obrigatórios:
   - **OpenAI API**;
   - **Anthropic (Claude API)**;
   - **DeepSeek API**;
+  - **Moonshot AI / Kimi API (Kimi K3.1 Pro)**: provedor oficial separado da NVIDIA, usando token próprio;
   - **IA personalizada (JavaScript/Node.js)**: cadastro de qualquer serviço de IA compatível por URL, token/API key, modelo, headers, corpo de requisição e parser da resposta, com possibilidade de escrever um adaptador simples em JS/Node no backend.
 - **Outros** por adaptador que atenda contrato do roteador.
 - Cada item deve oferecer: habilitar/desabilitar, modelo, status de conexão, configuração de chave no servidor, teste de conexão, prioridade de fallback, capacidade suportada, limite de custo/tokens e indicação se o serviço é local ou em nuvem.
 - Modelo padrão **por tipo de tarefa** (planejamento de edição, entendimento de texto, visão/análise visual, geração de composição HyperFrames, revisão de resultados); não presumir que todos suportam imagens/áudio.
-- Modos: automático por prioridade/capacidade, preferir modelos locais, menor custo e manual. **NVIDIA deve ser o provedor preferido por padrão**, se autenticação, capacidade e quota estiverem válidas; os demais e as IAs personalizadas podem ser ordenados pelo usuário.
+- Modos: automático por prioridade/capacidade, preferir modelos locais, menor custo e manual. **NVIDIA deve ser o provedor preferido por padrão**, se autenticação, capacidade e quota estiverem válidas; os demais e as IAs personalizadas podem ser ordenados pelo usuário. **Kimi K3.1 Pro é priorizado para análise visual, programação e composição HyperFrames quando houver API funcional**, mas sua entrada por NVIDIA ou Moonshot é configurada **por provedor**, sem supor que chaves de um funcionem no outro.
 - Mostrar provedor efetivamente utilizado e eventos de troca (“NVIDIA indisponível; retomado no Ollama a partir do checkpoint 3”).
 - Sem cobrança surpresa: sinalizar quando um modelo pode consumir créditos ou ter cobrança; permitir exigir confirmação para uso pago.
 
 ### Acesso às credenciais na interface (obrigatório, sem editar arquivos manualmente)
 
-- **Todas as credenciais necessárias a recursos opcionais devem ter campo próprio na interface**: NVIDIA NIM, OpenAI API (ChatGPT não equivale automaticamente a créditos da API), Anthropic/Claude, DeepSeek, ngrok quando aplicável e provedores futuros. Campos devem trazer o nome exato do segredo, link para documentação oficial, opção **Salvar / Testar / Alterar / Remover**, status e mensagem de erro útil.
+- **Todas as credenciais necessárias a recursos opcionais devem ter campo próprio na interface**: NVIDIA NIM, **Moonshot (MOONSHOT_API_KEY para Kimi K3.1 Pro)**, OpenAI API (ChatGPT não equivale automaticamente a créditos da API), Anthropic/Claude, DeepSeek, ngrok quando aplicável e provedores futuros. Campos devem trazer o nome exato do segredo, link para documentação oficial, opção **Salvar / Testar / Alterar / Remover**, status e mensagem de erro útil.
 - Para Ollama, oferecer **URL do servidor e modelo**, com credenciais somente se o endpoint configurado realmente exigir autenticação. Não presumir API key obrigatória para Ollama local.
 - O campo pode aparecer em **Settings > IA** e, por atalho contextual, em **HyperFrames > Gerar com IA**. Os dois lugares usam a **mesma configuração persistida no backend**, sem duplicar segredos nem armazená-los no projeto.
-- Ordenação padrão de fallback para geração HyperFrames: **NVIDIA -> OpenAI -> Anthropic/Claude -> DeepSeek (se configurado) -> Ollama (último recurso)**, sujeita a disponibilidade, credenciais, capacidade do modelo e confirmação de eventuais custos. Permitir ajustar prioridades manualmente.
+- Ordenação padrão de fallback para geração HyperFrames: **NVIDIA (somente modelos com API funcional) -> Moonshot/Kimi K3.1 Pro (se habilitado e com créditos) -> OpenAI -> Anthropic/Claude -> DeepSeek -> Ollama (último recurso)**, sujeita a disponibilidade, credenciais, modalidade da tarefa, capacidade do modelo e confirmação dos custos. Permitir prioridade manual. **A seleção por tarefa é obrigatória:** modelos de texto não podem receber diretamente vídeo/áudio se não oferecerem essa capacidade; usar transcrição e quadros extraídos como alternativa autorizada.
 - **Modelo e provedor escolhidos aparecem perto do botão Gerar**, juntamente com status de conexão, indicação local/nuvem, seletor de modo (automático/manual) e atalho **Configurar API**. Sem chave válida, mostrar configuração necessária e nunca prometer que uma chamada será realizada.
 - Credenciais são enviadas somente por HTTPS (exceto loopback confiável), ficam criptografadas/armazenadas no servidor por mecanismo apropriado, são mascaradas após salvar e **nunca retornam em respostas de leitura para o navegador**. Os campos UI servem para cadastrar/substituir/remover; requests de geração usam configuração server-side.
 
@@ -148,6 +149,37 @@ Princípios obrigatórios:
 - Verificar privacidade: arquivos de mídia NÃO devem ser enviados à nuvem por padrão; solicitar opt-in por tipo de mídia.
 - Observabilidade sem vazamento: métricas de latência, quantidade de tokens/custo quando fornecidos, motivo do fallback e logs redigidos.
 
+### Kimi K3.1 Pro — NVIDIA vs. Moonshot (verificação documental em 13/11/2026)
+
+**Modelo:** `kimi-k3.1-pro` (Moonshot) / `moonshotai/kimi-k3.1-pro` (identificador indicado pela referência NVIDIA). Usar IDs exatos da rota escolhida, **não trocar prefixes indiscriminadamente**.
+
+**ATENÇÃO — endpoint NVIDIA ainda não é integrável por API programática:** apesar da página Build oferecer playground/indicar "Free Endpoint", o exemplo da própria página https://build.nvidia.com/moonshotai/kimi-k3_1-pro declara: **"API access for this model is not available yet"**, e diz que nenhuma chave autoriza acesso programático. A referência técnica da NVIDIA descreve o modelo, mas **não comprova acesso liberado**. Portanto, mostrar NVIDIA/Kimi como **"aguardando API"**, sem fazer chamadas fictícias ou marcá-lo como conectado; liberar somente após **smoke test autenticado real e atualização da disponibilidade**.
+
+**Alternativa concreta já documentada: Moonshot API oficial**
+- Plataforma/chave: https://platform.kimi.ai/ (campo `MOONSHOT_API_KEY` na interface).
+- Base URL: `https://api.moonshot.ai/v1`.
+- Endpoint de chat: `POST https://api.moonshot.ai/v1/chat/completions`.
+- Model ID: `kimi-k3.1-pro` (e `kimi-k3.1-pro-highspeed` opcional, se habilitado pelo plano).
+- Autenticação no servidor: `Authorization: Bearer <MOONSHOT_API_KEY>`.
+- **Entende vídeo como entrada e produz texto, NÃO renderiza vídeo:** a API oficial documenta upload de vídeo com `purpose: "video"`, depois envio de `{ type: "video_url", video_url: { url: "ms://<id-do-arquivo>" } }` dentro de `messages[].content`; `ms://` é **exclusivo do armazenamento Moonshot**, não uma URL genérica da NVIDIA.
+- A documentação oficial aceita MP4/WebM e vários outros formatos na **Moonshot**; vídeo e imagens podem consumir muitos tokens. Fazer estimativa de custo/quota, perguntar antes de upload, mostrar progresso e limpar arquivos remotos após o job se possível.
+- **Kimi K3.1 Pro requer liberação da conta e cobrança por uso**; o quickstart oficial informa recarga mínima de US$ 1 para liberar esse modelo (verificar regras vigentes na ativação). Não prometer API gratuita para uso contínuo.
+- **Checagem de vídeo:** se a rota NVIDIA suportar futuramente vídeo, validar **formato real do payload** e upload da NVIDIA; a referência atual `integrate.api.nvidia.com/v1/chat/completions` documenta `image_url`, mas não demonstra o `video_url` da Moonshot. Não presumir equivalência.
+- **Áudio:** a documentação de entrada visual não confirma que Kimi transcreva/entenda o áudio do vídeo. Para sincronização de HyperFrames, manter análise de trilha, batidas/energia e transcrição **por ferramentas próprias/autorizadas**, fornecendo os resultados com timestamps. Não alegar compreensão de áudio nativa até teste/documentação específicos.
+
+**Referências verificadas**
+- NVIDIA Build/Playground: https://build.nvidia.com/moonshotai/kimi-k3_1-pro
+- NVIDIA model card: https://docs.api.nvidia.com/nim/reference/moonshotai-kimi-k3_1-pro
+- NVIDIA endpoint de referência (disponibilidade não garantida): https://docs.api.nvidia.com/nim/reference/moonshotai-kimi-k3_1-pro-infer
+- Moonshot guia K3.1 Pro e endpoint: https://platform.kimi.ai/docs/guide/kimi-k3-1-pro-quickstart
+- Moonshot envio de vídeo e imagens: https://platform.kimi.ai/docs/guide/use-kimi-vision-model
+
+**Critérios de aceitação extras para F03**
+- [ ] UI distingue claramente **"Kimi via NVIDIA: indisponível"** de **"Kimi via Moonshot: não configurado / testado / conectado"** e mostra endpoint/modelo reais.
+- [ ] Adicionar chave Moonshot, testar inferência de texto com `kimi-k3.1-pro` e exibir custo/erro sem mostrar segredo; não considerar sucesso apenas ao salvar chave.
+- [ ] Testar, **com autorização explícita**, upload de um MP4 curto e solicitação multimodal `video_url` pela Moonshot, incluindo limpeza posterior do arquivo; marcar capacidade `video_input=true` só após teste do provedor.
+- [ ] Fallback não manda vídeo bruto para um modelo só textual; em falta de visão, usar frames/transcrição autorizados ou informar limitação.
+
 ### NVIDIA: condição real, não promessa
 
 A NVIDIA documenta acesso gratuito a endpoints NIM para **prototipagem** mediante Developer Program, o que **não equivale** a APIs irrestritas, disponibilidade para qualquer modelo ou uso gratuito ilimitado em produção. Conferir elegibilidade, quotas, termos, modelos e tarifas atuais antes de ativar.
@@ -156,7 +188,7 @@ Fonte oficial: https://docs.api.nvidia.com/nim/docs/product
 
 ### Critérios de aceitação
 
-- [ ] Usuário cadastra e testa Ollama, NVIDIA NIM, OpenAI, Anthropic, DeepSeek e pelo menos **uma IA personalizada por adaptador JS/Node**, com token quando necessário.
+- [ ] Usuário cadastra e testa Ollama, NVIDIA NIM, **Moonshot/Kimi K3.1 Pro**, OpenAI, Anthropic, DeepSeek e pelo menos **uma IA personalizada por adaptador JS/Node**, com token quando necessário e disponibilidade real do endpoint.
 - [ ] Ranking e escolha de modelo persistem por usuário/servidor, com configuração clara.
 - [ ] Em falha retriável, um segundo provedor compatível recebe somente o estado validado e conclui o próximo passo.
 - [ ] Erros de autenticação, custo ou capacidade inadequada produzem mensagens compreensíveis sem loop infinito.
@@ -193,8 +225,33 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 
 - Dentro da seção **HyperFrames**, imediatamente abaixo dos controles de **Gerar com IA**, incluir painel compacto **IA conectada** com seletor de provedor/modelo, estado **Conectado / Não configurado / Indisponível**, botão **Configurar API** e **Testar conexão**.
 - No primeiro uso, permitir cadastrar o segredo diretamente em um modal dessa seção, reutilizando o armazenamento e as validações de **F03**. Nunca obrigar o usuário a abrir `.env`, Docker ou código-fonte para adicionar uma chave.
-- Permitir escolher entre **Automático (NVIDIA -> OpenAI -> Claude -> Ollama como fallback final)** e **Manual**, com mensagens claras para falha/limites/quotas, aprovação de custos e compatibilidade de modelo com geração de composição.
+- Permitir escolher entre **Automático (NVIDIA disponível -> Moonshot/Kimi -> OpenAI -> Claude -> DeepSeek -> Ollama)** e **Manual**, com mensagens claras para falha/limites/quotas, aprovação de custos e compatibilidade de modelo com geração de composição. O modelo específico **Kimi K3.1 Pro via NVIDIA** fica indisponível enquanto não existir API liberada; selecionar o Kimi via Moonshot quando configurado.
 - Geração de HTML/CSS/JS e planos de alteração passam por backend F03, sanitização, prévia e aprovação; **na fase 7**, integrar também as proteções F01. **A chave jamais deve ser interpolada no HTML/JS gerado**.
+
+### Plano de edição automática com Kimi K3.1 Pro e HyperFrames
+
+**Objetivo funcional:** botão **"Analisar vídeo e criar animações com IA"** na seção HyperFrames, com modelo/provedor configurável. A IA **propõe** edições; o Editor valida, pré-visualiza, aplica à timeline e renderiza. O Kimi não modifica MP4 diretamente, não gera vídeo como saída e não executa HTML no cliente com credenciais.
+
+Fluxo:
+1. Usuário seleciona vídeo/clipe(s), escopo, orientação (16:9 ou 9:16) e estilo de edição (ex.: memes, legendas, transições, overlays). Exibir estimativa de custo antes de enviar mídia.
+2. No backend, extrair metadados, duração, FPS, dimensões e **trilha de áudio**. Detectar batidas/energia, obter transcrição com timestamps quando disponível e selecionar quadros relevantes. **Não assumir que a entrada de vídeo carrega áudio interpretável pelo Kimi**.
+3. Com consentimento explícito para enviar mídia a serviço externo, usar Moonshot `kimi-k3.1-pro`: upload permitido de MP4/WebM, referência `ms://<file-id>`, contexto com transcrição/tempos e instrução de edição. Se vídeo não for suportado pela rota atualmente configurada, recorrer a frames autorizados e texto estruturado. **NVIDIA/Kimi só é opção quando sua API for comprovadamente liberada.**
+4. Solicitar ao modelo **plano estruturado** por intervalos de tempo (start/end/asset/tipo de overlay/duração/posição/ritmo e transcrição vinculada) e **composições HTML/CSS/JS HyperFrames** ou representação declarativa compatível. Validar JSON Schema/contrato, limites, assets, permissões e sincronização em servidor; nunca executar código arbitrário gerado sem sandbox.
+5. Mostrar prévia/diff e pedir confirmação antes de criar clipes HyperFrames, textos, stickers ou ações de timeline. Preservar reversibilidade, escopo e projeto original.
+6. Renderizar no pipeline próprio do Editor/HyperFrames com áudio original/mix correto em **horizontal e vertical**, comparando preview e export. Salvar checkpoint para fallback de IA e limpeza de arquivos remotos.
+7. Permitir ajuste manual e replanejamento de um trecho sem pagar/processar todo o vídeo de novo; exibir custos, tokens e motivo de falhas.
+
+**Separação de responsabilidades:**
+- **Kimi (Moonshot/NVIDIA se disponível):** compreensão visual, identificação de momentos, planejamento temporal, geração de instruções/código HyperFrames e, quando compatível, chamadas estruturadas de ferramentas.
+- **Serviços locais ou modelos adequados:** separação de áudio, transcrição, detecção de beats, metadados, cortes de frame e cálculo de timestamps.
+- **Editor + HyperFrames:** aplicação de alterações, criação dos clipes, preview, sincronização, composição e exportação final de vídeo/áudio.
+
+**Critérios de aceitação extras para F04**
+- [ ] Um vídeo autorizado curto gera proposta de pelo menos um clipe HyperFrames com **start/end** verificáveis e áudio alinhado; usuário pode aprovar ou rejeitar antes de alterar timeline.
+- [ ] Mesmo projeto testa **16:9 e 9:16** com preview/export consistentes.
+- [ ] Execução sem acesso à NVIDIA funciona com **Kimi via Moonshot** quando configurado e aprovado; falha de API retorna mensagem legível, não uma animação fictícia.
+- [ ] Envio de MP4 à nuvem exige consentimento explícito e sinalização de custos; não incluir chaves no HTML da composição.
+- [ ] Falha de análise visual não inviabiliza edição manual nem corrompe projeto, e serviço não presume análise de áudio nativa.
 
 ### Integração técnica proposta
 
@@ -521,8 +578,8 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 | Fase | ID | Entrega | Dependências obrigatórias |
 |---|---|---|---|
 | **1** | F02 | Normalização LUFS uniforme de clipes, faixas e mix; preview A/B e exportação | Áudio/render existentes; **sem F01** |
-| **2** | F03 | NVIDIA preferencial, OpenAI, Claude, DeepSeek, Ollama; tokens, fallback, checkpoints e adaptador JS/Node personalizado | Backend de credenciais/roteador; **sem F01** |
-| **3** | F04 | HyperFrames com IA, clipes e áudio sincronizado, composição horizontal/vertical, render real | F03 para IA; pipeline de composição; **sem F01** |
+| **2** | F03 | NVIDIA preferencial **quando disponível**, Moonshot/Kimi K3.1 Pro via API oficial (vídeo), OpenAI, Claude, DeepSeek, Ollama; tokens, fallback e adaptador JS/Node | Backend de credenciais/roteador; **sem F01** |
+| **3** | F04 | HyperFrames: edição assistida por Kimi com análise de vídeo, contexto de áudio/transcrição, clipes e render sincronizado horizontal/vertical | F03 para IA; pipeline de composição; **sem F01** |
 | **4** | F07 | Links para imagens, GIFs, vídeos e prévia YouTube/Twitch/lives | URLs/autorização/assets; **sem F01** |
 | **5** | F05 | Somente bug de rolagem dos Stickers; não alterar aparência/catálogo | Painel atual; **sem F01** |
 | **6** | F09 | MCP via ngrok, URLs LAN/remota e controles de acesso na UI | MCP atual e credenciais F03; **sem F01** |
@@ -533,8 +590,8 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 ### Lotes de trabalho sugeridos, na mesma ordem
 
 1. **F02:** medidor LUFS e true peak, operação global/por clipe, seleção manual, preview, ajustes reversíveis e export.
-2. **F03:** Settings IA, NVIDIA preferencial, OpenAI/Claude/DeepSeek/Ollama, adaptação simples JS/Node no backend, tokens na interface, testes e fallback seguro.
-3. **F04:** confirmar/reaproveitar base HyperFrames, geração por IA, clipe na timeline, uso da trilha de áudio para animações, formatos 16:9/9:16 e render sincronizado.
+2. **F03:** Settings IA, NVIDIA preferencial quando disponível, **Moonshot/Kimi K3.1 Pro com video input**, OpenAI/Claude/DeepSeek/Ollama, adaptação JS/Node no backend, tokens na UI, smoke tests e fallback seguro. **Não declarar Kimi via NVIDIA funcional sem teste real.**
+3. **F04:** confirmar/reaproveitar base HyperFrames, **análise visual via Kimi/Moonshot com consentimento**, transcrição e beats por serviço adequado, geração de plano de animação com timestamps, clipe na timeline, formatos 16:9/9:16 e render sincronizado.
 4. **F07:** aba Links, importação permitida de imagens/GIFs/vídeos e previews YouTube/Twitch/lives, com status real de exportação.
 5. **F05:** corrigir apenas o scroll dos Stickers e executar testes de não regressão.
 6. **F09:** gestão ngrok, segurança, token MCP dedicado, URL LAN/remota e controles de iniciar/desligar.
@@ -624,6 +681,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-13 (integração Kimi):** verificada documentação oficial de **Kimi K3.1 Pro**, suporte a entrada de vídeo e texto como saída. A página NVIDIA Build ainda declara API programática indisponível para esse modelo; incluído **adaptador Moonshot API** com token pela UI, endpoint/modelo verificados, e plano F04 para análise visual + transcrição/áudio separado + geração/execução de HyperFrames. **Somente documentação, sem código, credenciais ou chamadas pagas.**
 - **2026-11-13:** **reorganização de planejamento conforme proprietário:** F02 > F03 > F04 > F07 > F05 > F09 > F01 > F08; F06 (Sounds) adiado. F01 não bloqueia as primeiras seis fases. F03 ganhou IA personalizada em JavaScript/Node.js e preferência NVIDIA; F04 ganhou áudio sincronizado e 16:9/9:16; F05 limitado a scroll; F07 priorizado para mídias e links. **Somente documentação: nenhum código de funcionalidade alterado.**
 - **2026-11-12:** adicionado **F09** (MCP externo por **ngrok exclusivamente**, com ativação/desativação pela aba MCP, URLs LAN/remota, gestão de Authtoken/API Key, segurança e testes); detalhados F03/F04 para configuração de IA por interface e fallback de HyperFrames NVIDIA -> OpenAI -> Claude -> Ollama. **Somente documentação; código não alterado.**
 - **2026-11-10:** criada primeira especificação consolidada a partir dos requisitos do proprietário e inspeção dos arquivos da branch main. **Somente documentação planejada; nenhum recurso implementado, instalação iniciada ou teste executado nesta etapa.**
