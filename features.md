@@ -17,7 +17,7 @@
 | Fase | ID | Entrega determinada pelo proprietário |
 |---|---|---|
 | **1** | **F02** | Normalizar o áudio de todos os clipes e vídeos de maneira uniforme, com LUFS, controle de picos, prévia e exportação |
-| **2** | **F03** | NVIDIA em primeiro lugar; integrar outras IAs por API/token, fallback e opção de **IA personalizada via JavaScript/Node.js** |
+| **2** | **F03** | NVIDIA e outras IAs por API/token, fallback, **editor de código Node.js completo, executável e salvável**, inclusive scripts com axios/imports |
 | **3** | **F04** | HyperFrames conectado à IA, com composição orientada/sincronizada por **trilha de áudio**, exportação horizontal e vertical |
 | **4** | **F07** | Aba **Links e mídias** para imagens, GIFs, vídeos, YouTube, Twitch e lives, distinguindo prévia de importação/exportação |
 | **5** | **F05** | **Corrigir apenas o scroll dos Stickers**; manter visual, categorias, pesquisa e catálogo atuais |
@@ -113,7 +113,7 @@ Princípios obrigatórios:
   - **Anthropic (Claude API)**;
   - **DeepSeek API**;
   - **Moonshot AI / Kimi API (Kimi K3.1 Pro)**: provedor oficial separado da NVIDIA, usando token próprio;
-  - **IA personalizada (JavaScript/Node.js)**: cadastro de qualquer serviço de IA compatível por URL, token/API key, modelo, headers, corpo de requisição e parser da resposta, com possibilidade de escrever um adaptador simples em JS/Node no backend.
+  - **IA personalizada (JavaScript/Node.js)**: além de configurar URL/token, permitir **colar/escrever um arquivo JavaScript/Node.js completo, executá-lo de verdade num runner isolado**, visualizar retorno/erros, salvar como provedor e selecioná-lo nas automações HyperFrames. Compatível com `import axios from 'axios'`, `async function main()`, `axios.post(...)`, JSON e streaming mediante runner configurado.
 - **Outros** por adaptador que atenda contrato do roteador.
 - Cada item deve oferecer: habilitar/desabilitar, modelo, status de conexão, configuração de chave no servidor, teste de conexão, prioridade de fallback, capacidade suportada, limite de custo/tokens e indicação se o serviço é local ou em nuvem.
 - Modelo padrão **por tipo de tarefa** (planejamento de edição, entendimento de texto, visão/análise visual, geração de composição HyperFrames, revisão de resultados); não presumir que todos suportam imagens/áudio.
@@ -170,12 +170,42 @@ Princípios obrigatórios:
 - Gemma 4: https://build.nvidia.com/google/gemma-4-31b-it
 - Políticas de prototipagem NVIDIA NIM: https://docs.api.nvidia.com/nim/docs/product
 
-### Requisito obrigatório: provedores personalizados com chamadas JavaScript/Node.js
+### Requisito OBRIGATÓRIO: opção "Personalizada" com editor e executor real de código Node.js COMPLETO
 
-- Interface deve permitir cadastrar e testar uma IA não listada, sem editar o núcleo do editor: nome, endpoint, modelo, token, método HTTP, headers, corpo da chamada e extração da resposta.
-- Fornecer contrato documentado e exemplo curto para adaptador JavaScript/Node.js **executado apenas no backend**. Integrar o adaptador às mesmas tarefas, fallback, limites e checkpoints dos provedores oficiais.
-- Para segurança, começar por configuração declarativa de HTTP; qualquer execução de código fornecido pelo usuário deve ser feita em **sandbox isolada**, sem acesso a segredos alheios, arquivos, rede interna ou execução arbitrária do host, com limites de memória/tempo.
-- Credenciais personalizadas também devem ser cadastradas pela interface, mascaradas e armazenadas só no servidor.
+**Correção de escopo solicitada pelo proprietário:** "Personalizada" **NÃO é apenas um formulário URL/modelo/headers, um gerador de snippets, um template limitado nem um código para executar fora do Editor.** O usuário precisa **colar um script Node.js inteiro na caixa de texto e clicar em EXECUTAR**, como o exemplo fornecido com `import axios from 'axios'`, `headers`, `payload`, `async function main()`, `axios.post`, `console.log`, tratamento de erros e `stream`. O Editor deve realmente executar o código em backend/runner controlado, exibir o resultado e poder aproveitar a chamada como provedor IA para o HyperFrames.
+
+#### Interface — Settings > IA > Chamada API > **Personalizada**
+
+1. Manter dois modos distintos e visíveis: **Gerar código (Node.js)** para presets prontos e **Personalizada — colar/executar código Node.js**. Nenhum substitui o outro.
+2. Área grande de edição com **código completo**, quebra de linha, realce de sintaxe JavaScript, número de linhas, scroll, colar código da documentação de fornecedores, erros por linha e autosave de rascunho seguro. **Não exigir que o usuário reescreva seu exemplo num formulário declarativo.**
+3. **Campo Nome do provedor** e opção **Salvar como provedor personalizado**, com lista de scripts salvos, editar, duplicar, remover e escolher como destino de tarefas/HyperFrames.
+4. Botões reais: **Validar sintaxe**, **Executar / Testar chamada**, **Cancelar execução**, **Salvar**, **Copiar código**, **Copiar resposta** e, quando aplicável, **Usar esta IA no HyperFrames**.
+5. Painel de execução: status (não testado/executando/êxito/erro/cancelado), **stdout/stderr**, resultado JSON/texto, erro HTTP e status, tempo de resposta, início/fim, resposta de streaming progressiva; não marcar como conectado só porque código foi salvo.
+6. **Scripts com `import axios from 'axios'` (ES modules) são requisito de aceitação**. Runner deve ter uma versão de Node.js documentada (Node 20+ recomendado), com o pacote `axios` previamente incluído e outras dependências apenas se explicitamente aprovadas/instaladas de modo controlado. Suportar `fetch` nativo e `async/await`. Não executar instalação de pacotes automaticamente ao colar código.
+7. **Segredos**: interface para cadastrar `NVIDIA_API_KEY` e tokens dos demais serviços; runner recebe SOMENTE variáveis de ambiente autorizadas para aquele script. No código do usuário, preferir `process.env.NVIDIA_API_KEY`, nunca inserir segredo no texto salvo ou copiado. **Atenção: a string literal `"Bearer $NVIDIA_API_KEY"` do exemplo não expande variáveis em Node.js**. Oferecer aviso/transformação sugerida com confirmação para `\`Bearer \${process.env.NVIDIA_API_KEY}\``; jamais substituir segredo no editor em texto claro.
+8. **Entrada/saída para automação:** além do teste manual, estabelecer um contrato mínimo para usar o script como conector IA: entrada estruturada (prompt, mensagens, contexto visual/áudio autorizado, parâmetros), envio por parâmetros/variáveis controladas, e saída normalizada para o roteador. Aceitar retorno da função exportada ou capturar/parsear a saída declarada, **sem presumir que qualquer `console.log` seja uma resposta IA válida**. Quando o script só faz teste solto, pedir mapeamento da resposta antes de habilitar HyperFrames.
+9. **Streaming**: suportar tanto `stream: false` e resposta JSON quanto `responseType: 'stream'` com processamento de chunks, cancelamento e limites. Não afirmar que todo provedor suporta streaming.
+10. **Segurança necessária para executar código arbitrário**: executar apenas com autorização explícita, em **processo/contêiner isolado descartável**, sem permissões de administrador, sem volume/arquivos do host, sem Docker socket, sem execução de comandos de sistema, com CPU/RAM/tempo limitados, rede restrita a endpoints externos aprovados e proteção SSRF/DNS/redirecionamento. Não usar a mesma execução/processo do backend de credenciais ou do renderizador. Expor apenas os segredos autorizados por execução, redigir logs, limitar tamanho de saída, proteger contra abuso e impedir execução de scripts por clientes MCP/remotos sem autorização específica.
+11. Mostrar erros de importação de dependência, sintaxe, token ausente, 401/403/404/429/5xx, bloqueio de rede e timeout **com mensagens compreensíveis**, sem mascarar como sucesso.
+12. Persistir script/versionamento, escopo, variáveis permitidas e adaptador de resposta no backend; informar se o script salvo está testado e disponível para fallback do roteador IA.
+
+#### Exemplo real de comportamento esperado
+
+Usuário cola o exemplo NVIDIA `import axios from 'axios'; ... main().catch(...);` exatamente como um arquivo `.mjs`. Seleciona a credencial NVIDIA já salva, autoriza `integrate.api.nvidia.com`, valida/corrige o placeholder literal `$NVIDIA_API_KEY` para leitura segura de `process.env`, clica **Executar**, vê resposta ou erro HTTP real e pode salvar a chamada como **"Nemotron customizado"**. Se a saída puder ser adaptada a `AI Provider Router`, pode escolher essa IA para criar planos de edição/animações HyperFrames.
+
+**Referência de UX, contrato e exemplo completo:** `docs/custom-node-api-runner.md`.
+
+#### Critérios de aceitação obrigatórios (não basta gerador/copiar)
+
+- [ ] O editor aceita **o código Node completo do exemplo do proprietário**, inclusive `axios`, `import`, `async/await`, JSON, `console.log` e `catch`.
+- [ ] Botão **Executar** dispara execução REAL num runner isolado e mostra saída, erro e status HTTP; o código não fica meramente armazenado nem apenas copiável.
+- [ ] Chave cadastrada na UI chega ao script como `process.env.NVIDIA_API_KEY` sem ser exibida no código ou logs; snippet literal `$NVIDIA_API_KEY` recebe aviso de que não é expansão automática.
+- [ ] Modo **Personalizada** funciona para outros fornecedores, com endpoint e credenciais próprios, sem restringir o usuário a NVIDIA.
+- [ ] Scripts podem ser salvos, reabertos, testados, duplicados e usados como provedores HyperFrames **quando saída/capacidade forem compatíveis**.
+- [ ] Testes cobrem resposta JSON, streaming, importação de `axios`, falta de chave, dependência não permitida, timeout, cancelamento, URLs internas bloqueadas e isolamento do host.
+- [ ] Gerador Node.js dos três presets NVIDIA **continua existindo separadamente** da caixa de código executável.
+
+
 
 ### Arquitetura
 
@@ -260,6 +290,8 @@ Na aba **IA & Automação**, manter Assistente e Auto Cut. **Depois do bloco Aut
 8. Garantir reprodução e exportação em **horizontal (16:9) e vertical (9:16)** com o mesmo enquadramento visto no preview.
 9. Permitir que IA gere/edite **uma representação declarativa de composição** e solicite renderização; sempre exigir revisão e permitir desfazer.
 10. Guardar templates reutilizáveis locais, com miniaturas e metadados de versão. Criar no futuro biblioteca ORUME para anúncios de live.
+
+**Integração com scripts personalizados de F03:** o seletor IA do HyperFrames deve listar os **provedores personalizados salvos e testados**, não só NVIDIA/Moonshot/OpenAI. Ao usar o script, enviar ao runner parâmetros da tarefa e contexto de vídeo/áudio explicitamente autorizado, normalizar a resposta num plano de edição validável e permitir prévia/aprovação. Se o script apenas imprime informação sem contrato de saída, avisar que ele serve para teste manual até configurar o adaptador.
 
 ### Configuração da IA no próprio bloco HyperFrames
 
@@ -630,8 +662,8 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 ### Lotes de trabalho sugeridos, na mesma ordem
 
 1. **F02:** medidor LUFS e true peak, operação global/por clipe, seleção manual, preview, ajustes reversíveis e export.
-2. **F03:** Settings IA, **três presets NVIDIA (Nemotron 3 Nano Omni, Kimi K3 e Gemma 4 31B)**, chave NVIDIA compartilhada, teste de chamada por modelo, **geração e cópia de código Node 18+**, campo de prompt e chamadas customizadas, **Moonshot/Kimi K3.1 Pro** por rota própria, outros provedores e fallback seguro. **Kimi K3 está marcado Deprecated na página individual; não declarar gratuidade/disponibilidade até teste real; Kimi K3.1 Pro NVIDIA permanece sem API.**
-3. **F04:** confirmar/reaproveitar base HyperFrames, **análise visual via Kimi/Moonshot com consentimento**, transcrição e beats por serviço adequado, geração de plano de animação com timestamps, clipe na timeline, formatos 16:9/9:16 e render sincronizado.
+2. **F03:** Settings IA, três presets NVIDIA (Nemotron 3 Nano Omni, Kimi K3 e Gemma 4 31B), chave NVIDIA compartilhada, gerador Node para copiar **E opção Personalizada com editor livre de código Node completo e EXECUÇÃO real isolada**, suporte a `axios`/`import`, output JSON/stream, armazenamento de scripts e integração como provedor no HyperFrames, Moonshot/Kimi K3.1 Pro por rota própria, outros provedores e fallback. Verificar disponibilidade de cada endpoint, sem prometer Kimi K3 descontinuado ou Kimi K3.1 Pro por NVIDIA.
+3. **F04:** confirmar/reaproveitar base HyperFrames, **permitir selecionar também provedor Node personalizado testado na fase F03**, análise visual via Kimi/Moonshot com consentimento, transcrição e beats por serviço adequado, geração de plano de animação com timestamps, clipe na timeline, formatos 16:9/9:16 e render sincronizado.
 4. **F07:** aba Links, importação permitida de imagens/GIFs/vídeos e previews YouTube/Twitch/lives, com status real de exportação.
 5. **F05:** corrigir apenas o scroll dos Stickers e executar testes de não regressão.
 6. **F09:** gestão ngrok, segurança, token MCP dedicado, URL LAN/remota e controles de iniciar/desligar.
@@ -721,6 +753,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-13 (execução Node personalizada):** esclarecimento do requisito: usuário deve poder **colar um arquivo Node.js inteiro e executar de verdade no Editor**, com `axios`, imports, streaming, credenciais por variáveis de ambiente, logs, salvar como provedor e usar no HyperFrames. Apenas gerar/copiar código **não atende**. Planejado runner isolado com segurança; referência `docs/custom-node-api-runner.md`. **Somente documentação, sem implementação.**
 - **2026-11-13 (presets NVIDIA e código Node):** estabelecida inclusão obrigatória de **Nemotron 3 Nano Omni**, **Kimi K3** e **Gemma 4 31B** nos cartões NVIDIA; um token NVIDIA configurado na UI, teste real e **gerador/copiador de chamadas Node.js** com prompt editável. Página individual Kimi K3 indica **Free Endpoint Deprecated**, portanto modelo fica listado sem promessas até teste autenticado. Criada referência `docs/nvidia-api-node.md`. **Somente documentação, nenhum editor/integração implementado.**
 - **2026-11-13 (integração Kimi):** verificada documentação oficial de **Kimi K3.1 Pro**, suporte a entrada de vídeo e texto como saída. A página NVIDIA Build ainda declara API programática indisponível para esse modelo; incluído **adaptador Moonshot API** com token pela UI, endpoint/modelo verificados, e plano F04 para análise visual + transcrição/áudio separado + geração/execução de HyperFrames. **Somente documentação, sem código, credenciais ou chamadas pagas.**
 - **2026-11-13:** **reorganização de planejamento conforme proprietário:** F02 > F03 > F04 > F07 > F05 > F09 > F01 > F08; F06 (Sounds) adiado. F01 não bloqueia as primeiras seis fases. F03 ganhou IA personalizada em JavaScript/Node.js e preferência NVIDIA; F04 ganhou áudio sincronizado e 16:9/9:16; F05 limitado a scroll; F07 priorizado para mídias e links. **Somente documentação: nenhum código de funcionalidade alterado.**
