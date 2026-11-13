@@ -2,7 +2,7 @@
 
 > **Estado:** planejamento técnico; as funcionalidades novas listadas aqui não são implementadas apenas por atualizar este documento.
 > **Ordem aprovada em 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. **F10 (continuar projeto PC ↔ celular)** entra somente depois dessas oito fases como evolução futura de baixa prioridade. Sounds (F06) continua adiado.
-> **A numeração Fxx identifica funcionalidades; NÃO indica prioridade.** A seção 10 é a referência obrigatória de fases e dependências.
+> **A numeração Fxx identifica funcionalidades; NÃO indica prioridade.** A seção 10 é a referência obrigatória de fases e dependências. **F11 (Parakeet Redux) e F12 (atalhos rápidos) são novos itens de backlog, ainda sem fase fixada pelo proprietário**.
 >
 > **Criado em:** 2026-11-10
 >
@@ -24,10 +24,12 @@
 | **6** | **F09** | MCP externo **exclusivamente via ngrok**, ativação na UI, URLs LAN/remota, autenticação |
 | **7 — penúltima** | **F01** | Proteção de camada/clipe e integração com as funções já implementadas |
 | **8 — última do ciclo prioritário** | **F08** | Conversão inteligente de proporção/reposicionamento |
-| **9 — futuro, sem antecipar** | **F10** | **Salvar projeto no servidor sem renderizar e continuar edição no celular**, via Ctrl+S no PC, salvamento completo de timeline e mídias originais, reabertura autenticada em outro dispositivo | 
+| **9 — futuro, sem antecipar** | **F10** | **Salvar projeto no servidor sem renderizar e continuar edição no celular**, via Ctrl+S no PC, salvamento completo de timeline e mídias originais, reabertura autenticada em outro dispositivo |
+| **Backlog sem fase definida** | **F11** | **Substituir o motor de transcrição Whisper por Parakeet Redux (CPU) como padrão**, gerando legendas sincronizadas em português, com timestamps e comparação de qualidade |
+| **Backlog sem fase definida** | **F12** | **Atalhos e ações rápidas editáveis:** Split element = **C**, Split left = **V**, Split right = **X**, com botões visíveis e preservação de configurações pessoais | 
 | **Adiado, sem fase** | **F06** | **Sounds: não mexer agora**, sem ajustes ou expansão até nova decisão |
 
-**Regra de dependências:** F01 **não é pré-requisito** para F02, F03, F04, F07, F05 ou F09. Até a fase 7, usar seleção de escopo, autorização, prévia, confirmação e Undo/Redo; após implementar F01, adaptar essas funções ao bloqueio. Não adiantar F08 nem F06 para antecipar melhorias opcionais. **F10 é fase futura, subordinada à conclusão das oito prioridades atuais; não bloqueia nenhuma delas.**
+**Regra de dependências:** F01 **não é pré-requisito** para F02, F03, F04, F07, F05 ou F09. Até a fase 7, usar seleção de escopo, autorização, prévia, confirmação e Undo/Redo; após implementar F01, adaptar essas funções ao bloqueio. Não adiantar F08 nem F06 para antecipar melhorias opcionais. **F10 é fase futura, subordinada à conclusão das oito prioridades atuais; não bloqueia nenhuma delas. F11 e F12 foram solicitadas depois e entram no backlog SEM alterar as fases 1–9; sua posição de execução será definida na próxima revisão de prioridades.**
 
 
 Transformar o Editor em um ambiente de edição de vídeo com **operações globais seguras**, automações por IA, animações HTML/HyperFrames, importação de mídias autorizadas, bibliotecas navegáveis e adaptação inteligente de formatos para vídeos horizontais e verticais. **Futuramente (F10)**, oferecer continuidade do mesmo projeto editável entre PC e celular com armazenamento no servidor e sem render antecipado.
@@ -637,6 +639,78 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ---
 
+## F11 — Transcrição local por Parakeet Redux (BACKLOG — prioridade a definir)
+
+**Solicitação do proprietário:** substituir a geração de transcrição de fala usada para legendas por **Moondream Parakeet Redux** (`moondream/parakeet-redux`), com execução **pela CPU**, sem exigir GPU nem API paga, mantendo conversão **vídeo → áudio → texto → legendas sincronizadas**. A troca efetiva do motor só deve ser declarada concluída depois de implementação e testes no Editor.
+
+### Estado do código verificado em 13/11/2026
+
+- O fluxo atual em `apps/web/src/subtitles/components/assets-view.tsx` extrai áudio da timeline (`extractTimelineAudio`), decodifica e chama `transcriptionService.transcribe`, depois cria legendas.
+- `apps/web/src/transcription/models.ts` lista modelos **Whisper** com default `whisper-small`.
+- `apps/web/src/services/transcription/worker.ts` usa `@huggingface/transformers` no **Web Worker do navegador**. **Não basta trocar o nome/ID Whisper para Parakeet Redux** nesse pipeline; é outra arquitetura/runtime.
+- A implementação de F11 deve preservar UI e pipeline de captions já existentes, trocando o backend de reconhecimento de fala por um adaptador que produza o mesmo contrato de segmentos/tempos.
+
+### Comportamento e arquitetura propostos
+
+1. **Motor principal de legendagem: Parakeet Redux CPU**, executado localmente no **PC/servidor self-hosted** do Editor, de preferência por serviço de transcrição isolado em Python com `moondream>=2.4.1` / Photon, usando `md.photon("moondream/parakeet-redux", device="cpu")`. Avaliar alternativa Rust/CPU somente após benchmark e compatibilidade. **Não assumir que o navegador tem esse pacote Python**.
+2. Extrair áudio do vídeo/timeline do mesmo modo atual, reamostrar/normalizar o formato conforme runtime (FFmpeg se necessário) e enviar ao motor local. Não renderizar MP4 final para transcrever.
+3. Usar **`timestamps="word"`** para ter tempos por palavra e segmentos; adaptar ao contrato `TranscriptionResult`/`TranscriptionSegment` e aos chunks de legenda existentes, preservando sincronização, pontuação, caixa e idioma detectado; oferecer ajuste fino de deslocamento no editor.
+4. Manter **português (pt)** e autodetecção de língua. Português brasileiro deve ser testado com falas reais; não afirmar que modelo reconhece variantes perfeitamente.
+5. Mostrar progresso (`extração de áudio` → `modelo em CPU` → `transcrição` → `legendas`), cancelamento, uso de threads/limites de memória, download único dos pesos/caching offline, tratamento de áudio sem voz e arquivos extensos.
+6. Interface `Captions/Legendas`: indicar **"Parakeet Redux (CPU local)"** como padrão após migração concluída. Disponibilizar revisão do texto, correção de palavras e tempos, quantidade de palavras por legenda e exportação/edição de SRT/ASS quando suportada. **Não sobrescrever legendas corrigidas manualmente** sem confirmação.
+7. Durante a transição, manter Whisper como **fallback de compatibilidade reversível**, opcional e claramente identificado; objetivo final é Parakeet Redux como **método padrão**. Não retirar compatibilidade de projetos antigos ou perder captions anteriores.
+8. Integração com F04/HyperFrames: disponibilizar transcrição com timestamps como contexto de edição animada, sem exigir enviar áudio para modelos em nuvem.
+9. Licença do modelo e atribuição: verificar termos **CC-BY-4.0** e dependências do runtime; usar documentação oficial. Testar **Windows (Docker/self-host)**, Linux e persistência dos pesos, inclusive sem GPU. Se a CPU do servidor for fraca, apresentar aviso de desempenho, nunca inventar tempo.
+10. **Objetivo de maior fidelidade deve ser medido, não presumido.** Comparar com Whisper atual em vídeos reais **PT-BR** (fala, música de fundo, microfone ruim, nomes próprios e cortes), medindo WER, precisão de timestamps, tempo de CPU e memória. A ficha do modelo não prova vantagem automática contra Whisper em todo cenário.
+
+**Critérios de aceitação**
+- [ ] Captions gera transcrição local com `moondream/parakeet-redux` em modo **CPU explícito**, sem GPU, com português e tempo por palavra.
+- [ ] Legendas inseridas na timeline seguem os tempos certos, permanecem editáveis e podem ser revisadas antes/depois.
+- [ ] Extração de áudio, progresso/cancelamento, memória, caching offline e retomada em erros são testados no sistema self-hosted.
+- [ ] Os vídeos usados nos testes apresentam WER/tempo/custos comparados aos do fluxo Whisper existente, sem prometer precisão universal.
+- [ ] O motor exibido é realmente o invocado; não marcar Parakeet instalado apenas por trocar um rótulo.
+- [ ] Não há regressões no normalizador F02, no HyperFrames F04 ou em projetos com captions antigas.
+
+**Documentação oficial:** https://moondream.ai/blog/introducing-parakeet-redux-and-ultra e https://huggingface.co/moondream/parakeet-redux
+**Plano técnico adicional:** `docs/parakeet-redux-shortcuts.md`.
+
+---
+
+## F12 — Ações rápidas e atalhos personalizáveis (BACKLOG — prioridade a definir)
+
+**Solicitação do proprietário:** edição ágil com teclas simples e **botões de ação rápida** na timeline. Os três comandos já existem no código: **não reimplementar operações de corte**, somente alterar *defaults*, oferecer botões/dicas e manter opção de personalizar teclas.
+
+| Comando real no Editor | Padrão atual verificado | Novo padrão solicitado |
+|---|---|---|
+| `split` — Split element (dividir no playhead) | **S** | **C** |
+| `split-left` — Split left / dividir e remover lado esquerdo | **Q** | **V** |
+| `split-right` — Split right / dividir e remover lado direito | **W** | **X** |
+
+### Implementação e comportamento
+
+1. `apps/web/src/actions/definitions.ts` já registra `split`, `split-left`, `split-right` e os atalhos **S/Q/W**; o projeto também tem `keybindings-store.ts`, persistência, migrações de atalhos e diálogo `shortcuts-dialog.tsx`. **Reutilizar esse sistema**, não codificar handlers duplicados nas teclas.
+2. Alterar os **atalhos padrão de novos perfis para C / V / X**; disponibilizar **S/Q/W** como alternativas configuráveis, com botão **Restaurar padrões** e indicação visual do atalho.
+3. **Configurações já personalizadas devem ser preservadas.** Migrar com cuidado somente os binds antigos que ainda correspondam a valores padrão, evitando sobrescrever atalhos atribuídos pelo usuário; informar alterações padrão no changelog. Não fazer atualização cega de `localStorage`.
+4. Criar uma **barra compacta de ações rápidas na timeline** com botões de Split, Split left e Split right, tooltips `C`, `V`, `X`; clicar chama o **mesmo registro de ação** usado pelo teclado, com estado de seleção, desabilitação e feedback.
+5. O `V` simples **não pode consumir Ctrl+V (colar)**; o `C` simples **não pode consumir Ctrl+C (copiar)**; `X` simples **não deve consumir Ctrl+X** caso seja adicionado posteriormente. Não disparar atalhos quando foco estiver em input, prompt de IA, formulário, editor de código Node, edição de legendas ou campo de texto.
+6. Distinguir precisamente ações: `split` divide clipe(s); `split-left` remove o lado esquerdo no playhead; `split-right` remove o direito, segundo implementação existente. Testar clip selecionado, múltiplas faixas, áudio sincronizado e Undo/Redo.
+7. Deixar painel **Configurações → Atalhos** para personalizar qualquer comando elegível, detectar conflito entre teclas, pesquisar ações, exportar/importar perfil de hotkeys e mostrar atalhos em tooltips. **C/V/X são valores padrão solicitados, não bloqueios fixos.**
+8. Atalhos são voltados ao **PC/teclado**; botões devem funcionar também por toque, útil ao trabalho mobile futuro (F10), sem depender de teclado físico.
+
+**Critérios de aceitação**
+- [ ] Pressionar **C / V / X** com foco na timeline executa as três ações respectivas e Undo/Redo restaura o estado.
+- [ ] Clicar nos **botões de ação rápida** aciona exatamente os mesmos comandos e mostra o atalho configurado.
+- [ ] Em input/editor Node/legenda, digitar C/V/X insere texto normalmente, sem cortar a timeline.
+- [ ] Ctrl+C/Ctrl+V e outros atalhos existentes continuam funcionais.
+- [ ] Usuários com atalhos próprios não perdem as configurações após atualização.
+- [ ] Painel de atalhos permite remapear e resolver conflitos, inclusive em teclado PT-BR.
+- [ ] Divisão à esquerda/direita não provoca alterações imprevistas em outras faixas.
+
+**Áreas atuais:** `apps/web/src/actions/definitions.ts`, `apps/web/src/actions/keybindings-store.ts`, `apps/web/src/actions/keybindings/migrations/`, `apps/web/src/actions/components/shortcuts-dialog.tsx`, `apps/web/src/actions/use-editor-actions.ts` e UI da timeline.
+**Plano técnico adicional:** `docs/parakeet-redux-shortcuts.md`.
+
+---
+
 ## F06 — Sounds (ADIADO: NÃO MODIFICAR AGORA)
 
 **Decisão de 13/11/2026:** a aba Sounds fica **inteiramente fora deste ciclo de trabalho**. Não alterar pesquisa, rolagem, favoritos, layout, filtros, catálogo ou fontes. A expansão planejada anteriormente permanece apenas como ideia de backlog, **sem prioridade, implementação ou PR nesta etapa**.
@@ -698,6 +772,8 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 | **7 (penúltima)** | F01 | Proteção persistente de camadas/clipes, aplicada aos recursos anteriores | Áudio, IA, HyperFrames, Links, MCP já prontos |
 | **8 (última do ciclo prioritário)** | F08 | Conversão inteligente com geometria, IA, tracking e proteção | F01 + F03 |
 | **9 (futuro, baixa prioridade)** | F10 | **Ctrl+S salva projeto editável + mídias originais no servidor; reabrir/editar pelo celular e continuar no PC, sem renderizar** | Auditoria de persistência, armazenamento de originais, login, UI mobile, sincronização/concorrência. **Só depois das fases 1–8** |
+| **Backlog, sem fase** | F11 | Trocar motor de transcrição Whisper por **Parakeet Redux CPU** para legendas com tempos por palavra; comparar qualidade PT-BR | Auditoria do worker atual e adapter CPU local; prioridade ainda não definida |
+| **Backlog, sem fase** | F12 | Atalhos C/V/X para split/left/right, barra de ações rápidas e remapeamento seguro | Sistema de actions/keybindings já existente; prioridade ainda não definida |
 | **Adiado** | F06 | Sounds: não alterar nada neste ciclo | Nenhuma |
 
 ### Lotes de trabalho sugeridos, na mesma ordem
@@ -712,7 +788,7 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 8. **F08:** auto-conversão por regras geométricas, depois IA/tracking e suavização, com preview/export consistente.
 9. **F10 (somente depois):** auditoria de projetos/mídias atuais; Ctrl+S + snapshot no servidor; upload persistente, retomável e verificável de todos os originais; autenticação/Meus projetos; mobile editor touch; salvar/retomar no PC; testes de interrupção, concorrência e acesso remoto seguro.
 
-**F10 é backlog futuro após o ciclo prioritário**, sem implementações antecipadas nem bloqueios das fases anteriores. **F06 Sounds: NÃO criar tarefas, PRs ou dependências neste ciclo.** Adiar até uma instrução posterior explícita.
+**F10 é backlog futuro após o ciclo prioritário**, sem implementações antecipadas nem bloqueios das fases anteriores. **F11 e F12 são ideias aprovadas para o planejamento, com prioridade de execução ainda não definida**; não antecipar ou bloquear as fases 1–9. **F06 Sounds: NÃO criar tarefas, PRs ou dependências neste ciclo.** Adiar até uma instrução posterior explícita.
 
 ---
 
@@ -795,6 +871,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-13 (Parakeet Redux e atalhos rápidos):** adicionados **F11** (troca do Whisper pelo **Parakeet Redux CPU** para gerar legendas localmente, incluindo timestamps por palavra, testes PT-BR e integração com captions/HyperFrames) e **F12** (remapeamento de Split/Left/Right para **C/V/X**, barra de ações rápidas, conflitos e preservação de atalhos pessoais). Verificados no código atual **Whisper-small** e atalhos **S/Q/W**. Ambos backlog sem prioridade definida; **somente documentação, nenhum código funcional alterado**. Detalhes em `docs/parakeet-redux-shortcuts.md`.
 - **2026-11-13 (continuidade PC ↔ celular):** adicionada **F10**, após todas as oito prioridades existentes. Planejado **Ctrl+S salva estado editável e todos os arquivos originais no servidor sem render**, status de sincronização, reabertura e edição real por celular, retorno ao PC, autenticação, versionamento, upload resumível, armazenamento persistente e preview/proxy mobile; detalhes em `docs/cross-device-project-sync.md`. **Apenas documentação; nenhuma implementação.**
 - **2026-11-13 (execução Node personalizada):** esclarecimento do requisito: usuário deve poder **colar um arquivo Node.js inteiro e executar de verdade no Editor**, com `axios`, imports, streaming, credenciais por variáveis de ambiente, logs, salvar como provedor e usar no HyperFrames. Apenas gerar/copiar código **não atende**. Planejado runner isolado com segurança; referência `docs/custom-node-api-runner.md`. **Somente documentação, sem implementação.**
 - **2026-11-13 (presets NVIDIA e código Node):** estabelecida inclusão obrigatória de **Nemotron 3 Nano Omni**, **Kimi K3** e **Gemma 4 31B** nos cartões NVIDIA; um token NVIDIA configurado na UI, teste real e **gerador/copiador de chamadas Node.js** com prompt editável. Página individual Kimi K3 indica **Free Endpoint Deprecated**, portanto modelo fica listado sem promessas até teste autenticado. Criada referência `docs/nvidia-api-node.md`. **Somente documentação, nenhum editor/integração implementado.**
