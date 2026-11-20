@@ -136,6 +136,19 @@ export async function uploadRemoteAsset(args: {
   onProgress?.(1);
 }
 
+/** Download a host-generated, low-bandwidth editing copy; never upload it as the original. */
+export async function downloadRemotePreviewAsset(projectId: string, asset: RemoteAsset): Promise<File> {
+  const response = await lanRequest(
+    "projects/" + encodeURIComponent(projectId) + "/assets/" + encodeURIComponent(asset.id) + "?preview=1",
+  );
+  const blob = await response.blob();
+  const mimeType = response.headers.get("content-type") || blob.type;
+  const extension = asset.type === "video" ? ".mp4" : asset.type === "audio" ? ".m4a" : ".png";
+  return new File([blob], asset.id + "-preview" + extension, {
+    type: mimeType, lastModified: Date.now(),
+  });
+}
+
 export async function downloadRemoteAsset(projectId: string, asset: RemoteAsset): Promise<File> {
   const response = await lanRequest("projects/" + encodeURIComponent(projectId) + "/assets/" + encodeURIComponent(asset.id) + "?download=1");
   const blob = await response.blob();
