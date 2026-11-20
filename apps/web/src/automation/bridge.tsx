@@ -19,6 +19,10 @@ import {
 import { getElementsAtTime } from "@/timeline";
 import { mediaTimeFromSeconds, mediaTimeToSeconds } from "@/wasm";
 import { useEditor } from "@/editor/use-editor";
+import { buildTextElement } from "@/timeline/element-utils";
+import { extractTimelineAudio } from "@/media/mediabunny";
+import { decodeAudioToFloat32 } from "@/media/audio";
+import { findAudioPeaks } from "@/automation/audio-peaks";
 import { getAutomationSessionId } from "@/automation/session";
 
 type AutomationCommand = {
@@ -220,6 +224,47 @@ async function executeCommand({
 			}
 			editor.timeline.deleteElements({ elements });
 			return { deleted: elements.length };
+		}
+		case "insert_hyperframes": {
+			const title = requireString({ payload: command.payload, key: "title" });
+			const mode = requireString({ payload: command.payload, key: "mode" });
+			const durationSeconds = requireNumber({ payload: command.payload, key: "durationSeconds" });
+			if (title.length > 100 || durationSeconds < 0.3 || durationSeconds > 8 ||
+				!["beats", "time"].includes(mode)) throw new Error("HyperFrames command out of bounds");
+			const limitSeconds = mediaTimeToSeconds({ time: editor.timeline.getTotalDuration() });
+			let timestamps: number[];
+			if (mode === "beats") {
+				const blob = await extractTimelineAudio({
+					tracks: editor.scenes.getActiveScene().tracks,
+					mediaAssets: editor.media.getAssets(),
+					totalDuration: editor.timeline.getTotalDuration(),
+				});
+				const { samples } = await decodeAudioToFloat32({ audioBlob: blob, sampleRate: 16_000 });
+				timestamps = findAudioPeaks(samples, 16_000, 16).map((point) => point.seconds);
+			} else {
+				timestamps = [requireNumber({ payload: command.payload, key: "startSeconds" })];
+			}
+			let inserted = 0;
+			let endOfLast = -1;
+			for (const seconds of timestamps) {
+				if (seconds < 0 || seconds >= limitSeconds || seconds < endOfLast) continue;
+				const effectiveDuration = Math.min(durationSeconds, limitSeconds - seconds);
+				if (effectiveDuration < 0.3) continue;
+				const element = buildTextElement({
+					startTime: mediaTimeFromSeconds({ seconds }),
+					raw: {
+						name: "HyperFrames · " + title.slice(0, 36),
+						duration: mediaTimeFromSeconds({ seconds: effectiveDuration }),
+						params: { content: title, "subtitle.isCaption": false },
+					},
+				});
+				editor.timeline.insertElement({ element, placement: { mode: "auto" } });
+				endOfLast = seconds + effectiveDuration;
+				inserted++;
+				if (inserted >= 16) break;
+			}
+			if (!inserted) throw new Error("Não há trecho ou batidas de áudio válidas para inserir HyperFrames.");
+			return { inserted, mode, title };
 		}
 		case "update_text": {
 			const trackId = requireString({
