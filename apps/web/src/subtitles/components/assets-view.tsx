@@ -18,6 +18,7 @@ import type {
 	TranscriptionProgress,
 } from "@/transcription/types";
 import { transcriptionService } from "@/services/transcription/service";
+import { getLanToken } from "@/lan-sync/client";
 import { decodeAudioToFloat32 } from "@/media/audio";
 import { buildCaptionChunks } from "@/transcription/caption";
 import { insertCaptionChunksAsTextTrack } from "@/subtitles/insert";
@@ -151,10 +152,12 @@ export function Captions() {
 			dispatch({ type: "update_step", step: "Preparing audio..." });
 			const result = transcriptionEngine === "parakeet"
 				? await (async () => {
+					const token = getLanToken();
+					if (!token) throw new Error("Conecte-se ao servidor LAN antes de utilizar Parakeet Redux (CPU).");
 					dispatch({ type: "update_step", step: "Parakeet Redux · CPU no host..." });
 					const response = await fetch("/api/transcription/parakeet", {
 						method: "POST",
-						headers: { "Content-Type": "audio/wav" },
+						headers: { "Content-Type": "audio/wav", "x-lan-sync-token": token },
 						body: audioBlob,
 						signal: AbortSignal.timeout(245_000),
 					});
