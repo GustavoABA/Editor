@@ -24,6 +24,7 @@ import { TRANSCRIPTION_DIAGNOSTICS_SCOPE } from "@/transcription/diagnostics";
 import { AutomationConnections } from "./connections";
 import { OllamaAssistant } from "./ollama-assistant";
 import { HyperFramesPanel } from "./hyperframes";
+import { HyperFramesStudio } from "./hyperframes-studio";
 import { AIProvidersPanel } from "./providers";
 
 function formatSeconds(seconds: number): string {
@@ -165,6 +166,7 @@ export function AutomationView() {
 				)}
 			</section>
 
+			<HyperFramesStudio />
 			<HyperFramesPanel />
 
 			<AutomationConnections />
