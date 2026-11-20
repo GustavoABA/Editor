@@ -63,9 +63,39 @@ export function SoundsView() {
 	);
 }
 
+	function convertToSoundEffect({
+		savedSound,
+	}: {
+		savedSound: SavedSound;
+	}): SoundEffect {
+	return {
+		id: savedSound.id,
+		name: savedSound.name,
+		description: "",
+		url: "",
+		previewUrl: savedSound.previewUrl,
+		downloadUrl: savedSound.downloadUrl,
+		duration: savedSound.duration,
+		filesize: 0,
+		type: "audio",
+		channels: 0,
+		bitrate: 0,
+		bitdepth: 0,
+		samplerate: 0,
+		username: savedSound.username,
+		tags: savedSound.tags,
+		license: savedSound.license,
+		created: savedSound.savedAt,
+		downloads: 0,
+		rating: 0,
+		ratingCount: 0,
+	};
+}
+
 function SoundEffectsView() {
 	const {
 		topSoundEffects,
+		savedSounds,
 		isLoading,
 		searchQuery,
 		setSearchQuery,
@@ -224,7 +254,7 @@ function SoundEffectsView() {
 	};
 
 	return (
-		<div className="mt-1 flex h-full flex-col gap-5">
+		<div className="mt-1 flex min-h-0 flex-1 flex-col gap-5">
 			<div className="flex items-center gap-3">
 				<Input
 					placeholder="Search sound effects"
@@ -263,13 +293,26 @@ function SoundEffectsView() {
 				</DropdownMenu>
 			</div>
 
-			<div className="relative h-full overflow-hidden">
+			<div className="relative min-h-0 flex-1 overflow-hidden">
 				<ScrollArea
 					className="h-full flex-1"
 					ref={scrollAreaRef}
 					onScrollCapture={handleScrollWithPosition}
 				>
 					<div className="flex flex-col gap-4">
+						{!searchQuery && savedSounds.length > 0 && (
+							<section className="space-y-2" aria-label="Áudios salvos no catálogo">
+								<h3 className="text-xs font-medium text-muted-foreground">Áudios salvos</h3>
+								<div className="flex flex-col gap-3">
+									{savedSounds.map((sound) => (
+										<AudioItem key={sound.id} sound={convertToSoundEffect({ savedSound: sound })}
+											isPlaying={playingId === sound.id} onPlay={playSound} />
+									))}
+								</div>
+								<Separator />
+							</section>
+						)}
+						{!searchQuery && <h3 className="text-xs font-medium text-muted-foreground">Catálogo de sons</h3>}
 						{isLoading && !searchQuery && (
 							<div className="text-muted-foreground text-sm">
 								Loading sounds...
@@ -350,32 +393,6 @@ function SavedSoundsView() {
 		}
 	};
 
-	const convertToSoundEffect = ({
-		savedSound,
-	}: {
-		savedSound: SavedSound;
-	}): SoundEffect => ({
-		id: savedSound.id,
-		name: savedSound.name,
-		description: "",
-		url: "",
-		previewUrl: savedSound.previewUrl,
-		downloadUrl: savedSound.downloadUrl,
-		duration: savedSound.duration,
-		filesize: 0,
-		type: "audio",
-		channels: 0,
-		bitrate: 0,
-		bitdepth: 0,
-		samplerate: 0,
-		username: savedSound.username,
-		tags: savedSound.tags,
-		license: savedSound.license,
-		created: savedSound.savedAt,
-		downloads: 0,
-		rating: 0,
-		ratingCount: 0,
-	});
 
 	if (isLoadingSavedSounds) {
 		return (
@@ -415,7 +432,7 @@ function SavedSoundsView() {
 	}
 
 	return (
-		<div className="mt-1 flex h-full flex-col gap-5">
+		<div className="mt-1 flex min-h-0 flex-1 flex-col gap-5">
 			<div className="flex items-center justify-between">
 				<p className="text-muted-foreground text-sm">
 					{savedSounds.length} saved{" "}
@@ -460,7 +477,7 @@ function SavedSoundsView() {
 				</Dialog>
 			</div>
 
-			<div className="relative h-full overflow-hidden">
+			<div className="relative min-h-0 flex-1 overflow-hidden">
 				<ScrollArea className="h-full flex-1">
 					<div className="flex flex-col gap-4">
 						{savedSounds.map((sound) => (
