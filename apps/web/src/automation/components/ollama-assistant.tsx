@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { getAutomationSessionId } from "@/automation/session";
+import { useEditor } from "@/editor/use-editor";
+import { extractTimelineAudio } from "@/media/mediabunny";
+import { decodeAudioToFloat32 } from "@/media/audio";
+import { findAudioPeaks } from "@/automation/audio-peaks";
 
 type PlannedCommand = {
 	type: string;
@@ -53,6 +57,8 @@ function commandLabel(command: PlannedCommand): string {
 			return `Dividir em ${Number(command.payload.seconds).toFixed(2)} s`;
 		case "delete_elements":
 			return `Remover ${Array.isArray(command.payload.elements) ? command.payload.elements.length : 0} item(ns)`;
+		case "insert_hyperframes":
+			return `HyperFrames: ${String(command.payload.title).slice(0, 40)} · ${String(command.payload.mode)} · ${String(command.payload.durationSeconds)}s`;
 		case "update_text":
 			return `Alterar texto para “${String(command.payload.content).slice(0, 40)}”`;
 		case "undo":
@@ -107,6 +113,7 @@ async function enqueueAndWait({
 }
 
 export function OllamaAssistant() {
+	const editor = useEditor();
 	const [instruction, setInstruction] = useState("");
 	const [provider, setProvider] = useState("auto");
 	const [plan, setPlan] = useState<EditingPlan | null>(null);
@@ -118,12 +125,30 @@ export function OllamaAssistant() {
 		setIsPlanning(true);
 		setPlan(null);
 		try {
+			// A compact real audio feature summary lets the AI select beat-aligned
+			// HyperFrames. Raw media stays in the browser; no audio is uploaded
+			// to the selected external language model.
+			let audioAnalysis: { peaksSeconds: number[] } = { peaksSeconds: [] };
+			try {
+				const blob = await extractTimelineAudio({
+					tracks: editor.scenes.getActiveScene().tracks,
+					mediaAssets: editor.media.getAssets(),
+					totalDuration: editor.timeline.getTotalDuration(),
+				});
+				const { samples } = await decodeAudioToFloat32({ audioBlob: blob, sampleRate: 16_000 });
+				audioAnalysis = {
+					peaksSeconds: findAudioPeaks(samples, 16_000, 48).map(p => Number(p.seconds.toFixed(2))),
+				};
+			} catch (audioError) {
+				console.warn("No audio peaks available for AI plan", audioError);
+			}
 			const response = await fetch("/api/automation/ollama/plan", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					sessionId: getAutomationSessionId(),
 					instruction: instruction.trim(),
+					audioAnalysis,
 					...(provider !== "auto" ? { provider } : {}),
 				}),
 			});
@@ -177,7 +202,7 @@ export function OllamaAssistant() {
 				<div>
 					<h3 className="text-sm font-medium">Assistente de IA · NVIDIA / OpenAI / Ollama</h3>
 					<p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
-						Descreva a edição. A IA gera um plano para revisão, com fallback automático entre provedores configurados no host.
+						Descreva a edição. A IA analisa os metadados da timeline e os picos de energia do áudio (sem reconhecimento de fala) para planejar cortes e HyperFrames; revise antes de aplicar. Fallback entre provedores configurados no host.
 					</p>
 				</div>
 			</div>
