@@ -1,6 +1,7 @@
 import type { EditorCore } from "@/core";
 import type { ExportFormat, ExportQuality } from "@/export";
-import { getLanToken, lanRequest } from "@/lan-sync/client";
+import { getLanToken, lanRequest, readRemoteProject } from "@/lan-sync/client";
+import { hasMediaId } from "@/timeline";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -27,6 +28,29 @@ export async function createServerRenderJob({
 	// path for unsynced assets and installations with LAN sync disabled.
 	const token = getLanToken();
 	const hosted = new Set<string>();
+	const sceneTracks = editor.scenes.getActiveScene().tracks;
+	const requiredIds = new Set([
+		sceneTracks.main, ...sceneTracks.overlay, ...sceneTracks.audio,
+	].flatMap((track) => track.elements.flatMap((element) => hasMediaId(element) ? [element.mediaId] : [])));
+	const localIds = new Set(mediaAssets.map((asset) => asset.id));
+	const absentIds = [...requiredIds].filter((id) => !localIds.has(id));
+	const remoteOnly: Array<{ id: string; name: string; type: "video" | "image" | "audio"; mimeType: string; size: number }> = [];
+	if (absentIds.length) {
+		if (!token) throw new Error("Há arquivos ausentes deste dispositivo. Conecte a LAN para exportar usando os originais do servidor.");
+		const remote = await readRemoteProject(project.metadata.id);
+		for (const id of absentIds) {
+			const asset = remote?.assets.find((entry) => entry.id === id && entry.uploaded);
+			if (!asset || !["video", "image", "audio"].includes(asset.type)) {
+				throw new Error(`Não é possível exportar: o original ${id} ainda não foi enviado ao servidor.`);
+			}
+			remoteOnly.push({
+				id: asset.id, name: asset.name,
+				type: asset.type as "video" | "image" | "audio",
+				mimeType: asset.mimeType || "application/octet-stream", size: asset.size,
+			});
+			hosted.add(asset.id);
+		}
+	}
 	if (token) {
 		await Promise.all(mediaAssets.map(async (asset) => {
 			try {
@@ -43,13 +67,16 @@ export async function createServerRenderJob({
 		"manifest",
 		JSON.stringify({
 			tracks: editor.scenes.getActiveScene().tracks,
-			assets: mediaAssets.map((asset) => ({
-				id: asset.id,
-				name: asset.name,
-				type: asset.type,
-				mimeType: asset.file.type,
-				size: asset.file.size,
-			})),
+			assets: [
+				...mediaAssets.map((asset) => ({
+					id: asset.id,
+					name: asset.name,
+					type: asset.type,
+					mimeType: asset.file.type,
+					size: asset.file.size,
+				})),
+				...remoteOnly,
+			],
 			...(hosted.size > 0 ? { lanSyncProjectId: project.metadata.id } : {}),
 			duration: editor.timeline.getTotalDuration(),
 			settings: project.settings,
