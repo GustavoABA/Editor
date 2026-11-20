@@ -4,6 +4,7 @@ interface UseEdgeAutoScrollParams {
 	isActive: boolean;
 	getMouseClientX: () => number;
 	onAutoScroll?: () => void;
+	shouldAutoScroll?: () => boolean;
 	rulerScrollRef: React.RefObject<HTMLDivElement | null>;
 	tracksScrollRef: React.RefObject<HTMLDivElement | null>;
 	contentWidth: number;
@@ -15,6 +16,7 @@ export function useEdgeAutoScroll({
 	isActive,
 	getMouseClientX,
 	onAutoScroll,
+	shouldAutoScroll,
 	rulerScrollRef,
 	tracksScrollRef,
 	contentWidth,
@@ -24,11 +26,13 @@ export function useEdgeAutoScroll({
 	const rafRef = useRef<number | null>(null);
 	const getMouseClientXRef = useRef(getMouseClientX);
 	const onAutoScrollRef = useRef(onAutoScroll);
+	const shouldAutoScrollRef = useRef(shouldAutoScroll);
 
 	useEffect(() => {
 		getMouseClientXRef.current = getMouseClientX;
 		onAutoScrollRef.current = onAutoScroll;
-	}, [getMouseClientX, onAutoScroll]);
+		shouldAutoScrollRef.current = shouldAutoScroll;
+	}, [getMouseClientX, onAutoScroll, shouldAutoScroll]);
 
 	useEffect(() => {
 		if (!isActive) {
@@ -41,6 +45,11 @@ export function useEdgeAutoScroll({
 
 		let previousTimestamp: number | null = null;
 		const step = (timestamp: number) => {
+			if (shouldAutoScrollRef.current && !shouldAutoScrollRef.current()) {
+				previousTimestamp = timestamp;
+				rafRef.current = requestAnimationFrame(step);
+				return;
+			}
 			const rulerViewport = rulerScrollRef.current;
 			const tracksViewport = tracksScrollRef.current;
 			if (!rulerViewport || !tracksViewport) {
@@ -69,7 +78,7 @@ export function useEdgeAutoScroll({
 
 			if (mouseXRelative < edgeThreshold && rulerViewport.scrollLeft > 0) {
 				const edgeDistance = Math.max(0, mouseXRelative);
-				const intensity = 1 - edgeDistance / edgeThreshold;
+				const intensity = edgeThreshold > 0 ? 1 - edgeDistance / edgeThreshold : 1;
 				scrollSpeed = -maxScrollSpeed * intensity * frameFactor;
 			} else if (
 				mouseXRelative > viewportWidth - edgeThreshold &&

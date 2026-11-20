@@ -65,7 +65,7 @@ export class SplitElementsCommand extends Command {
 					(target) => target.elementId === element.id,
 				);
 
-				if (!shouldSplit) {
+				if (!shouldSplit || element.locked) {
 					return [element];
 				}
 

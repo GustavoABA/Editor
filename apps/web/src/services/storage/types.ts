@@ -27,6 +27,10 @@ export interface MediaAssetData {
 	hasAudio?: boolean;
 	ephemeral?: boolean;
 	thumbnailUrl?: string;
+	/** Browser file is an editable preview; verified original lives on the host. */
+	remoteProxy?: boolean;
+	originalSize?: number;
+	originalMimeType?: string;
 }
 
 export type SerializedScene = Omit<TScene, "createdAt" | "updatedAt"> & {

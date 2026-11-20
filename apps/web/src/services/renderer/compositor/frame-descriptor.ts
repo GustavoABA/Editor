@@ -26,6 +26,7 @@ import type {
 	TextureUploadDescriptor,
 } from "./types";
 import { DEFAULT_GRAPHIC_SOURCE_SIZE } from "@/graphics";
+import { applyCanvasClipEffects } from "@/effects/canvas-effects";
 
 export async function buildFrameDescriptor({
 	node,
@@ -240,10 +241,14 @@ async function collectVisualSourceNode({
 			: (node.resolved as ResolvedVisualSourceNodeState).sourceHeight;
 
 	const textureId = `${path}:source`;
+	const processedSource = applyCanvasClipEffects({
+		source, width: sourceWidth, height: sourceHeight,
+		effects: node.params.effects,
+	});
 	textures.set(textureId, {
 		kind: "external",
 		id: textureId,
-		source,
+		source: processedSource,
 		width: sourceWidth,
 		height: sourceHeight,
 	});
@@ -268,7 +273,9 @@ async function collectVisualSourceNode({
 		transform,
 		opacity: node.resolved.opacity,
 		blendMode: node.params.blendMode ?? "normal",
-		effectPassGroups: node.resolved.effectPasses,
+		// CPU-preprocessed effects apply consistently on GPU and CPU renderers.
+		// Do not apply their passes a second time.
+		effectPassGroups: [],
 		mask,
 	});
 	if (strokeLayer) {
@@ -310,7 +317,18 @@ function collectTextNode({
 		width,
 		height,
 		draw: (ctx) => {
-			renderTextToContext({ node, ctx });
+			const effects = node.params.effects?.filter((effect) => effect.enabled);
+			if (!effects?.length) {
+				renderTextToContext({ node, ctx });
+				return;
+			}
+			const intermediate = new OffscreenCanvas(width, height);
+			const intermediateContext = intermediate.getContext("2d");
+			if (!intermediateContext) return;
+			renderTextToContext({ node, ctx: intermediateContext });
+			ctx.drawImage(applyCanvasClipEffects({
+				source: intermediate, width, height, effects,
+			}), 0, 0);
 		},
 	});
 	items.push({
@@ -319,7 +337,7 @@ function collectTextNode({
 		transform: fullCanvasTransform(renderer),
 		opacity: node.resolved.opacity,
 		blendMode: node.params.blendMode ?? "normal",
-		effectPassGroups: node.resolved.effectPasses,
+		effectPassGroups: [],
 		mask: null,
 	});
 }

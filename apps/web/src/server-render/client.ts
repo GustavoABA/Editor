@@ -1,5 +1,7 @@
 import type { EditorCore } from "@/core";
 import type { ExportFormat, ExportQuality } from "@/export";
+import { getLanToken, lanRequest, readRemoteProject } from "@/lan-sync/client";
+import { hasMediaId } from "@/timeline";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -22,17 +24,68 @@ export async function createServerRenderJob({
 }): Promise<{ jobId: string; statusUrl: string }> {
 	const project = editor.project.getActive();
 	const mediaAssets = editor.media.getAssets();
+	// Reuse verified host originals whenever available; retain the old upload
+	// path for unsynced assets and installations with LAN sync disabled.
+	const token = getLanToken();
+	const hosted = new Set<string>();
+	const sceneTracks = editor.scenes.getActiveScene().tracks;
+	const requiredIds = new Set([
+		sceneTracks.main, ...sceneTracks.overlay, ...sceneTracks.audio,
+	].flatMap((track) => track.elements.flatMap((element) => hasMediaId(element) ? [element.mediaId] : [])));
+	const localIds = new Set(mediaAssets.map((asset) => asset.id));
+	const absentIds = [...requiredIds].filter((id) => !localIds.has(id));
+	const remoteOnly: Array<{ id: string; name: string; type: "video" | "image" | "audio"; mimeType: string; size: number }> = [];
+	if (absentIds.length) {
+		if (!token) throw new Error("Há arquivos ausentes deste dispositivo. Conecte a LAN para exportar usando os originais do servidor.");
+		const remote = await readRemoteProject(project.metadata.id);
+		for (const id of absentIds) {
+			const asset = remote?.assets.find((entry) => entry.id === id && entry.uploaded);
+			if (!asset || !["video", "image", "audio"].includes(asset.type)) {
+				throw new Error(`Não é possível exportar: o original ${id} ainda não foi enviado ao servidor.`);
+			}
+			remoteOnly.push({
+				id: asset.id, name: asset.name,
+				type: asset.type as "video" | "image" | "audio",
+				mimeType: asset.mimeType || "application/octet-stream", size: asset.size,
+			});
+			hosted.add(asset.id);
+		}
+	}
+	if (token) {
+		await Promise.all(mediaAssets.map(async (asset) => {
+			try {
+				const response = await lanRequest(
+					`projects/${encodeURIComponent(project.metadata.id)}/assets/${encodeURIComponent(asset.id)}`,
+				);
+				const result = await response.json() as { uploaded: boolean; info?: { size: number } };
+				const expectedSize = asset.remoteProxy ? asset.originalSize : asset.file.size;
+				if (result.uploaded && result.info?.size === expectedSize) hosted.add(asset.id);
+			} catch {
+				// Original files may still be uploaded directly; proxies must never be.
+			}
+		}));
+	}
+	for (const asset of mediaAssets) {
+		if (asset.remoteProxy && !hosted.has(asset.id)) {
+			throw new Error(`O arquivo original ${asset.name} não está disponível no host; uma prévia não pode ser exportada como original.`);
+		}
+	}
 	const formData = new FormData();
 	formData.append(
 		"manifest",
 		JSON.stringify({
 			tracks: editor.scenes.getActiveScene().tracks,
-			assets: mediaAssets.map((asset) => ({
-				id: asset.id,
-				name: asset.name,
-				type: asset.type,
-				mimeType: asset.file.type,
-			})),
+			assets: [
+				...mediaAssets.map((asset) => ({
+					id: asset.id,
+					name: asset.name,
+					type: asset.type,
+					mimeType: asset.remoteProxy ? asset.originalMimeType : asset.file.type,
+					size: asset.remoteProxy ? asset.originalSize : asset.file.size,
+				})),
+				...remoteOnly,
+			],
+			...(hosted.size > 0 ? { lanSyncProjectId: project.metadata.id } : {}),
 			duration: editor.timeline.getTotalDuration(),
 			settings: project.settings,
 			options: { format, quality, includeAudio },
@@ -43,13 +96,16 @@ export async function createServerRenderJob({
 		}),
 	);
 	for (const asset of mediaAssets) {
-		formData.append(`asset:${asset.id}`, asset.file, asset.name);
+		if (!hosted.has(asset.id) && !asset.remoteProxy) {
+			formData.append(`asset:${asset.id}`, asset.file, asset.name);
+		}
 	}
 
 	const response = await fetch("/api/server-render/jobs", {
 		method: "POST",
 		body: formData,
 		signal,
+		...(hosted.size > 0 ? { headers: { "x-lan-sync-token": token } } : {}),
 	});
 	const payload: unknown = await response.json();
 	if (!response.ok) {

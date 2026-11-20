@@ -4,11 +4,34 @@
 >
 > **Branch única de desenvolvimento, implementação, correções e testes: `teste/implementacao`.** O nome usa ASCII no Git; a pronúncia “teste/implementação” refere-se à mesma branch.
 >
-> **`main` é a referência do projeto e do planejamento.** O Editor está **EM DESENVOLVIMENTO na branch `teste/implementacao`**. **Não desenvolver código, não testar uma versão de referência como se fosse a nova implementação e não abrir PRs de funcionalidades a partir da `main`.** Esta atualização do roadmap na `main` é apenas documental, feita a pedido do proprietário.
+> **Esta é a branch oficial de implementação e validação.** O Editor está **EM DESENVOLVIMENTO na `teste/implementacao`**, enquanto a `main` permanece como referência do planejamento. **Não editar código da `main` e não reabrir o desenvolvimento na branch antiga.**
 >
 > **Implementação inicial já existente na branch de teste:** F10 (arquitetura híbrida LAN: interação e preview imediatos no navegador, upload de mídia em segundo plano ao host, projetos com revisões e checkpoints de 3 min, Ctrl+S, aviso ⚠️ para mídias faltantes, abertura de projetos do host e exportação que tenta reutilizar originais sincronizados). **Ainda experimental, não 100% concluída**; não refazer o que já existe sem auditoria.
 >
 > **PR oficial de validação:** [#2 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/2). **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
+
+## Situação da implementação — branch de teste (19/11/2026)
+
+> **Registro de código entregue para validação, não homologação.** A tabela histórica de auditoria da `main` abaixo é um snapshot anterior e **não representa** o estado do código na `teste/implementacao`. Para testes e implantação, consulte [plano de validação](docs/test-plan.md) e [PR #2](https://github.com/GustavoABA/Editor/pull/2).
+
+| Feature | Entrega registrada no código | Ainda pendente antes de marcar concluído |
+|---|---|---|
+| **F02 LUFS** | [x] Métricas EBU R128 no host e UI de ganho reversível por clipe | [ ] Medir mix final, fades/keyframes, fidelidade export |
+| **F03 Roteador IA** | [x] NVIDIA, Kimi/Moonshot, OpenAI, Claude e DeepSeek por API, Ollama local, cofre AES-GCM, fallback | [ ] Executor Node isolado, autenticação granular, tests de modelos reais |
+| **F04 HyperFrames** | [x] Modo simples por batidas + novo painel HTML/CSS editável, transcrição Parakeet/Whisper, IA semântica, CLI oficial instalada no mesmo contêiner `web`, sem daemon nem token adicional, e inserção WebM na timeline | [ ] Homologar render dentro da imagem web, transparência/export, preview fiel, HTML/JS completo e integração multimídia |
+| **F07 Links** | [x] Iframes somente preview YouTube/Twitch; importação de URL direta com autorização e limite | [ ] Casos CORS, integrações adicionais, testes/licenças |
+| **F05 Stickers** | [x] Ajuste CSS de scroll/touch | [ ] Reprodução de bug e confirmação desktop/mobile |
+| **F09 MCP ngrok** | [x] Agente opcional, status e toggle de endpoint dedicado ao MCP | [ ] Teste real HTTPS, revogação, autenticação e observabilidade |
+| **F01 Lock** | [x] Estado protegido persistente com gates em alterações centrais | [ ] Proteger fluxos adicionais de efeitos, duplicação, IA/MCP e Undo |
+| **F08 Reframe** | [x] Converter proporção e posições em comando reversível | [ ] Tracking inteligente de sujeito, keyframes |
+| **F10 LAN híbrida** | [x] Upload assíncrono, persistência host e snapshots, previews compactados, export host | [ ] Streaming segmentado, UX mobile, segurança e E2E |
+| **F11 Parakeet Redux** | [x] Serviço CPU opcional + rota autenticada + motor padrão na UI | [ ] Build do worker, download pesos, precisão PT-BR, E2E |
+| **F12 C/V/X** | [x] Atalhos padrão e migração preservando customizações | [ ] Teste no navegador, colisões/contextos |
+| **F06 Sounds** | **Adiado** pelo planejamento; não alterado nesta rodada | Aguardar autorização |
+
+**Critério geral:** até obter CI aprovado e testes reais, `[x]` nesta tabela significa **código existente**, não `CONCLUÍDO`. Não alterar a `main` sem aprovação.
+
+---
 
 ## Fluxo obrigatório para qualquer agente (Codex/IA)
 
@@ -32,7 +55,7 @@
 
 > **Estado:** roadmap de desenvolvimento + auditoria estática da branch `main` em **19/11/2026**. Marcação **[x]** significa código-base localizado, não teste funcional completo. `CONCLUÍDO` só vale quando todos os critérios da feature forem atendidos e testados. Documentar não implementa código.
 > **Decisão de arquitetura (19/11/2026):** F10 passa a especificar **edição híbrida LAN com resposta imediata no cliente, upload assíncrono de originais ao host e snapshots persistentes no servidor a cada 3 minutos**, além de Ctrl+S e continuidade PC/celular. **F10 permanece na fase 9**, sem mudança automática da ordem anterior.
-> **Sequência histórica de 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. **Exceção posterior:** F10 está **em desenvolvimento experimental somente em `teste/implementacao`** e deve ser validada/concluída nessa branch. A sequência histórica de outras features e o adiamento de Sounds (F06) continuam registrados.
+> **Sequência histórica aprovada em 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. **Exceção posterior:** F10 já iniciou implementação experimental em `teste/implementacao`; esta branch é o local de validação, conclusão e atualização do status. Sounds (F06) continua adiado.
 > **A numeração Fxx identifica funcionalidades; NÃO indica prioridade.** A seção 10 é a referência obrigatória de fases e dependências. **F11 (Parakeet Redux) e F12 (atalhos rápidos) são novos itens de backlog, ainda sem fase fixada pelo proprietário**.
 >
 > **Criado em:** 2026-11-10
@@ -125,7 +148,7 @@ Princípios obrigatórios:
 
 ## F02 — Normalizador global de áudio por loudness (FASE 1 — máxima prioridade)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (o limiter já existe, mas LUFS não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: medição LUFS/dBTP no host, proposta de ganho não destrutivo e aplicação com Undo; pendentes mix final, fades e comparação preview/export.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 ### UX
 
@@ -169,7 +192,7 @@ Princípios obrigatórios:
 
 ## F03 — Settings > IA: provedores, modelos e roteamento com fallback (FASE 2)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (Ollama existente; roteador multi-IA e Node pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: cofre AES-256-GCM e UI de chaves, fallback NVIDIA/Kimi/OpenAI/Claude/DeepSeek/Ollama, consentimento para API paga; pendente executor Node isolado e homologação das APIs.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 ### Localização e aparência
 
@@ -340,7 +363,7 @@ Fonte oficial: https://docs.api.nvidia.com/nim/docs/product
 
 ## F04 — HyperFrames dentro de IA & Automação (FASE 3)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (sem integração HyperFrames identificada)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL EM TESTE: componentes de texto por batidas + composição HTML/CSS editável e gerada por IA a partir de transcrição semântica Parakeet/Whisper e contexto da timeline; CLI oficial empacotada na própria imagem `web` executa sob demanda, renderiza WebM e insere como clipe de vídeo, com fontes HTML/CSS salvas nos parâmetros do clipe. Ainda não homologados: build da imagem web com CLI e E2E, alfa no navegador/export, preview por seek, JS arbitrário, mídias externas, edição DOM por objeto e E2E. Consulte `docs/hyperframes-integration.md`.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Prioridade imediata após o roteador IA:** confirmar e reaproveitar o que já estiver construído de HyperFrames, conectá-lo aos provedores da fase 2 e colocá-lo para funcionar na edição e na exportação. **Não depender de F01**, F09 ou F08.
 
@@ -429,7 +452,7 @@ Fluxo:
 
 ## F07 — Links: YouTube, Twitch, Pinterest/GIF, arquivos externos e iframe (FASE 4 — essencial)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (importação local existente; aba Links pendente)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: painel Links com prévias YouTube/Twitch e importação direta autorizada por CORS; pendentes fontes adicionais e testes de export/licenciamento.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Objetivo imediato:** carregar fotos, GIFs e vídeos diretamente de links permitidos; permitir prévia de **vídeos YouTube, Twitch e lives** dentro do editor. A aba é parte central do fluxo de edição, **não depende de F01**. Distinguir claramente `visualizável`, `importável` e `exportável`: embeds de players podem funcionar como prévia mas não podem ser presumidos exportáveis ou baixáveis.
 
@@ -485,7 +508,7 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ## F05 — Stickers: apenas corrigir scroll (FASE 5)
 
-> **Status de auditoria (19/11/2026):** **VALIDAR (overflow-y-auto existente; bug não comprovado como resolvido)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **IMPLEMENTADO NO CÓDIGO, VALIDAR: contenção de altura/scroll independente e touch-pan-y; validar navegador desktop/mobile.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Decisão:** não modificar categorias, catálogo, aparência, busca nem organização do painel Stickers. A única mudança solicitada é **corrigir a rolagem vertical**: ao ter muitos itens, a lista cresce, mas não permite rolar até o fim.
 
@@ -508,7 +531,7 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ## F09 — MCP externo via ngrok, controlado pela interface (FASE 6)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (MCP LAN pronto na base; ngrok/UI pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: ngrok agent em contêiner opcional e botão para ativar/desativar túnel exclusivamente MCP; falta teste público/HTTPS/autenticação e fail-safe.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Ordem:** executar depois de F05 e antes de F01 e F08. A fase 6 reaproveita o cofre de credenciais de F03 e aplica permissões atuais sem esperar o sistema de bloqueio de camadas. Atualizar política de proteção quando F01 for implementada.
 
@@ -571,7 +594,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F01 — Proteção de camada/clipe contra edição geral (FASE 7 — penúltima do ciclo prioritário)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (ações e Undo/Redo existem; proteção não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: flag persistente 🔒 com bloqueio inicial de updates/move/split/delete; faltam todas as rotas de alteração, duplicação, efeitos e testes E2E.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Regra:** implementar este recurso **somente após F02, F03, F04, F07, F05 e F09**. Não é dependência para nenhum deles. Ao adicionar bloqueio, integrar retroativamente com comandos de edição, IA, MCP e HyperFrames já existentes, preservando compatibilidade e Undo/Redo.
 
@@ -612,7 +635,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F08 — Project Info > **Auto-converter formato** (FASE 8 — última entrega do ciclo prioritário)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (canvas manual existente; autoconversão pendente)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: reframe geométrico proporção+escala com Undo e respeito a 🔒; faltam tracking de assunto e quadros-chave.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 ### UX
 
@@ -677,15 +700,15 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ---
 
-## F10 — Arquitetura híbrida LAN e continuidade PC ↔ celular (FASE 9 NO PLANO; EM DESENVOLVIMENTO NA BRANCH DE TESTE)
-
-> **AVISO DE EXECUÇÃO (19/11/2026):** a implementação da F10 foi iniciada e está exclusivamente na branch [`teste/implementacao`](https://github.com/GustavoABA/Editor/tree/teste/implementacao), com revisão no [PR #2](https://github.com/GustavoABA/Editor/pull/2). **A `main` contém apenas a infraestrutura original e o planejamento**. Ao usar Codex ou outra IA, validar/implementar **na branch de teste**, usando o plano mais recente dessa branch. Nunca interpretar o status da `main` como status do código experimental.
+## F10 — Arquitetura híbrida LAN e continuidade PC ↔ celular (EM DESENVOLVIMENTO NA BRANCH DE TESTE)
 
 > **Decisão atualizada pelo proprietário em 19/11/2026:** a edição interativa deve acontecer **imediatamente no cliente**, enquanto os originais são enviados ao **host em segundo plano**. O host é a fonte persistente de projetos/mídias e executa render final e tarefas pesadas quando necessário. **Snapshot do projeto a cada 3 minutos no servidor**, além de **Ctrl+S / botão Salvar agora**. Se uma mídia não foi sincronizada, representar o item com **⚠️ pendente** sem perder as edições.
 >
-> **Status:** **PARCIAL SOMENTE NA BASE** — já existem edição/preview locais, armazenamento local do navegador, API de render no host e Docker/LAN. **NÃO IMPLEMENTADO**: envio de mídia em background ao importar, biblioteca de originais persistente no servidor, snapshots de 3 min, estados pendentes por asset e reabertura editável em outro dispositivo.
+> **Status após primeira implementação em branch `teste/implementacao`: PARCIAL, NÃO CONCLUÍDO.** Existem agora uma API de projetos no host com revisões e checkpoints, volume persistente, upload automático por chunks, botão LAN/Salvar e importação de projeto remoto. **IMPLEMENTADO NA BRANCH, AINDA SEM TESTE REAL:** reutilização de originais verificados do host na exportação e placeholder ⚠️ para clipes sem mídia. **PENDENTE:** proxies de vídeo grande, UI mobile completa, segurança granular e testes de ponta a ponta. **Esses itens ainda não estão em `main`.**
 >
-> **Prioridade:** manter fase 9, depois F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08, até nova decisão explícita. Sounds continua adiado.
+> **Evidência da implementação experimental:** [PR #2](https://github.com/GustavoABA/Editor/pull/2) e [documentação de setup](docs/lan-hybrid-implementation.md). Verifique CI antes de promover componentes a concluídos.
+>
+> **Prioridade atual de validação:** desenvolver e testar a implementação já iniciada **exclusivamente nesta branch**. A sequência anterior do roadmap é histórica e não é motivo para abandonar a F10 existente. Sounds continua adiado.
 
 ### Divisão de responsabilidade
 
@@ -728,11 +751,11 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ### Implementação por marcos (todos pendentes; reaproveitar o que foi marcado [x] acima)
 
-- [ ] **F10-A — Modelos e storage do host:** mapear o `StorageService` atual, definir schema `project`/`revision`/`asset`, storage persistente e APIs seguras, migração de IndexedDB/OPFS existentes.
-- [ ] **F10-B — Importação instantânea + fila assíncrona:** manter preview drag/drop local; criar upload chunked/resumível, associação com asset no servidor, prioridade/cancelamento/retry e estados ⚠️.
-- [ ] **F10-C — Mudanças + snapshots 180 s:** sincronizar estado editável incrementalmente; job de checkpoints no host (enquanto ativo), Ctrl+S imediato, status separado de snapshot e mídia, recuperação offline.
-- [ ] **F10-D — Reabertura PC/mobile:** Meus projetos consultando servidor, URLs autenticadas/proxy, placeholders ⚠️ para faltantes, timeline touch e mesmo projeto editável de ponta a ponta.
-- [ ] **F10-E — Render integrado e resiliência:** export direto dos originais do host, conflitos/revisões, quotas/backup, controles de acesso, recuperação de falhas e testes LAN.
+- [ ] **F10-A — Modelos e storage do host:** **[x] base criada na branch (API/volume/revisões); [ ] falta testes, migração e autorização por usuário.** Mapear o `StorageService`, evoluir schema e migração do IndexedDB/OPFS.
+- [ ] **F10-B — Importação instantânea + fila assíncrona:** **[x] preview local preservado, fila de chunks automática e retry simples na branch; [ ] falta integridade ponta a ponta, cancelar/prioridade e teste real de retomada.**
+- [ ] **F10-C — Mudanças + snapshots 180 s:** **[x] revisão/snapshot no host, Ctrl+S, timer cliente e preservação de rascunho local na branch; [ ] falta delta incremental e resiliência/offline comprovada.**
+- [ ] **F10-D — Reabertura PC/mobile:** **[x] código experimental de listagem/importação, aviso ⚠️ no clipe, e geração de proxies compactados por FFmpeg no host para mídias acima de 80 MB; [ ] validar reprodução/seek/sincronismo no navegador e celulares, arquivos extremamente longos, proxy segmentado/streaming, UX touch e segurança.** O proxy é cacheado/baixado no navegador; **ainda NÃO é streaming adaptativo por segmentos.**
+- [ ] **F10-E — Render integrado e resiliência:** **[x] prevenção de sobrescrita, token dedicado e exportação reaproveitando originais verificados no host; [ ] auth por usuário, quotas/backup automatizado e testes LAN.**
 
 ### Critérios de aceitação (não marcar [x] sem teste real)
 
@@ -753,7 +776,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F11 — Transcrição local por Parakeet Redux (BACKLOG — prioridade a definir)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (Whisper existe; Parakeet Redux não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: serviço opcional Parakeet Redux CPU + UI padrão + transcrição por palavras; manter Whisper como fallback; faltam build/execução do modelo e teste PT-BR.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Solicitação do proprietário:** substituir a geração de transcrição de fala usada para legendas por **Moondream Parakeet Redux** (`moondream/parakeet-redux`), com execução **pela CPU**, sem exigir GPU nem API paga, mantendo conversão **vídeo → áudio → texto → legendas sincronizadas**. A troca efetiva do motor só deve ser declarada concluída depois de implementação e testes no Editor.
 
@@ -792,7 +815,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F12 — Ações rápidas e atalhos personalizáveis (BACKLOG — prioridade a definir)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (comandos existem em S/Q/W; C/V/X e botões pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **IMPLEMENTADO NO CÓDIGO, VALIDAR: C/V/X defaults, botão existente rotulado, migração só de perfil não personalizado; falta verificação de atalhos no navegador.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Solicitação do proprietário:** edição ágil com teclas simples e **botões de ação rápida** na timeline. Os três comandos já existem no código: **não reimplementar operações de corte**, somente alterar *defaults*, oferecer botões/dicas e manter opção de personalizar teclas.
 
@@ -829,7 +852,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F06 — Sounds (ADIADO: NÃO MODIFICAR AGORA)
 
-> **Status de auditoria (19/11/2026):** **ADIADO (Sounds existente; melhorias proibidas por enquanto)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **ADIADO: Sounds intencionalmente não alterado.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Decisão de 13/11/2026:** a aba Sounds fica **inteiramente fora deste ciclo de trabalho**. Não alterar pesquisa, rolagem, favoritos, layout, filtros, catálogo ou fontes. A expansão planejada anteriormente permanece apenas como ideia de backlog, **sem prioridade, implementação ou PR nesta etapa**.
 
@@ -989,7 +1012,8 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
-- **2026-11-19 (diretriz de branch para agentes):** a implementação experimental da F10 fica em `teste/implementacao` (PR #2). Codex/IA deve fazer checkout e validar/corrigir/implementar **somente nessa branch**; a `main` mantém planejamento de referência e não recebe funcionalidades até aprovação. PR #1 foi encerrado em favor do #2.
+- **2026-11-19 (F10-D — proxies remotos e proteção de originais):** implementação experimental **somente na `teste/implementacao`**: FFmpeg gera proxies de vídeo (MP4 H.264), áudio (M4A) e imagem (PNG) no host; importação de projeto em outro navegador passa a usar proxy para originais acima de 80 MB. Persistido `remoteProxy` + tamanho/MIME originais para **nunca enviar a prévia como original**, nem usá-la no render final. Ajustada permissão do volume Docker, incluídos testes de formatos e correção CI de compatibilidade wasm-opt. **PENDENTE:** validar execução FFmpeg real, proxies grandes/streaming, testes E2E, performance, mobile e validação dos jobs CI. Não declarar F10 concluída.
+- **2026-11-19 (F10 — implementação inicial em branch):** criada branch `teste/implementacao` e PR #1 com persistência no host, revisão otimista, upload assíncrono em chunks, UI LAN/Salvar, checkpoints e listagem/importação de projetos remotos; adicionados testes de servidor e instruções. **PARCIAL, experimental, sem merge em main nem teste E2E.** Seguem pendentes proxies, export usando originais no host, validações/security granular e mobile.
 - **2026-11-19 (auditoria e arquitetura híbrida LAN):** revisão estática da branch `main` de F01–F12, com tabela de status e subtarefas `[x]` de infraestrutura já existente. **Nenhuma feature integral foi declarada concluída sem os critérios/testes correspondentes.** Atualizada F10 para **edição imediata no cliente, upload assíncrono dos originais ao servidor, checkpoints de 3 minutos e Ctrl+S, placeholders ⚠️ somente para mídias indisponíveis em outro dispositivo, continuidade PC/celular**. Prioridades anteriores mantidas; somente planejamento/documentação alterados, sem implementar código novo.
 - **2026-11-13 (Parakeet Redux e atalhos rápidos):** adicionados **F11** (troca do Whisper pelo **Parakeet Redux CPU** para gerar legendas localmente, incluindo timestamps por palavra, testes PT-BR e integração com captions/HyperFrames) e **F12** (remapeamento de Split/Left/Right para **C/V/X**, barra de ações rápidas, conflitos e preservação de atalhos pessoais). Verificados no código atual **Whisper-small** e atalhos **S/Q/W**. Ambos backlog sem prioridade definida; **somente documentação, nenhum código funcional alterado**. Detalhes em `docs/parakeet-redux-shortcuts.md`.
 - **2026-11-13 (continuidade PC ↔ celular):** adicionada **F10**, após todas as oito prioridades existentes. Planejado **Ctrl+S salva estado editável e todos os arquivos originais no servidor sem render**, status de sincronização, reabertura e edição real por celular, retorno ao PC, autenticação, versionamento, upload resumível, armazenamento persistente e preview/proxy mobile; detalhes em `docs/cross-device-project-sync.md`. **Apenas documentação; nenhuma implementação.**

@@ -243,10 +243,12 @@ export async function browseAll({
 	if (recentItems.length > 0) {
 		sections.push({
 			id: "recent",
-			title: "Recently used",
-			items: recentItems.slice(0, limit),
-			hasMore: recentItems.length > limit,
-			layout: "row",
+			title: "Figurinhas salvas/recentes",
+			// The same responsive grid as Flags/Logos/Shapes, inside their single
+			// scrollable catalogue. No separate overlay, fixed header or row.
+			layout: "grid",
+			items: recentItems,
+			hasMore: false,
 		});
 	}
 

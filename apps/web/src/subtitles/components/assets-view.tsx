@@ -18,6 +18,7 @@ import type {
 	TranscriptionProgress,
 } from "@/transcription/types";
 import { transcriptionService } from "@/services/transcription/service";
+import { getLanToken } from "@/lan-sync/client";
 import { decodeAudioToFloat32 } from "@/media/audio";
 import { buildCaptionChunks } from "@/transcription/caption";
 import { insertCaptionChunksAsTextTrack } from "@/subtitles/insert";
@@ -47,6 +48,9 @@ import {
 	updateExistingCaptionPresentation,
 } from "@/subtitles/presets";
 import { toast } from "sonner";
+import { getTextAnimationKeyframes, type TextMotionPreset } from "@/text/motion-presets";
+import { TICKS_PER_SECOND } from "@/wasm";
+import type { TextTrack } from "@/timeline";
 
 const DIAGNOSTIC_BUTTON_VARIANT: Record<
 	DiagnosticSeverity,
@@ -100,7 +104,11 @@ export function Captions() {
 		useState<TranscriptionLanguage>("auto");
 	const [placement, setPlacement] = useState<CaptionPlacement>("bottom");
 	const [preset, setPreset] = useState<CaptionPreset>("clean");
+	const [captionColor, setCaptionColor] = useState("#ffffff");
+	const [captionMotion, setCaptionMotion] = useState<"none" | TextMotionPreset>("none");
+	const [motionSeconds, setMotionSeconds] = useState(0.3);
 	const [wordsPerCaption, setWordsPerCaption] = useState(5);
+	const [transcriptionEngine, setTranscriptionEngine] = useState<"parakeet" | "whisper">("parakeet");
 	const [processing, dispatch] = useReducer(processingReducer, IDLE_STATE);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -129,13 +137,35 @@ export function Captions() {
 		captions: SubtitleCue[];
 	}): boolean => {
 		const presentedCaptions = captions.map((caption) =>
-			applyCaptionPresentation({ caption, placement, preset }),
+			applyCaptionPresentation({ caption, placement, preset, color: captionColor }),
 		);
 		const trackId = insertCaptionChunksAsTextTrack({
 			editor,
 			captions: presentedCaptions,
 		});
+		if (trackId && captionMotion !== "none") {
+			applyMotionToCaptionTrack({ trackId });
+		}
 		return trackId !== null;
+	};
+
+	const applyMotionToCaptionTrack = ({ trackId }: { trackId?: string }) => {
+		if (captionMotion === "none") return;
+		const tracks = editor.scenes.getActiveScene().tracks.overlay.filter(
+			(track): track is TextTrack => track.type === "text" &&
+				(!trackId || track.id === trackId),
+		);
+		const texts = tracks.flatMap((track) => track.elements.filter((element) =>
+			!element.locked && (element.params["subtitle.isCaption"] === true ||
+				element.name.toLowerCase().startsWith("caption ")),
+		).map((element) => ({ element, trackId: track.id })));
+		const keyframes = texts.flatMap(({ element, trackId }) => getTextAnimationKeyframes({
+			ref: { trackId, elementId: element.id }, element,
+			durationTicks: element.duration,
+			transitionTicks: Math.round(Math.max(0.05, Math.min(2, motionSeconds)) * TICKS_PER_SECOND),
+			motion: captionMotion, position: "both",
+		}));
+		if (keyframes.length) editor.timeline.upsertKeyframes({ keyframes });
 	};
 
 	const handleGenerateTranscript = async () => {
@@ -148,16 +178,42 @@ export function Captions() {
 			});
 
 			dispatch({ type: "update_step", step: "Preparing audio..." });
-			const { samples } = await decodeAudioToFloat32({
-				audioBlob,
-				sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE,
-			});
-
-			const result = await transcriptionService.transcribe({
-				audioData: samples,
-				language: selectedLanguage === "auto" ? undefined : selectedLanguage,
-				onProgress: handleProgress,
-			});
+			const result = transcriptionEngine === "parakeet"
+				? await (async () => {
+					const token = getLanToken();
+					if (!token) throw new Error("Conecte-se ao servidor LAN antes de utilizar Parakeet Redux (CPU).");
+					dispatch({ type: "update_step", step: "Parakeet Redux · CPU no host..." });
+					const response = await fetch("/api/transcription/parakeet", {
+						method: "POST",
+						headers: { "Content-Type": "audio/wav", "x-lan-sync-token": token },
+						body: audioBlob,
+						signal: AbortSignal.timeout(245_000),
+					});
+					const body: unknown = await response.json().catch(() => null);
+					if (!response.ok || !body || typeof body !== "object") {
+						const error = body && typeof body === "object" && "error" in body &&
+							typeof body.error === "string" ? body.error : "Parakeet indisponível.";
+						throw new Error(error + " Se necessário, selecione Whisper (compatibilidade).");
+					}
+					const transcript = body as Record<string, unknown>;
+					if (!Array.isArray(transcript.segments)) throw new Error("Segmentos inválidos do Parakeet.");
+					return {
+						text: typeof transcript.text === "string" ? transcript.text : "",
+						segments: transcript.segments as Array<{ text: string; start: number; end: number }>,
+						language: typeof transcript.language === "string" ? transcript.language : "auto",
+					};
+				})()
+				: await (async () => {
+					const { samples } = await decodeAudioToFloat32({
+						audioBlob,
+						sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE,
+					});
+					return transcriptionService.transcribe({
+						audioData: samples,
+						language: selectedLanguage === "auto" ? undefined : selectedLanguage,
+						onProgress: handleProgress,
+					});
+				})();
 
 			dispatch({ type: "update_step", step: "Generating captions..." });
 			const captionChunks = buildCaptionChunks({
@@ -263,7 +319,9 @@ export function Captions() {
 			editor,
 			placement,
 			preset,
+			color: captionColor,
 		});
+		if (updated && captionMotion !== "none") applyMotionToCaptionTrack({});
 		if (updated === 0) {
 			toast.info("Nenhuma legenda existente foi encontrada");
 			return;
@@ -328,6 +386,17 @@ export function Captions() {
 			>
 				<SectionContent className="flex flex-col gap-4 h-full pt-1">
 					<SectionFields>
+						<SectionField label="Motor de transcrição">
+							<Select value={transcriptionEngine}
+								onValueChange={(value) => setTranscriptionEngine(value === "whisper" ? "whisper" : "parakeet")}>
+								<SelectTrigger><SelectValue /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="parakeet">Parakeet Redux · CPU no host</SelectItem>
+									<SelectItem value="whisper">Whisper · compatibilidade no navegador</SelectItem>
+								</SelectContent>
+							</Select>
+							<p className="text-muted-foreground text-[11px]">Parakeet requer o serviço opcional Docker e conexão ao host; não usa chave de IA paga.</p>
+						</SectionField>
 						<SectionField label="Language">
 							<Select
 								value={selectedLanguage}
@@ -371,7 +440,11 @@ export function Captions() {
 							<Select
 								value={preset}
 								onValueChange={(value) => {
-									if (isCaptionPreset(value)) setPreset(value);
+									if (isCaptionPreset(value)) {
+										setPreset(value);
+										const presetColor = CAPTION_PRESETS[value].style.color;
+										if (presetColor) setCaptionColor(presetColor);
+									}
 								}}
 							>
 								<SelectTrigger>
@@ -385,6 +458,29 @@ export function Captions() {
 									))}
 								</SelectContent>
 							</Select>
+						</SectionField>
+						<SectionField label="Cor da legenda">
+							<label className="flex items-center gap-2 text-xs">
+								<input type="color" aria-label="Escolher cor da legenda" value={captionColor}
+									onChange={(event) => setCaptionColor(event.target.value)} disabled={isProcessing} />
+								<span>{captionColor}</span>
+							</label>
+						</SectionField>
+						<SectionField label="Animação de entrada e saída">
+							<select aria-label="Animação da legenda" value={captionMotion}
+								onChange={(event) => setCaptionMotion(event.target.value as "none" | TextMotionPreset)}
+								className="bg-background w-full rounded border px-2 py-1 text-xs" disabled={isProcessing}>
+								<option value="none">Sem animação</option>
+								<option value="fade">Fade (aparecer/desaparecer)</option>
+								<option value="slide">Deslizar</option>
+								<option value="scale">Zoom</option>
+							</select>
+							<label className="flex items-center gap-2 text-xs mt-2">
+								Duração (segundos)
+								<input type="number" value={motionSeconds} step={0.05} min={0.05} max={2}
+									onChange={(event) => setMotionSeconds(Number(event.target.value))}
+									className="bg-background w-20 rounded border px-2 py-1" disabled={isProcessing} />
+							</label>
 						</SectionField>
 						<SectionField label="Palavras por legenda">
 							<Select

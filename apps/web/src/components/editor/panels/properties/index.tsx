@@ -14,6 +14,8 @@ import { usePropertiesStore } from "./stores/properties-store";
 import { getPropertiesConfig } from "./registry";
 import { cn } from "@/utils/ui";
 import { EmptyView } from "./empty-view";
+import { BatchTextProperties } from "./multi-text";
+import type { TextElement } from "@/timeline";
 
 export function PropertiesPanel() {
 	const editor = useEditor();
@@ -31,11 +33,19 @@ export function PropertiesPanel() {
 	}
 
 	if (selectedElements.length > 1) {
+		const all = editor.timeline.getElementsWithTracks({ elements: selectedElements });
+		if (all.length === selectedElements.length && all.every(({ element }) => element.type === "text")) {
+			return <BatchTextProperties selected={all.map(({ element, track }) => ({
+				ref: { trackId: track.id, elementId: element.id },
+				element: element as TextElement,
+			}))} />;
+		}
 		return (
-			<div className="panel bg-background flex h-full flex-col items-center justify-center overflow-hidden rounded-sm border">
+			<div className="panel bg-background flex h-full flex-col items-center justify-center overflow-hidden rounded-sm border p-4">
 				<p className="text-muted-foreground text-sm">
-					{selectedElements.length} elements selected.
+					{selectedElements.length} elementos selecionados.
 				</p>
+				<p className="text-muted-foreground text-xs text-center mt-2">Selecione somente caixas de texto para editar cores, tamanhos e animações em conjunto.</p>
 			</div>
 		);
 	}

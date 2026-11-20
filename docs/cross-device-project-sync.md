@@ -1,10 +1,11 @@
 # F10 — Arquitetura híbrida LAN e continuidade da edição PC ↔ celular
 
-> **IMPORTANTE PARA CODEX/IA — LEIA PRIMEIRO:** o desenvolvimento e os testes desta F10 já foram iniciados **somente na branch [`teste/implementacao`](https://github.com/GustavoABA/Editor/tree/teste/implementacao)**, com código e pendências no [PR #2](https://github.com/GustavoABA/Editor/pull/2). Este documento na **`main` é referência de planejamento, NÃO a implementação mais recente**. Agentes devem trocar para `teste/implementacao`, validar o que existe e implementar ali o que falta, sem escrever código na `main`. O PR #1/branch antiga foram substituídos.
+> **TRABALHO ATIVO — BRANCH `teste/implementacao` / [PR #2](https://github.com/GustavoABA/Editor/pull/2).** Codex e outras IAs devem **validar, corrigir e implementar exclusivamente nesta branch**, não na `main`; verificar `git branch --show-current` antes de qualquer commit. Ler `features.md`, `AGENTS.md` e `docs/lan-hybrid-implementation.md`.
+> **Implementação experimental já existente:** endpoints de projetos, armazenamento no host, upload assíncrono em partes, salvamento/checkpoints, aviso ⚠️, importação de projetos remotos e integração de exportação a originais persistidos. **A F10 ainda não está concluída:** faltam proxies para vídeos grandes, UX mobile, autenticação granular e testes reais PC/celular na LAN. Não duplicar funções já escritas sem auditoria.
 
-> **Status (19/11/2026): PLANEJADO / infraestrutura parcialmente existente. NÃO IMPLEMENTADO integralmente.**
+> **Status (19/11/2026): IMPLEMENTAÇÃO EXPERIMENTAL PARCIAL na branch de teste; NÃO CONCLUÍDO.**
 > **Decisão atualizada:** cliente deve editar **imediatamente** usando arquivo local e preview leve; o **upload do original ocorre em segundo plano** ao host. O servidor mantém o projeto editável e faz **snapshots a cada 3 minutos (180 s)**, além de aceitar Ctrl+S / botão Salvar agora. Mídias faltantes são sinalizadas com **⚠️**, sem apagar clipes da timeline.
-> **Prioridade mantida:** F10 somente após F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08, até nova decisão expressa. F06 Sounds permanece adiado.
+> **Execução atualizada:** a F10 foi iniciada experimentalmente por solicitação posterior do proprietário; validar e terminar o trabalho somente na branch `teste/implementacao`. A ordem anterior F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08 continua registrada como histórico de planejamento, não como ordem de descartar a F10 já implementada. F06 Sounds permanece adiado.
 > **Fonte principal:** [features.md](../features.md), F10, auditoria e roadmap.
 
 ## 1. Objetivo e escopo
@@ -21,7 +22,7 @@ A LAN tem **um host** (servidor self-hosted com armazenamento persistente e rend
 - [x] Render no host via endpoint que recebe manifest + assets, inicia Chromium headless e entrega arquivo exportado.
 - [x] Fluxos existentes de n8n, MCP LAN e Ollama; reutilizar apenas onde apropriado.
 
-**Ainda ausente:** armazenamento autoritativo de projetos **no servidor**, importação normal de mídia diretamente para biblioteca de originais do host em segundo plano, histórico de snapshots de 3 min, upload resumível por asset, placeholders de pendência entre dispositivos e edição de mesmo projeto por PC/celular.
+**Na branch atual de teste, já existe implementação experimental** de armazenamento de projetos no servidor, importação/upload em segundo plano, checkpoints, upload por partes, placeholders ⚠️ e tentativa de reabertura em outro aparelho. **Ainda faltam testes reais e conclusão de proxies, UX mobile, segurança/autorização e operações avançadas.** Detalhes em [implementação F10](lan-hybrid-implementation.md).
 
 > Os itens marcados [x] acima são **evidência de código**, não uma afirmação de que o sistema foi testado de ponta a ponta.
 

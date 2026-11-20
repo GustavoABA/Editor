@@ -8,7 +8,6 @@ import { StickerNode } from "./nodes/sticker-node";
 import { GraphicNode } from "./nodes/graphic-node";
 import { ColorNode } from "./nodes/color-node";
 import { BlurBackgroundNode } from "./nodes/blur-background-node";
-import { EffectLayerNode } from "./nodes/effect-layer-node";
 import type { AnyBaseNode } from "./nodes/base-node";
 import type { TBackground, TCanvasSize } from "@/project/types";
 import { DEFAULT_BACKGROUND_BLUR_INTENSITY } from "@/background/blur";
@@ -47,17 +46,11 @@ function buildTrackNodes({
 		const elements = getVisibleSortedElements({ track });
 
 		for (const element of elements) {
-			if (element.type === "effect") {
-				nodes.push(
-					new EffectLayerNode({
-						effectType: element.effectType,
-						effectParams: element.params,
-						timeOffset: element.startTime,
-						duration: element.duration,
-					}),
-				);
-				continue;
-			}
+			// Legacy standalone scene-effect items remain stored for project recovery,
+			// but must never run as global postprocessing or freeze the entire frame.
+			// New effects are applied to individual visual clips through their
+			// element.effects stack, not as separate timeline layers.
+			if (element.type === "effect") continue;
 
 			if (element.type === "video" || element.type === "image") {
 				const mediaAsset = mediaMap.get(element.mediaId);

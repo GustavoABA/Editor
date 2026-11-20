@@ -1,0 +1,13 @@
+{
+  "name": "opencut-hyperframes-native-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node server.mjs"
+  },
+  "dependencies": {
+    "hyperframes": "0.9.70",
+    "sanitize-html": "^2.17.0"
+  }
+}

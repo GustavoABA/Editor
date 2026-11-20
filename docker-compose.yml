@@ -72,6 +72,11 @@ services:
       - FREESOUND_CLIENT_ID=${FREESOUND_CLIENT_ID}
       - FREESOUND_API_KEY=${FREESOUND_API_KEY}
       - RENDER_JOBS_DIR=/app/render-jobs
+      - LAN_SYNC_DIR=/app/lan-sync
+      - LAN_SYNC_TOKEN=${OPENCUT_LAN_SYNC_TOKEN:-}
+      - PARAKEET_SERVICE_URL=http://parakeet:8707
+      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
+      - MCP_NGROK_AGENT_URL=http://ngrok:4040/api
       - CHROMIUM_PATH=/usr/bin/chromium-browser
       - FFMPEG_PATH=/usr/bin/ffmpeg
       - AUTOCUT_PATH=/usr/local/bin/opencut-autocut
@@ -81,8 +86,13 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
       - MCP_HTTP_URL=http://mcp-http:3101
+    # CLI runs on-demand inside the web container. tmpfs presents enough
+    # free space to the official renderer preflight (does not preallocate 4GiB).
+    tmpfs:
+      - /tmp:size=4g,mode=1777
     volumes:
       - render_jobs_v2:/app/render-jobs
+      - lan_sync_data:/app/lan-sync
       - automation_data:/app/automation
     depends_on:
       db:
@@ -142,9 +152,40 @@ services:
       web:
         condition: service_healthy
 
+  # Agent runs with no public tunnel; the editor's authenticated UI creates
+  # and destroys only the MCP endpoint on demand. Never publish port 4040.
+  ngrok:
+    profiles: ["mcp-tunnel"]
+    image: ngrok/ngrok:3-alpine
+    restart: unless-stopped
+    command: ["start", "--none", "--config", "/etc/ngrok.yml"]
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
+    volumes:
+      - ./services/ngrok/ngrok.yml:/etc/ngrok.yml:ro
+    expose:
+      - "4040"
+
+  # Optional CPU-only Parakeet Redux service; not exposed on the public host.
+  parakeet:
+    profiles: ["transcription"]
+    build:
+      context: ./services/parakeet
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
+    expose:
+      - "8707"
+    volumes:
+      - parakeet_models:/models
+
+
 volumes:
+  parakeet_models:
   postgres_data:
   render_jobs_v2:
+  lan_sync_data:
   automation_data:
   caddy_data:
   caddy_config:

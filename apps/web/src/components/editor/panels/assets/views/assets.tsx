@@ -32,6 +32,7 @@ import { useFileUpload } from "@/media/use-file-upload";
 import { invokeAction } from "@/actions";
 import { processMediaAssets } from "@/media/processing";
 import { showMediaUploadToast } from "@/media/upload-toast";
+import { LinksImportPanel } from "./links";
 import {
 	SelectableItem,
 	SelectableSurface,
@@ -208,6 +209,9 @@ export function MediaView() {
 				contentClassName="h-full"
 				{...dragProps}
 			>
+				<LinksImportPanel onImport={async (file) => {
+					await processFiles({ files: [file] });
+				}} />
 				{isDragOver || filteredMediaItems.length === 0 ? (
 					<MediaDragOverlay
 						isVisible={true}

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useEditor } from "@/editor/use-editor";
 import { processMediaAssets } from "@/media/processing";
 import { cn } from "@/utils/ui";
+import { NgrokMcpPanel } from "./ngrok-mcp";
 import {
 	isN8nWebhookPathValid,
 	useIntegrationStore,
@@ -249,6 +250,8 @@ export function AutomationConnections() {
 					}
 				/>
 			</div>
+
+			<NgrokMcpPanel />
 
 			<div className="space-y-1.5 border-t pt-3">
 				<label htmlFor="n8n-webhook-path" className="text-xs font-medium">

@@ -14,6 +14,7 @@ const ALLOWED_COMMANDS = new Set([
 	"split_at",
 	"delete_elements",
 	"update_text",
+	"insert_hyperframes",
 	"undo",
 	"redo",
 	"export",

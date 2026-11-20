@@ -439,6 +439,9 @@ export function TimelineElement({
 							onResizeStart={onResizeStart}
 							isDropTarget={isDropTarget}
 						/>
+						{element.locked && (
+							<div className="pointer-events-none absolute right-1 top-0 z-10 text-xs" title="Clipe protegido">🔒</div>
+						)}
 						{isSelected && (
 							<div
 								className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden"
@@ -458,6 +461,17 @@ export function TimelineElement({
 					</div>
 				</ContextMenuTrigger>
 				<ContextMenuContent className="w-64">
+					<ContextMenuItem
+						onClick={(event: React.MouseEvent) => {
+							event.stopPropagation();
+							editor.timeline.updateElements({ updates: [{
+								trackId: track.id, elementId: element.id,
+								patch: { locked: !element.locked },
+							}] });
+						}}
+					>
+						{element.locked ? "🔓 Desbloquear clipe" : "🔒 Proteger clipe"}
+					</ContextMenuItem>
 					{element.type === "text" && (
 						<ContextMenuItem
 							icon={<HugeiconsIcon icon={TextFontIcon} />}
@@ -615,7 +629,7 @@ function ElementInner({
 				style={
 					isSelected
 						? {
-								boxShadow: `0 0 0 ${ELEMENT_RING_WIDTH_PX}px var(--primary)`,
+								boxShadow: `0 0 0 ${ELEMENT_RING_WIDTH_PX}px #FFF2A6`,
 							}
 						: undefined
 				}
@@ -1096,8 +1110,9 @@ function AudioElementContent({
 	return (
 		<div className="group/audio relative size-full">
 			<div className="flex size-full items-center pl-2">
-				<span className="text-foreground/80 truncate text-xs">
-					{element.name}
+				<span className="text-foreground/80 truncate text-xs"
+					title={!mediaAsset && element.sourceType === "upload" ? "⚠️ Arquivo de áudio não disponível neste dispositivo" : undefined}>
+					{!mediaAsset && element.sourceType === "upload" ? "⚠️ " : ""}{element.name}
 				</span>
 			</div>
 			<AudioVolumeLine element={element} trackId={trackId} />
@@ -1150,6 +1165,15 @@ function TiledMediaContent({
 			? mediaAsset?.thumbnailUrl
 			: (mediaAsset?.thumbnailUrl ?? mediaAsset?.url);
 
+	if (!mediaAsset) {
+		return (
+			<div className="flex size-full items-center gap-1 overflow-hidden px-2 text-xs text-amber-500"
+				title="⚠️ Original ainda não disponível neste dispositivo; o clipe e seus cortes foram preservados.">
+				<span aria-label="Mídia não enviada">⚠️</span>
+				<span className="truncate">{element.name} — arquivo pendente</span>
+			</div>
+		);
+	}
 	if (!imageUrl) {
 		return (
 			<span className="text-foreground/80 truncate text-xs">

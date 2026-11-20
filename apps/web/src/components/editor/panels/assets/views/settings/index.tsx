@@ -31,11 +31,15 @@ import { dimensionToAspectRatio } from "@/utils/geometry";
 import { formatNumberForDisplay } from "@/utils/math";
 import { OcSquarePlusIcon } from "@/components/icons";
 import type { TCanvasSize } from "@/project/types";
+import { createReframeUpdates, type ReframeMode } from "@/timeline/reframe";
+import { AudioNormalizePanel } from "./audio-normalize";
+import { ShortcutSettings } from "./shortcuts";
+import { BatchCommand, UpdateElementsCommand, UpdateProjectSettingsCommand } from "@/commands";
 
-type SettingsView = "project-info" | "background";
+type SettingsView = "project-info" | "background" | "shortcuts";
 
 function isSettingsView(value: string): value is SettingsView {
-	return value === "project-info" || value === "background";
+	return value === "project-info" || value === "background" || value === "shortcuts";
 }
 
 const PRESET_LABELS: Record<string, string> = {
@@ -98,6 +102,8 @@ function useCanvasDimensionDraft({
 
 export function SettingsView() {
 	const [view, setView] = useState<SettingsView>("project-info");
+	const [reframeRatio, setReframeRatio] = useState("9:16");
+	const [reframeMode, setReframeMode] = useState<ReframeMode>("contain");
 	const editor = useEditor();
 	const activeProject = useEditor((e) => e.project.getActive());
 	const { canvasPresets } = useEditorStore();
@@ -206,6 +212,30 @@ export function SettingsView() {
 			}),
 	});
 
+	const reframeCanvas = () => {
+		const target = ({
+			"16:9": { width: 1920, height: 1080 },
+			"9:16": { width: 1080, height: 1920 },
+			"1:1": { width: 1080, height: 1080 },
+			"4:3": { width: 1440, height: 1080 },
+		} as Record<string, TCanvasSize>)[reframeRatio];
+		if (!target) return;
+		const tracks = editor.scenes.getActiveScene().tracks;
+		const plan = createReframeUpdates({
+			tracks, from: currentCanvasSize, to: target, mode: reframeMode,
+		});
+		const warning = plan.animatedCount
+			? ` ${plan.animatedCount} elemento(s) possuem animações/keyframes que exigem ajuste manual após o reframe.`
+			: "";
+		if (!window.confirm(`Reenquadrar ${plan.updates.length} elementos da cena para ${reframeRatio}?
+${plan.protectedCount} elementos protegidos serão preservados.${warning}
+Uma única ação de Desfazer reverte a conversão.`)) return;
+		editor.command.execute({ command: new BatchCommand([
+			new UpdateElementsCommand({ updates: plan.updates }),
+			new UpdateProjectSettingsCommand({ canvasSize: target, canvasSizeMode: "preset" }),
+		]) });
+	};
+
 	const isCustomSelected = canvasSizeMode === "custom";
 
 	return (
@@ -224,6 +254,7 @@ export function SettingsView() {
 					<TabsList>
 						<TabsTrigger value="project-info">Project info</TabsTrigger>
 						<TabsTrigger value="background">Background</TabsTrigger>
+						<TabsTrigger value="shortcuts">Atalhos</TabsTrigger>
 					</TabsList>
 				</Tabs>
 			}
@@ -314,9 +345,39 @@ export function SettingsView() {
 							</div>
 						</SectionContent>
 					</Section>
+					<Section showTopBorder={false} collapsible sectionKey="settings:audio-normalize">
+						<SectionHeader><SectionTitle>Normalizar áudio</SectionTitle></SectionHeader>
+						<SectionContent className="px-3 pb-3"><AudioNormalizePanel /></SectionContent>
+					</Section>
+					<Section showTopBorder={false} collapsible sectionKey="settings:reframe">
+						<SectionHeader><SectionTitle>Converter conteúdo (F08)</SectionTitle></SectionHeader>
+						<SectionContent className="flex flex-col gap-2 px-3 pb-3 text-xs">
+							<label className="flex items-center gap-2">
+								Destino
+								<select aria-label="Proporção de destino" className="bg-background rounded border px-2 py-1" value={reframeRatio}
+									onChange={(event) => setReframeRatio(event.target.value)}>
+									<option value="16:9">16:9 horizontal</option>
+									<option value="9:16">9:16 vertical</option>
+									<option value="1:1">1:1 quadrado</option>
+									<option value="4:3">4:3 clássico</option>
+								</select>
+							</label>
+							<label className="flex items-center gap-2">
+								Escala
+								<select aria-label="Modo de enquadramento" className="bg-background rounded border px-2 py-1" value={reframeMode}
+									onChange={(event) => setReframeMode(event.target.value === "cover" ? "cover" : "contain")}>
+									<option value="contain">Conter / evitar corte</option>
+									<option value="cover">Preencher / pode cortar</option>
+								</select>
+							</label>
+							<p className="text-muted-foreground text-[11px]">Reflow geométrico da cena atual; respeita 🔒. Rastreamento de rostos/objetos ainda requer IA e validação visual.</p>
+							<Button variant="outline" onClick={reframeCanvas}>Aplicar conversão (desfazível)</Button>
+						</SectionContent>
+					</Section>
 				</div>
 			)}
 			{view === "background" && <BackgroundContent />}
+			{view === "shortcuts" && <ShortcutSettings />}
 		</PanelView>
 	);
 }

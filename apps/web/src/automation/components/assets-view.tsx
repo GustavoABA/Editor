@@ -23,6 +23,8 @@ import { useEditor } from "@/editor/use-editor";
 import { TRANSCRIPTION_DIAGNOSTICS_SCOPE } from "@/transcription/diagnostics";
 import { AutomationConnections } from "./connections";
 import { OllamaAssistant } from "./ollama-assistant";
+import { HyperFramesStudio } from "./hyperframes-studio";
+import { AIProvidersPanel } from "./providers";
 
 function formatSeconds(seconds: number): string {
 	if (seconds < 60) return `${seconds.toFixed(1)} s`;
@@ -83,6 +85,7 @@ export function AutomationView() {
 			contentClassName="flex h-full flex-col gap-4"
 		>
 			<OllamaAssistant />
+			<AIProvidersPanel />
 
 			<section className="space-y-3 rounded-lg border bg-muted/20 p-3">
 				<div className="flex items-start gap-2">
@@ -161,6 +164,8 @@ export function AutomationView() {
 					</div>
 				)}
 			</section>
+
+			<HyperFramesStudio />
 
 			<AutomationConnections />
 		</PanelView>

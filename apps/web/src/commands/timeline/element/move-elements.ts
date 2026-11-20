@@ -63,6 +63,7 @@ export class MoveElementCommand extends Command {
 			if (!sourceTrack || !sourceElement) {
 				throw new Error("Source track or element not found");
 			}
+			if (sourceElement.locked) throw new Error("Clipe protegido: desbloqueie antes de mover.");
 
 			const targetTrack = findTrackInSceneTracks({
 				tracks: tracksToUpdate,

@@ -141,6 +141,7 @@ export function applyElementUpdate({
 	patch: Partial<TimelineElement>;
 	context: ElementUpdateContext;
 }): TimelineElement {
+	if (element.locked) return patch.locked === false ? { ...element, locked: false } : element;
 	let nextElement = {
 		...element,
 		...patch,
