@@ -651,7 +651,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 > **Decisão atualizada pelo proprietário em 19/11/2026:** a edição interativa deve acontecer **imediatamente no cliente**, enquanto os originais são enviados ao **host em segundo plano**. O host é a fonte persistente de projetos/mídias e executa render final e tarefas pesadas quando necessário. **Snapshot do projeto a cada 3 minutos no servidor**, além de **Ctrl+S / botão Salvar agora**. Se uma mídia não foi sincronizada, representar o item com **⚠️ pendente** sem perder as edições.
 >
-> **Status após primeira implementação em branch `feature/lan-hybrid-sync`: PARCIAL, NÃO CONCLUÍDO.** Existem agora uma API de projetos no host com revisões e checkpoints, volume persistente, upload automático por chunks, botão LAN/Salvar e importação de projeto remoto. **PENDENTE**: integração de export direto do host, proxies para vídeos grandes, indicação ⚠️ no clipe, UI mobile completa, segurança granular e testes de ponta a ponta. **Esses itens ainda não estão em `main`.**
+> **Status após primeira implementação em branch `feature/lan-hybrid-sync`: PARCIAL, NÃO CONCLUÍDO.** Existem agora uma API de projetos no host com revisões e checkpoints, volume persistente, upload automático por chunks, botão LAN/Salvar e importação de projeto remoto. **IMPLEMENTADO NA BRANCH, AINDA SEM TESTE REAL:** reutilização de originais verificados do host na exportação e placeholder ⚠️ para clipes sem mídia. **PENDENTE:** proxies de vídeo grande, UI mobile completa, segurança granular e testes de ponta a ponta. **Esses itens ainda não estão em `main`.**
 >
 > **Evidência da implementação experimental:** [PR #1](https://github.com/GustavoABA/Editor/pull/1) e [documentação de setup](docs/lan-hybrid-implementation.md). Verifique CI antes de promover componentes a concluídos.
 >
@@ -701,8 +701,8 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 - [ ] **F10-A — Modelos e storage do host:** **[x] base criada na branch (API/volume/revisões); [ ] falta testes, migração e autorização por usuário.** Mapear o `StorageService`, evoluir schema e migração do IndexedDB/OPFS.
 - [ ] **F10-B — Importação instantânea + fila assíncrona:** **[x] preview local preservado, fila de chunks automática e retry simples na branch; [ ] falta integridade ponta a ponta, cancelar/prioridade e teste real de retomada.**
 - [ ] **F10-C — Mudanças + snapshots 180 s:** **[x] revisão/snapshot no host, Ctrl+S, timer cliente e preservação de rascunho local na branch; [ ] falta delta incremental e resiliência/offline comprovada.**
-- [ ] **F10-D — Reabertura PC/mobile:** **[x] listagem e importação de projeto editável pela LAN na branch, aviso ⚠️ para mídia indisponível; [ ] falta proxy de arquivos grandes, aviso no clipe e UX touch completa.**
-- [ ] **F10-E — Render integrado e resiliência:** **[x] prevenção de sobrescrita por revisão e token dedicado na branch; [ ] export direto do host, auth por usuário, quotas/backup automatizado e testes LAN.**
+- [ ] **F10-D — Reabertura PC/mobile:** **[x] listagem/importação de projeto editável e aviso ⚠️ no clipe para mídia ausente; [ ] falta proxy de arquivos grandes e UX touch completa.**
+- [ ] **F10-E — Render integrado e resiliência:** **[x] prevenção de sobrescrita, token dedicado e exportação reaproveitando originais verificados no host; [ ] auth por usuário, quotas/backup automatizado e testes LAN.**
 
 ### Critérios de aceitação (não marcar [x] sem teste real)
 
