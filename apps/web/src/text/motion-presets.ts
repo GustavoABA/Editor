@@ -1,5 +1,6 @@
 import type { ElementRef, TextElement } from "@/timeline";
 import type { AnimationInterpolation } from "@/animation/types";
+import { mediaTime, type MediaTime } from "@/wasm";
 
 /** Built exclusively from existing keyframe paths, so edits are previewed and exported. */
 export type TextMotionPreset = "fade" | "slide" | "scale";
@@ -8,7 +9,7 @@ export type TextMotionKeyframe = {
   trackId: string;
   elementId: string;
   propertyPath: string;
-  time: number;
+  time: MediaTime;
   value: number;
   interpolation: AnimationInterpolation;
 };
@@ -32,7 +33,7 @@ export function getTextAnimationKeyframes({
   const scaleY = typeof element.params["transform.scaleY"] === "number" ? element.params["transform.scaleY"] : 1;
   const keys: TextMotionKeyframe[] = [];
   const push = (propertyPath: string, time: number, value: number) => keys.push({
-    ...ref, propertyPath, time, value, interpolation: "linear",
+    ...ref, propertyPath, time: mediaTime({ ticks: Math.round(time) }), value, interpolation: "linear",
   });
 
   if (position !== "exit") {
