@@ -1,8 +1,38 @@
+# INSTRUÇÕES PRIORITÁRIAS PARA CODEX E OUTRAS IAs — BRANCH DE TESTE
+
+> **LEIA ANTES DE PLANEJAR, VALIDAR, EDITAR OU COMMITAR.**
+>
+> **Branch única de desenvolvimento, implementação, correções e testes: `teste/implementacao`.** O nome usa ASCII no Git; a pronúncia “teste/implementação” refere-se à mesma branch.
+>
+> **`main` é a referência do projeto e do planejamento.** O Editor está **EM DESENVOLVIMENTO na branch `teste/implementacao`**. **Não desenvolver código, não testar uma versão de referência como se fosse a nova implementação e não abrir PRs de funcionalidades a partir da `main`.** Esta atualização do roadmap na `main` é apenas documental, feita a pedido do proprietário.
+>
+> **Implementação inicial já existente na branch de teste:** F10 (arquitetura híbrida LAN: interação e preview imediatos no navegador, upload de mídia em segundo plano ao host, projetos com revisões e checkpoints de 3 min, Ctrl+S, aviso ⚠️ para mídias faltantes, abertura de projetos do host e exportação que tenta reutilizar originais sincronizados). **Ainda experimental, não 100% concluída**; não refazer o que já existe sem auditoria.
+>
+> **PR oficial de validação:** [#2 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/2). **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
+
+## Fluxo obrigatório para qualquer agente (Codex/IA)
+
+1. **Antes de ler ou modificar código, selecionar e confirmar a branch correta:**
+   ```bash
+   git fetch origin
+   git switch teste/implementacao
+   git pull --ff-only origin teste/implementacao
+   git branch --show-current
+   ```
+   O último comando deve informar `teste/implementacao`. Se o ambiente não permitir trocar de branch ou não oferecer permissão de escrita, **parar a alteração e relatar o bloqueio**; não fazer fallback para a `main`.
+2. Ler **o `features.md` da própria branch `teste/implementacao`** e os documentos [`docs/cross-device-project-sync.md`](docs/cross-device-project-sync.md) e [`docs/lan-hybrid-implementation.md`](https://github.com/GustavoABA/Editor/blob/teste/implementacao/docs/lan-hybrid-implementation.md). Eles especificam os requisitos, funções existentes, pontos pendentes e limitações.
+3. **Primeiro validar, depois implementar**: conferir código, dependências, testes e CI da branch de teste; reproduzir problemas; reutilizar a infraestrutura existente e desenvolver/corrigir os itens que faltam. Não declarar uma feature concluída só porque há código ou documentação.
+4. Salvar **código, testes, correções e atualização de status de implementação somente em `teste/implementacao`**; executar testes pertinentes, registrar evidências no plano da branch e vincular commits ao **PR #2**.
+5. **Não fazer merge em `main`, não abrir PRs de merge automático, não alterar a branch antiga e não usar `git push --force`**, salvo autorização explícita do proprietário. A promoção à `main` ocorre apenas após aprovação e testes reais, inclusive em LAN.
+6. A ordem histórica de F02–F12 permanece documentada adiante. **A F10 já foi iniciada em caráter experimental na branch de teste por solicitação posterior do proprietário**. O foco operacional imediato para IA é **validar e concluir a implementação nessa branch**, sem interpretar as instruções antigas de “não antecipar F10” como ordem de descartar o código que já existe.
+
+---
+
 # FEATURES.md — Roadmap priorizado do Editor (OpenCut Classic / ORUME)
 
 > **Estado:** roadmap de desenvolvimento + auditoria estática da branch `main` em **19/11/2026**. Marcação **[x]** significa código-base localizado, não teste funcional completo. `CONCLUÍDO` só vale quando todos os critérios da feature forem atendidos e testados. Documentar não implementa código.
 > **Decisão de arquitetura (19/11/2026):** F10 passa a especificar **edição híbrida LAN com resposta imediata no cliente, upload assíncrono de originais ao host e snapshots persistentes no servidor a cada 3 minutos**, além de Ctrl+S e continuidade PC/celular. **F10 permanece na fase 9**, sem mudança automática da ordem anterior.
-> **Ordem aprovada em 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. **F10 (continuar projeto PC ↔ celular)** entra somente depois dessas oito fases como evolução futura de baixa prioridade. Sounds (F06) continua adiado.
+> **Sequência histórica de 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. **Exceção posterior:** F10 está **em desenvolvimento experimental somente em `teste/implementacao`** e deve ser validada/concluída nessa branch. A sequência histórica de outras features e o adiamento de Sounds (F06) continuam registrados.
 > **A numeração Fxx identifica funcionalidades; NÃO indica prioridade.** A seção 10 é a referência obrigatória de fases e dependências. **F11 (Parakeet Redux) e F12 (atalhos rápidos) são novos itens de backlog, ainda sem fase fixada pelo proprietário**.
 >
 > **Criado em:** 2026-11-10
@@ -647,7 +677,9 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ---
 
-## F10 — Arquitetura híbrida LAN e continuidade PC ↔ celular (FASE 9 — FUTURO)
+## F10 — Arquitetura híbrida LAN e continuidade PC ↔ celular (FASE 9 NO PLANO; EM DESENVOLVIMENTO NA BRANCH DE TESTE)
+
+> **AVISO DE EXECUÇÃO (19/11/2026):** a implementação da F10 foi iniciada e está exclusivamente na branch [`teste/implementacao`](https://github.com/GustavoABA/Editor/tree/teste/implementacao), com revisão no [PR #2](https://github.com/GustavoABA/Editor/pull/2). **A `main` contém apenas a infraestrutura original e o planejamento**. Ao usar Codex ou outra IA, validar/implementar **na branch de teste**, usando o plano mais recente dessa branch. Nunca interpretar o status da `main` como status do código experimental.
 
 > **Decisão atualizada pelo proprietário em 19/11/2026:** a edição interativa deve acontecer **imediatamente no cliente**, enquanto os originais são enviados ao **host em segundo plano**. O host é a fonte persistente de projetos/mídias e executa render final e tarefas pesadas quando necessário. **Snapshot do projeto a cada 3 minutos no servidor**, além de **Ctrl+S / botão Salvar agora**. Se uma mídia não foi sincronizada, representar o item com **⚠️ pendente** sem perder as edições.
 >
@@ -957,6 +989,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-19 (diretriz de branch para agentes):** a implementação experimental da F10 fica em `teste/implementacao` (PR #2). Codex/IA deve fazer checkout e validar/corrigir/implementar **somente nessa branch**; a `main` mantém planejamento de referência e não recebe funcionalidades até aprovação. PR #1 foi encerrado em favor do #2.
 - **2026-11-19 (auditoria e arquitetura híbrida LAN):** revisão estática da branch `main` de F01–F12, com tabela de status e subtarefas `[x]` de infraestrutura já existente. **Nenhuma feature integral foi declarada concluída sem os critérios/testes correspondentes.** Atualizada F10 para **edição imediata no cliente, upload assíncrono dos originais ao servidor, checkpoints de 3 minutos e Ctrl+S, placeholders ⚠️ somente para mídias indisponíveis em outro dispositivo, continuidade PC/celular**. Prioridades anteriores mantidas; somente planejamento/documentação alterados, sem implementar código novo.
 - **2026-11-13 (Parakeet Redux e atalhos rápidos):** adicionados **F11** (troca do Whisper pelo **Parakeet Redux CPU** para gerar legendas localmente, incluindo timestamps por palavra, testes PT-BR e integração com captions/HyperFrames) e **F12** (remapeamento de Split/Left/Right para **C/V/X**, barra de ações rápidas, conflitos e preservação de atalhos pessoais). Verificados no código atual **Whisper-small** e atalhos **S/Q/W**. Ambos backlog sem prioridade definida; **somente documentação, nenhum código funcional alterado**. Detalhes em `docs/parakeet-redux-shortcuts.md`.
 - **2026-11-13 (continuidade PC ↔ celular):** adicionada **F10**, após todas as oito prioridades existentes. Planejado **Ctrl+S salva estado editável e todos os arquivos originais no servidor sem render**, status de sincronização, reabertura e edição real por celular, retorno ao PC, autenticação, versionamento, upload resumível, armazenamento persistente e preview/proxy mobile; detalhes em `docs/cross-device-project-sync.md`. **Apenas documentação; nenhuma implementação.**
