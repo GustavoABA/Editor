@@ -1,6 +1,12 @@
 # LAN, MCP, Ollama and n8n automation
 
-This OpenCut Classic build keeps uploaded media, automatic edits and final rendering on the host computer. A browser on another computer only sends media and project commands over the LAN, then downloads the rendered file from the host.
+## Current implementation versus planned LAN architecture
+
+**Verified in source (19 Nov 2026):** the Next.js UI can be accessed over the LAN, but normal editing and interactive preview run inside the client browser. The current project document is saved in browser IndexedDB and imported originals are stored in browser OPFS (fallback IndexedDB). They are **not yet automatically centralized on the host** at import time. The server-side export endpoint uploads the manifest and media files to a render job on the host and uses headless Chromium for final rendering. MCP commands are applied by the open editor tab.
+
+**Planned, not implemented:** [F10 hybrid LAN editing](cross-device-project-sync.md) keeps immediate browser editing while uploading original media to persistent host storage in the background; the server checkpoints project state every three minutes and on manual Save. Missing uploads remain visible as ⚠️ placeholders on other devices. Do not equate server-side export or the n8n media inbox with synchronized, editable projects.
+
+The instructions below describe services and integrations that exist in the repository; live LAN availability, authentication and rendering still require deployment and testing.
 
 ## Start automatically
 
