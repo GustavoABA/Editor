@@ -20,8 +20,9 @@ jobs:
       - name: Build native HyperFrames CLI for Alpine
         run: docker build --tag opencut-hyperframes-native-smoke ./services/hyperframes
       - name: Check HTML/CSS sanitization and seek-runtime contract
-        run: docker run --rm --network none --entrypoint node \
-          opencut-hyperframes-native-smoke --test render.test.mjs
+        run: |
+          docker run --rm --network none --entrypoint node \
+            opencut-hyperframes-native-smoke --test render.test.mjs
       - name: Render using one-shot CLI (no daemon or HTTP service)
         run: |
           mkdir -p "$RUNNER_TEMP/hyperframes-native"
