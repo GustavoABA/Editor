@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       maxBuffer: 150_000,
       // Child process must not inherit app, database, LAN or AI credentials.
       env: {
+        NODE_ENV: "production",
         PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
         HOME: "/tmp",
         XDG_CACHE_HOME: "/tmp/.cache",
