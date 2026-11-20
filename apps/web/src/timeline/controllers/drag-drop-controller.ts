@@ -12,7 +12,6 @@ import {
 	buildGraphicElement,
 	buildStickerElement,
 	buildElementFromMedia,
-	buildEffectElement,
 } from "@/timeline/element-utils";
 import { AddTrackCommand, InsertElementCommand } from "@/commands/timeline";
 import { BatchCommand } from "@/commands";
@@ -24,13 +23,13 @@ import type {
 	DropTarget,
 	ElementType,
 	SceneTracks,
-	TimelineTrack,
 	CreateTimelineElement,
 } from "@/timeline";
 import type { TimelineDragData } from "@/timeline/drag";
 import type { MediaAsset } from "@/media/types";
 import type { ProcessedMediaAsset } from "@/media/processing";
 import { roundFrameTime, type MediaTime } from "@/wasm";
+import { toast } from "sonner";
 
 // --- Config ---
 
@@ -121,14 +120,6 @@ function getDurationForDrag({
 	if (dragData.type !== "media") return DEFAULT_NEW_ELEMENT_DURATION;
 	const media = mediaAssets.find((asset) => asset.id === dragData.id);
 	return toElementDurationTicks({ seconds: media?.duration });
-}
-
-function orderedTracks({
-	sceneTracks,
-}: {
-	sceneTracks: SceneTracks;
-}): TimelineTrack[] {
-	return [...sceneTracks.overlay, sceneTracks.main, ...sceneTracks.audio];
 }
 
 // --- Controller ---
@@ -461,33 +452,16 @@ export class DragDropController {
 		target: DropTarget;
 		dragData: Extract<TimelineDragData, { type: "effect" }>;
 	}): void {
-		if (target.targetElement) {
-			this.config.addClipEffect({
-				trackId: target.targetElement.trackId,
-				elementId: target.targetElement.elementId,
-				effectType: dragData.effectType,
-			});
+		const selected = target.targetElement;
+		if (!selected || !dragData.targetElementTypes.includes(selected.type as never)) {
+			toast.info("Arraste o efeito para cima de um vídeo, imagem ou clipe visual. Não criamos mais pistas de efeito independentes.");
 			return;
 		}
-
-		const element = buildEffectElement({
+		this.config.addClipEffect({
+			trackId: selected.trackId,
+			elementId: selected.elementId,
 			effectType: dragData.effectType,
-			startTime: target.xPosition,
 		});
-
-		const existingEffectTrack = orderedTracks({
-			sceneTracks: this.config.getSceneTracks(),
-		}).find((track) => track.type === "effect");
-
-		if (existingEffectTrack) {
-			this.config.insertElement({
-				placement: { mode: "explicit", trackId: existingEffectTrack.id },
-				element,
-			});
-			return;
-		}
-
-		this.insertAtTarget({ element, target, trackType: "effect" });
 	}
 
 	private async executeFileDrop({
