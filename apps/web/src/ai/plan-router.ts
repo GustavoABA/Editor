@@ -6,6 +6,7 @@ export type PlanCompletion = { provider: PlanProvider; model: string; content: s
 type ProviderConfig = { provider: PlanProvider; url: string; model: string; token?: string };
 function configFor(provider: PlanProvider): ProviderConfig | null {
   if (provider === "nvidia") {
+    if (process.env.AI_ALLOW_PAID_CALLS !== "1") return null;
     if (!process.env.NVIDIA_API_KEY || !process.env.NVIDIA_MODEL) return null;
     return {
       provider, url: "https://integrate.api.nvidia.com/v1/chat/completions",
@@ -13,6 +14,7 @@ function configFor(provider: PlanProvider): ProviderConfig | null {
     };
   }
   if (provider === "openai") {
+    if (process.env.AI_ALLOW_PAID_CALLS !== "1") return null;
     if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL) return null;
     return {
       provider, url: "https://api.openai.com/v1/chat/completions",
