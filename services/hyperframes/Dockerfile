@@ -7,6 +7,7 @@ WORKDIR /opt/opencut-hyperframes
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 COPY server.mjs ./
+COPY render.test.mjs ./
 
 RUN addgroup -S -g 10001 renderer && adduser -S -D -u 10001 -G renderer renderer
 ENV CHROME_BIN=/usr/bin/chromium-browser \
