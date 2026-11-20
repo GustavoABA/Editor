@@ -1,56 +1,74 @@
-# Integração HyperFrames oficial — `teste/implementacao`
+# HyperFrames nativo no Editor — `teste/implementacao`
 
-> **Status: implementação experimental na branch de teste; o código de integração existe, mas a execução real do worker HyperFrames, o WebM transparente e o fluxo ponta a ponta exigem homologação.** Não mergear para `main` sem aprovação do proprietário.
+> **Estado:** integração incorporada ao contêiner `web`, sem daemon adicional, URL interna, token secundário ou perfil Docker HyperFrames. O build do Editor e os testes de renderização devem validar esta arquitetura antes de aprová-la para `main`.
 
-## Por que usar o HyperFrames oficial?
+## Arquitetura
 
-O framework open source [heygen-com/hyperframes](https://github.com/heygen-com/hyperframes) renderiza HTML/CSS em WebM ou MP4 com Chrome + FFmpeg e tem uma CLI dedicada. A integração anterior do Editor apenas criava textos por batidas. Esta implementação adiciona **composição livre de HTML/CSS (sem JavaScript arbitrário)**, transcrição semântica e renderização pelo mecanismo oficial.
+```text
+Editor (navegador)
+ ├─ transcrição Parakeet CPU ou Whisper local
+ ├─ picos de energia e contexto da timeline
+ ├─ IA configurada no Editor → HTML/CSS
+ └─ botão "Aplicar composição à timeline"
+      └─ POST /api/hyperframes/render (token LAN existente)
+           └─ backend Next.js do MESMO contêiner web
+                └─ processo temporário Node.js
+                     └─ CLI oficial HyperFrames + Chromium + FFmpeg
+                          └─ WebM → biblioteca de mídia → clipe na timeline
+```
 
-Documentação técnica da CLI: https://hyperframes.app/docs/5-packages/cli.
+A CLI oficial faz parte da **imagem `apps/web/Dockerfile`**. O código está em `services/hyperframes/server.mjs` por organização de pacotes, mas **não inicia servidor HTTP**; é executado somente durante um render. O Dockerfile na mesma pasta é **apenas para testar a CLI isoladamente no CI**. O único serviço web exposto continua sendo o do Editor. Não há necessidade de `hyperframes-render`, `HYPERFRAMES_SERVICE_URL`, `HYPERFRAMES_INTERNAL_TOKEN` nem rede Docker adicional.
 
-## Iniciar no servidor self-hosted
+O pipeline de IA transcreve e analisa o conteúdo falado, além de picos de energia. A IA recebe transcrição, timestamps, briefing e resumo de clips; não recebe áudio bruto. Esse envio de texto só ocorre quando o usuário clica em Gerar. Parakeet continua **opcional** e pode rodar no perfil separado `transcription`; Whisper funciona no navegador. Ele é um motor de transcrição existente, **não é um segundo serviço HyperFrames**.
 
-1. Gere e configure **dois segredos diferentes** no `.env`: `OPENCUT_LAN_SYNC_TOKEN` (já usado pelo Editor LAN, pelo menos 16 caracteres) e `HYPERFRAMES_INTERNAL_TOKEN` (novo, pelo menos 16 caracteres).
-2. Para compreensão de áudio por CPU, configure também `PARAKEET_INTERNAL_TOKEN` e suba o perfil opcional transcription:
-   `docker compose --profile transcription up -d --build parakeet`.
-3. Para renderizar HTML/CSS com o HyperFrames oficial:
-   `docker compose --profile hyperframes up -d --build hyperframes-render web`.
-   O renderer usa Node 22, Chromium e FFmpeg, instala a CLI oficial do npm no **build** e roda em um contêiner isolado. O build inicial precisa de rede para instalar dependências; o worker **não tem acesso de saída à internet em execução**.
-4. Entre no Editor LAN e configure o token no painel de sincronização. Abra **IA & Automação → HyperFrames oficial · HTML/CSS + IA**.
-5. A API `GET /api/hyperframes/render`, com cabeçalho `x-lan-sync-token`, informa disponibilidade do worker. `POST /api/hyperframes/render` devolve um WebM renderizado. O worker é interno; **não há porta pública exposta**.
+## Instalação — um só deploy do Editor
 
-**Compatibilidade:** o overlay é WebM VP9 com alfa, suportado para preview sobretudo por Chromium. Em Safari e em alguns pipelines de exportação, a transparência pode falhar; valide o formato final antes de concluir a feature.
+No `.env` do Docker Compose, mantenha o token LAN já utilizado pelo editor:
 
-## Fluxo no editor
+```env
+OPENCUT_LAN_SYNC_TOKEN=<segredo-aleatorio-com-pelo-menos-16-caracteres>
+```
 
-1. Selecione um projeto e defina posição e duração (0,3 a 12 segundos).
-2. Clique em **Analisar fala e música da timeline**. O Editor lê a trilha local, identifica picos sonoros e transcreve com **Parakeet CPU** (Docker) ou **Whisper no navegador**. Você também pode colar e corrigir a transcrição manualmente.
-3. Digite o briefing e clique em **Gerar HTML/CSS com IA e contexto do áudio**. O modelo recebe apenas o resumo dos elementos da timeline, transcrição textual/timestamps e picos de volume. **O arquivo de áudio não é enviado à IA externa**; o texto da transcrição pode ser transmitido ao provedor configurado no cofre, somente após a ação explícita do usuário.
-4. Revise o HTML e o CSS em campos editáveis. A prévia usa iframe **sandbox sem scripts** e CSP que bloqueia rede e fontes externas.
-5. Clique em **Renderizar e inserir/atualizar na timeline**. O web encaminha um JSON limitado ao worker, que valida e higieniza os elementos e renderiza WebM com a CLI oficial. O navegador registra o arquivo no mesmo armazenamento de mídias e insere uma faixa de vídeo de sobreposição.
-6. O HTML/CSS e resumo ficam armazenados como parâmetros do clipe, e podem ser reabertos com **Carregar HTML/CSS do clipe selecionado**. Re-renderizar um clipe selecionado atualiza a mídia daquela instância (o arquivo anterior permanece na biblioteca para não quebrar referências).
+Para instalar a CLI oficial dentro da imagem, o build requer rede de instalação npm. Inicie/reconstrua o Editor normalmente:
 
-## Isolamento e limites
+```sh
+docker compose up -d --build web
+```
 
-- Nenhum JavaScript, script remoto, iframe, SVG, form, CSS `url()`, `@import`, `@font-face` ou recursos externos do código gerado é aceito no renderizador.
-- HTML permitido: div, section, headings, spans, tables, listas e texto; estilos devem ser inseridos no campo CSS. Não há execução de HTML diretamente no DOM privilegiado do Editor.
-- Worker sem credenciais de IA, banco ou armazenamento, rede Docker interna, usuário sem privilégios, filesystem read-only e tmpfs; uma renderização por vez.
-- Duração máx. 12s, FPS 24/30, resolução máx. 1920 e cerca de 2 megapixels, arquivo de saída máx. 55MiB, HTML/CSS individual máx. 26KB, limite de execução 210s.
-- **Limite atual:** o código-fonte da composição é recuperável e editável no painel, mas **não há edição gráfica individual de cada elemento HTML diretamente na tela da timeline**. Alterações em HTML/CSS requerem re-render. Não há bibliotecas de imagens remotas nem execução livre de JavaScript gerado.
-- Transcrição e reconhecimento de tópicos são fases distintas: Parakeet/Whisper produzem palavras/timestamps; a **interpretação semântica** é feita por um LLM configurado. Sem fala detectada, não afirmar que a IA entendeu conteúdo verbal.
+Não inicie o perfil `hyperframes` (ele foi removido). Na aba **IA & Automação**, o painel **HyperFrames oficial · HTML/CSS + IA** já estará disponível. O comando `GET /api/hyperframes/render` (com o cabeçalho LAN) indica `integrated: true`, `service: web` e disponibilidade da CLI. A rota POST rende o overlay pelo próprio backend.
 
-## Matriz de validação obrigatória
+Ao desenvolver o app **fora** do Docker, para habilitar render local também será preciso instalar o pacote `services/hyperframes` e configurar o caminho da CLI; a distribuição suportada e automatizada é a imagem Docker.
 
-- [ ] `node --check services/hyperframes/server.mjs` no CI.
-- [ ] Next build e testes automatizados Linux; Windows/macOS devem ser verificados separadamente.
-- [ ] `docker compose --profile hyperframes build hyperframes-render` e `docker compose --profile hyperframes up -d hyperframes-render web` com segredos válidos.
-- [ ] GET health com token correto, sem token, token errado e worker desligado.
-- [ ] Render de composição 16:9 e 9:16 (com HTML/CSS de vários elementos); checar saída, alfa e FPS.
-- [ ] Projetos de vídeo com timeline existente: sobreposição não altera a mídia original, exporta sincronizada.
-- [ ] Editar fonte do clipe selecionado, re-renderizar, salvar projeto, reabrir via LAN no segundo dispositivo.
-- [ ] Confirmar ausência de acesso a arquivos internos e recursos externos com HTML/CSS malicioso; testar payload acima do limite.
-- [ ] Parakeet PT-BR e Whisper: confirmar timestamps; verificar falas rápidas, silêncio e ruído.
-- [ ] Validar tema, números citados e cortes de assunto com LLM local e externo; verificar alucinações e dados de legenda.
-- [ ] Comparar prévia com vídeo final frame a frame e conferir navegador Chromium/Safari e render de servidor.
+## Fluxo de edição
 
-Não afirmar `F04 concluído` antes dessa matriz e da revisão de segurança. A versão da CLI npm deve ser fixada após teste de compatibilidade do build (o `package.json` usa versão disponível no npm, não foi homologada).
+1. Abra um projeto, escolha o intervalo e o briefing.
+2. Analise fala/música via Parakeet (serviço opcional CPU) ou Whisper local; revise a transcrição. Pode colar um roteiro manualmente.
+3. Peça à IA HTML/CSS com contexto semântico e temporal; revise os dois campos de código.
+4. Observe a prévia em iframe sandbox sem JS.
+5. Clique em **Aplicar composição à timeline**. O Editor renderiza automaticamente no próprio `web`, importa o WebM na biblioteca do projeto e insere ou atualiza o clipe.
+6. Para refinar, selecione o clipe, use **Carregar HTML/CSS do clipe selecionado**, modifique o código e aplique novamente.
+
+A fonte HTML/CSS fica nos parâmetros do clipe. **O WebM é uma mídia intermediária armazenada no projeto:** depois de aplicado, a reprodução da timeline segue o renderizador normal do Editor, sem exigir HyperFrames em tempo real a cada frame. Isso melhora a reprodução, mas mudanças no HTML/CSS requerem novo render. Essa abordagem é uma **dependência nativa do backend**, não edição DOM em tempo real.
+
+## Segurança e limites técnicos
+
+- Só HTML/CSS higienizado; scripts, iframe, SVG, mídia externa, fontes remotas, CSS `url()`, `@import` e outros recursos são proibidos. Um CSP bloqueia execução/rede durante a renderização.
+- Renderizador executado como **processo temporário sem herdar chaves de IA/banco** no ambiente, com timeout e limpeza de temporários. O aplicativo continua exigindo token LAN na API.
+- Limites: 0,3–12s, 24/30 FPS, saída WebM até 55 MiB, resolução máxima 1920x1920 com até ~2,1 megapixels, HTML/CSS até 26 KB por campo, JSON até 96 KB.
+- Uma renderização por instância do backend; novos pedidos simultâneos recebem 429.
+- **Importante:** remover o contêiner separado reduz o isolamento de processos e rede. Sanitização/CSP não equivalem a um sandbox de segurança perfeito contra vulnerabilidades do navegador. Não habilitar JS arbitrário nem recursos externos sem uma camada adicional de isolamento.
+- Transparência VP9/WebM e exportação no pipeline do Editor precisam de teste com vídeos reais, especialmente em dispositivos não Chromium.
+
+## Aceitação da F04
+
+- [ ] CI Next.js + Bun tests Linux/Windows/macOS concluídos.
+- [ ] Build da imagem **web** com CLI incluída, após o build da etapa Rust/WASM.
+- [ ] Teste Alpine com a CLI rodando como processo único, offline, sem serviço HTTP.
+- [ ] API GET da aplicação informa CLI disponível após iniciar `web`, sem configuração extra.
+- [ ] POST faz uma composição 16:9 e uma 9:16, WebM válido e com alfa.
+- [ ] IA + transcrição PT-BR: significado, números, mudanças de assunto e timestamps.
+- [ ] Inserir sobre vídeo e exportar preservando posição/tempo/transparência.
+- [ ] Salvar, reabrir e reeditar a composição no PC e no celular via LAN.
+- [ ] Tentativas de HTML/CSS malicioso e vários pedidos concorrentes são rejeitadas de forma segura.
+
+Não marcar a integração completa antes destes testes, sobretudo o render **dentro da imagem web**, diferente do smoke Docker que exercita somente o pacote.
