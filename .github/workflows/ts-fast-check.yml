@@ -34,6 +34,8 @@ jobs:
       - name: Install dependencies
         working-directory: apps/web
         run: bun install
+      - name: Check HyperFrames worker JavaScript syntax
+        run: node --check services/hyperframes/server.mjs
       - name: Next.js production compile and typecheck
         working-directory: apps/web
         run: bun run build
