@@ -48,6 +48,8 @@ import {
 	updateExistingCaptionPresentation,
 } from "@/subtitles/presets";
 import { toast } from "sonner";
+import { getTextAnimationKeyframes, type TextMotionPreset } from "@/text/motion-presets";
+import { TICKS_PER_SECOND } from "@/wasm";
 
 const DIAGNOSTIC_BUTTON_VARIANT: Record<
 	DiagnosticSeverity,
@@ -101,6 +103,9 @@ export function Captions() {
 		useState<TranscriptionLanguage>("auto");
 	const [placement, setPlacement] = useState<CaptionPlacement>("bottom");
 	const [preset, setPreset] = useState<CaptionPreset>("clean");
+	const [captionColor, setCaptionColor] = useState("#ffffff");
+	const [captionMotion, setCaptionMotion] = useState<"none" | TextMotionPreset>("none");
+	const [motionSeconds, setMotionSeconds] = useState(0.3);
 	const [wordsPerCaption, setWordsPerCaption] = useState(5);
 	const [transcriptionEngine, setTranscriptionEngine] = useState<"parakeet" | "whisper">("parakeet");
 	const [processing, dispatch] = useReducer(processingReducer, IDLE_STATE);
@@ -131,13 +136,34 @@ export function Captions() {
 		captions: SubtitleCue[];
 	}): boolean => {
 		const presentedCaptions = captions.map((caption) =>
-			applyCaptionPresentation({ caption, placement, preset }),
+			applyCaptionPresentation({ caption, placement, preset, color: captionColor }),
 		);
 		const trackId = insertCaptionChunksAsTextTrack({
 			editor,
 			captions: presentedCaptions,
 		});
+		if (trackId && captionMotion !== "none") {
+			applyMotionToCaptionTrack({ trackId });
+		}
 		return trackId !== null;
+	};
+
+	const applyMotionToCaptionTrack = ({ trackId }: { trackId?: string }) => {
+		if (captionMotion === "none") return;
+		const tracks = editor.scenes.getActiveScene().tracks.overlay.filter(
+			(track) => track.type === "text" && (!trackId || track.id === trackId),
+		);
+		const texts = tracks.flatMap((track) => track.elements.filter((element) =>
+			!element.locked && (element.params["subtitle.isCaption"] === true ||
+				element.name.toLowerCase().startsWith("caption ")),
+		).map((element) => ({ element, trackId: track.id })));
+		const keyframes = texts.flatMap(({ element, trackId }) => getTextAnimationKeyframes({
+			ref: { trackId, elementId: element.id }, element,
+			durationTicks: element.duration,
+			transitionTicks: Math.round(Math.max(0.05, Math.min(2, motionSeconds)) * TICKS_PER_SECOND),
+			motion: captionMotion, position: "both",
+		}));
+		if (keyframes.length) editor.timeline.upsertKeyframes({ keyframes });
 	};
 
 	const handleGenerateTranscript = async () => {
@@ -291,7 +317,9 @@ export function Captions() {
 			editor,
 			placement,
 			preset,
+			color: captionColor,
 		});
+		if (updated && captionMotion !== "none") applyMotionToCaptionTrack({});
 		if (updated === 0) {
 			toast.info("Nenhuma legenda existente foi encontrada");
 			return;
@@ -424,6 +452,29 @@ export function Captions() {
 									))}
 								</SelectContent>
 							</Select>
+						</SectionField>
+						<SectionField label="Cor da legenda">
+							<label className="flex items-center gap-2 text-xs">
+								<input type="color" aria-label="Escolher cor da legenda" value={captionColor}
+									onChange={(event) => setCaptionColor(event.target.value)} disabled={isProcessing} />
+								<span>{captionColor}</span>
+							</label>
+						</SectionField>
+						<SectionField label="Animação de entrada e saída">
+							<select aria-label="Animação da legenda" value={captionMotion}
+								onChange={(event) => setCaptionMotion(event.target.value as "none" | TextMotionPreset)}
+								className="bg-background w-full rounded border px-2 py-1 text-xs" disabled={isProcessing}>
+								<option value="none">Sem animação</option>
+								<option value="fade">Fade (aparecer/desaparecer)</option>
+								<option value="slide">Deslizar</option>
+								<option value="scale">Zoom</option>
+							</select>
+							<label className="flex items-center gap-2 text-xs mt-2">
+								Duração (segundos)
+								<input type="number" value={motionSeconds} step={0.05} min={0.05} max={2}
+									onChange={(event) => setMotionSeconds(Number(event.target.value))}
+									className="bg-background w-20 rounded border px-2 py-1" disabled={isProcessing} />
+							</label>
 						</SectionField>
 						<SectionField label="Palavras por legenda">
 							<Select
