@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { previewArguments, previewFormat } from "./preview";
+import { spawnSync } from "node:child_process";
+import { readFile, stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { ensurePreview, previewArguments, previewFormat } from "./preview";
+import { finalizeAsset, storeChunk } from "./server";
 
 test("remote video preview targets a compact browser-compatible MP4", () => {
   const format = previewFormat({ type: "video", mimeType: "video/quicktime" });
@@ -29,3 +35,35 @@ test("unsupported animated/vector previews do not silently destroy their origina
   expect(() => previewFormat({ type: "image", mimeType: "image/gif" })).toThrow();
   expect(() => previewFormat({ type: "invalid", mimeType: "application/octet-stream" })).toThrow();
 });
+
+const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
+const ffmpegInstalled = spawnSync(ffmpeg, ["-version"], { timeout: 10_000 }).status === 0;
+if (ffmpegInstalled) {
+  test("FFmpeg generates a real compact proxy while keeping the original unchanged", async () => {
+    const projectId = "proxy_" + randomUUID();
+    const assetId = "video_" + randomUUID();
+    const original = path.join(tmpdir(), "opencut-preview-fixture-" + randomUUID() + ".mp4");
+    const result = spawnSync(ffmpeg, [
+      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64:r=5",
+      "-t", "0.4", "-an", "-c:v", "mpeg4", "-y", original,
+    ], { timeout: 30_000 });
+    expect(result.status).toBe(0);
+    const source = await readFile(original);
+    await storeChunk(projectId, assetId, 0, source.buffer.slice(
+      source.byteOffset, source.byteOffset + source.byteLength,
+    ));
+    await finalizeAsset({
+      projectId, assetId, name: "source.mp4", type: "video",
+      mimeType: "video/mp4", size: source.length, parts: 1,
+    });
+    const proxy = await ensurePreview(projectId, assetId);
+    expect(proxy.mimeType).toBe("video/mp4");
+    expect((await stat(proxy.filePath)).size).toBeGreaterThan(0);
+    const second = await ensurePreview(projectId, assetId);
+    expect(second.filePath).toBe(proxy.filePath);
+    const keptOriginal = await readFile(path.join(path.dirname(proxy.filePath), "original"));
+    expect(keptOriginal.equals(source)).toBe(true);
+  });
+} else {
+  test.skip("FFmpeg integration (binary unavailable on runner)", () => undefined);
+}
