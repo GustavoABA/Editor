@@ -1096,8 +1096,9 @@ function AudioElementContent({
 	return (
 		<div className="group/audio relative size-full">
 			<div className="flex size-full items-center pl-2">
-				<span className="text-foreground/80 truncate text-xs">
-					{element.name}
+				<span className="text-foreground/80 truncate text-xs"
+					title={!mediaAsset && element.sourceType === "upload" ? "⚠️ Arquivo de áudio não disponível neste dispositivo" : undefined}>
+					{!mediaAsset && element.sourceType === "upload" ? "⚠️ " : ""}{element.name}
 				</span>
 			</div>
 			<AudioVolumeLine element={element} trackId={trackId} />
@@ -1150,6 +1151,15 @@ function TiledMediaContent({
 			? mediaAsset?.thumbnailUrl
 			: (mediaAsset?.thumbnailUrl ?? mediaAsset?.url);
 
+	if (!mediaAsset) {
+		return (
+			<div className="flex size-full items-center gap-1 overflow-hidden px-2 text-xs text-amber-500"
+				title="⚠️ Original ainda não disponível neste dispositivo; o clipe e seus cortes foram preservados.">
+				<span aria-label="Mídia não enviada">⚠️</span>
+				<span className="truncate">{element.name} — arquivo pendente</span>
+			</div>
+		);
+	}
 	if (!imageUrl) {
 		return (
 			<span className="text-foreground/80 truncate text-xs">
