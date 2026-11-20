@@ -18,6 +18,9 @@
 - Snapshot/checkpoint persistente no host na primeira gravação e quando uma gravação ocorre após 180 segundos; cliente conectado dispara checkpoints a cada 180 segundos. **Ctrl+S** ou botão **Salvar no host** também executam checkpoint manual.
 - Status ⚠️ de upload pendente/falha no cabeçalho e barra de progresso percentual; dispositivos sem originais exibem **placeholder ⚠️ no clipe de vídeo/imagem e aviso para áudio**, preservando seus cortes e metadados.
 - Seção **Projetos do servidor LAN** em `/projects` para importar projeto editável do host para o navegador atual.
+- **F10-D (integração nova, experimental):** para originais maiores que 80 MiB, o host cria automaticamente um proxy cacheado via FFmpeg: MP4/H.264 480p para vídeo, M4A/AAC para áudio e PNG redimensionado para foto. O navegador baixa **somente o proxy para edição/preview**; o arquivo original permanece no host e é usado na renderização final. `remoteProxy`, tamanho e MIME originais são persistidos no IndexedDB para evitar reupload do proxy por engano.
+- **Correção de infraestrutura:** diretório `/app/lan-sync` criado com propriedade do usuário não-root `nextjs` no Dockerfile, para montagem inicial do volume persistente. Ambientes com volume já existente podem exigir correção manual de permissões.
+
 
 ## Como ativar no host
 
@@ -45,11 +48,11 @@ O volume Docker `lan_sync_data` precisa ser incluído na política de backup. Em
 ## Limitações conhecidas e trabalho restante
 
 - **Não é entrega completa F10.** A interface mobile ainda não foi redesenhada para gestos e telas pequenas.
-- A página de projetos ainda **baixa o original inteiro** no cliente se o arquivo tiver até 80 MiB; mídias maiores não são importadas automaticamente e aparecem como ⚠️. **Proxies/streaming remoto ainda não implementados.**
+- Para arquivos até **80 MiB**, a importação ainda baixa o **original** no navegador. Para arquivos maiores, o host gera um **proxy de visualização** limitado a 80 MiB. **Isso não é streaming segmentado nem transcodificação adaptativa:** o navegador ainda baixa todo o proxy e arquivos longos podem exceder o limite ou esgotar tempo de transcodificação. Nesses casos, o clipe permanece com ⚠️ e requer evolução para HLS/range/proxy segmentado.
 - A exportação final **agora reutiliza originais verificados no host** quando existe token de LAN ativo: o manifest inclui referências, o servidor recupera os originais da biblioteca persistente e os copia ao job de render. Arquivos ainda não sincronizados continuam usando o caminho de upload tradicional. Se um clipe não tiver bytes locais nem original verificado no host, a exportação é **bloqueada**. **Pendente:** testar mídia grande, falhas e integração com proxy ao vivo; cópia de host → pasta de render ainda consome espaço temporário.
 - O hash SHA-256 é calculado pelo servidor ao montar os chunks, mas ainda não é comparado com um hash produzido independentemente pelo cliente. Falta verificação end-to-end, validação de assinatura de bytes/MIME, proteção de quotas por usuário e restrições avançadas de taxa.
 - Checkpoints são criados durante uma **sessão ativa com cliente conectado**, não por daemon independente na ausência de edições/sessão. Se a conexão cair, o servidor conserva a última revisão que recebeu e o navegador mantém seu rascunho local.
-- Ao abrir projeto em outro dispositivo, o armazenamento local pode ser duplicado e grande; falta mecanismo de proxy/URL autenticada para tornar o cliente verdadeiramente leve.
+- O proxy é um arquivo compactado cacheado em disco e baixado mediante API autenticada; **ainda falta streaming/range de segmentos, cache inteligente, transcodificação on-demand por trecho e consumo móvel realmente leve**.
 - Sem sincronização colaborativa CRDT nem merges automáticos: conflitos (409) **bloqueiam sobregravação** e exigem reabrir a versão do servidor.
 - Exclusão/renomeação/duplicação locais ainda não estão propagadas integralmente para a biblioteca do host; é necessário desenhar política de remoção sem perder mídias partilhadas.
 - Exibição de ⚠️ foi adicionada para **clipes visuais/áudio sem original disponível no cliente**; falta verificar UX mobile e distinguir cada motivo de indisponibilidade por asset.
@@ -57,6 +60,6 @@ O volume Docker `lan_sync_data` precisa ser incluído na política de backup. Em
 
 ## Testes automatizados adicionados
 
-`bun test apps/web/src/lan-sync/server.test.ts` (executar da raiz do repositório) cobre token de acesso, revisões, snapshots, upload por partes e caminhos inválidos. O CI do projeto passa a executar esse teste no job de build.
+`cd apps/web && bun test src/lan-sync/server.test.ts src/lan-sync/preview.test.ts` cobre token, revisões, snapshots, upload em partes e opções de formatos/FFmpeg para proxies. Os testes de formato **não executam FFmpeg real**: testes E2E de transcodificação com mídias de amostra e LAN permanecem obrigatórios.
 
 **Critério de conclusão:** não fazer merge em `main` nem marcar F10 como finalizada enquanto CI, testes reais em LAN, transmissão, proxy, conflitos, segurança e export direto dos originais do host não estiverem verificados.
