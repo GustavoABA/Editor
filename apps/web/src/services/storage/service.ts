@@ -167,6 +167,19 @@ class StorageService {
 		});
 	}
 
+	/** Read the already serialized local draft without changing its browser storage. */
+	async readSerializedProject({ id }: { id: string }): Promise<SerializedProject | null> {
+		return this.projectsAdapter.get(id);
+	}
+
+	/** Import a server revision for subsequent loading by the existing project manager. */
+	async importSerializedProject({ project }: { project: SerializedProject }): Promise<void> {
+		if (!project?.metadata?.id || !Array.isArray(project.scenes) || !project.settings) {
+			throw new Error("Invalid remote project document");
+		}
+		await this.projectsAdapter.set({ key: project.metadata.id, value: project });
+	}
+
 	async loadProject({
 		id,
 	}: {
