@@ -248,8 +248,7 @@ export async function browseAll({
 			// scrollable catalogue. No separate overlay, fixed header or row.
 			layout: "grid",
 			items: recentItems,
-			hasMore: recentItems.length > limit,
-			layout: "row",
+			hasMore: false,
 		});
 	}
 
