@@ -1,6 +1,7 @@
-import { mkdir, open, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, open, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { NextResponse } from "next/server";
+import { assetFilePath, authorizeSync, getAssetRecord } from "@/lan-sync/server";
 import {
 	createRenderJob,
 	getAssetPath,
@@ -90,6 +91,8 @@ export async function POST(request: Request) {
 			);
 		}
 		const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+		const lanProjectId = typeof manifest.lanSyncProjectId === "string"
+			? manifest.lanSyncProjectId : null;
 		const job = await createRenderJob({ manifest });
 		await mkdir(`${getJobDirectory({ jobId: job.id })}/assets`, {
 			recursive: true,
@@ -100,15 +103,23 @@ export async function POST(request: Request) {
 			const { id, name } = asset;
 			if (typeof id !== "string" || typeof name !== "string") continue;
 			const upload = formData.get(`asset:${id}`);
-			if (!(upload instanceof File)) {
-				return NextResponse.json(
-					{ error: `Missing media file: ${name}` },
-					{ status: 400 },
-				);
+			const renderPath = getAssetPath({ jobId: job.id, assetId: id, name });
+			if (upload instanceof File) {
+				await writeFile(renderPath, Buffer.from(await upload.arrayBuffer()));
+				continue;
 			}
-			await writeFile(
-				getAssetPath({ jobId: job.id, assetId: id, name }),
-				Buffer.from(await upload.arrayBuffer()),
+			if (lanProjectId) {
+				const denied = authorizeSync(request);
+				if (denied) return denied;
+				const stored = await getAssetRecord(lanProjectId, id);
+				if (stored && (!("size" in asset) || asset.size === stored.size)) {
+					await copyFile(assetFilePath(lanProjectId, id), renderPath);
+					continue;
+				}
+			}
+			return NextResponse.json(
+				{ error: `Missing verified host media: ${name}` },
+				{ status: 409 },
 			);
 		}
 
