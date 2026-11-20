@@ -1,4 +1,6 @@
 import { Readable } from "node:stream";
+import { createReadStream } from "node:fs";
+import { ensurePreview } from "@/lan-sync/preview";
 import {
   assetFileStat, assetFileStream, authorizeSync, finalizeAsset,
   getAssetRecord, isRecord, listReceivedParts, storeChunk,
@@ -14,6 +16,25 @@ export async function GET(request: Request, { params }: Context) {
     const { projectId, assetId } = await params;
     const info = await getAssetRecord(projectId, assetId);
     const url = new URL(request.url);
+    if (url.searchParams.get("preview") === "1") {
+      if (!info) return new Response("Original not uploaded", { status: 404 });
+      try {
+        const proxy = await ensurePreview(projectId, assetId);
+        const webStream = Readable.toWeb(createReadStream(proxy.filePath)) as unknown as ReadableStream;
+        return new Response(webStream, {
+          headers: {
+            "Content-Type": proxy.mimeType,
+            "Content-Length": String(proxy.size),
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      } catch (error) {
+        return Response.json({
+          error: error instanceof Error ? error.message : "Preview could not be generated",
+        }, { status: 422 });
+      }
+    }
     if (url.searchParams.get("download") !== "1") {
       return Response.json({ uploaded: Boolean(info), info, parts: info ? [] : await listReceivedParts(projectId, assetId) });
     }
