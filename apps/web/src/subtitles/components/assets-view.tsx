@@ -50,6 +50,7 @@ import {
 import { toast } from "sonner";
 import { getTextAnimationKeyframes, type TextMotionPreset } from "@/text/motion-presets";
 import { TICKS_PER_SECOND } from "@/wasm";
+import type { TextTrack } from "@/timeline";
 
 const DIAGNOSTIC_BUTTON_VARIANT: Record<
 	DiagnosticSeverity,
@@ -151,7 +152,8 @@ export function Captions() {
 	const applyMotionToCaptionTrack = ({ trackId }: { trackId?: string }) => {
 		if (captionMotion === "none") return;
 		const tracks = editor.scenes.getActiveScene().tracks.overlay.filter(
-			(track) => track.type === "text" && (!trackId || track.id === trackId),
+			(track): track is TextTrack => track.type === "text" &&
+				(!trackId || track.id === trackId),
 		);
 		const texts = tracks.flatMap((track) => track.elements.filter((element) =>
 			!element.locked && (element.params["subtitle.isCaption"] === true ||
