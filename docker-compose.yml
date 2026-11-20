@@ -74,6 +74,8 @@ services:
       - RENDER_JOBS_DIR=/app/render-jobs
       - LAN_SYNC_DIR=/app/lan-sync
       - LAN_SYNC_TOKEN=${OPENCUT_LAN_SYNC_TOKEN:-}
+      - PARAKEET_SERVICE_URL=http://parakeet:8707
+      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
       - CHROMIUM_PATH=/usr/bin/chromium-browser
       - FFMPEG_PATH=/usr/bin/ffmpeg
       - AUTOCUT_PATH=/usr/local/bin/opencut-autocut
@@ -145,7 +147,22 @@ services:
       web:
         condition: service_healthy
 
+  # Optional CPU-only Parakeet Redux service; not exposed on the public host.
+  parakeet:
+    profiles: ["transcription"]
+    build:
+      context: ./services/parakeet
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
+    expose:
+      - "8707"
+    volumes:
+      - parakeet_models:/models
+
 volumes:
+  parakeet_models:
   postgres_data:
   render_jobs_v2:
   lan_sync_data:
