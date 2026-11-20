@@ -44,7 +44,7 @@ async function fetchAuthorizedMedia(url: string): Promise<File> {
   if (!response.ok || !response.body) throw new Error("O servidor bloqueou o download ou o CORS.");
   const declaredSize = Number(response.headers.get("content-length") || "0");
   if (declaredSize > MAX_FILE_BYTES) throw new Error("Arquivo acima de 200 MB.");
-  const parts: Uint8Array[] = [];
+  const parts: ArrayBuffer[] = [];
   let total = 0;
   const reader = response.body.getReader();
   try {
@@ -53,7 +53,10 @@ async function fetchAuthorizedMedia(url: string): Promise<File> {
       if (done) break;
       total += value.byteLength;
       if (total > MAX_FILE_BYTES) throw new Error("Arquivo acima de 200 MB.");
-      parts.push(value);
+      // Copy into an owned ArrayBuffer; BlobPart does not accept SharedArrayBuffer-like buffers.
+      const safeChunk = new Uint8Array(value.byteLength);
+      safeChunk.set(value);
+      parts.push(safeChunk.buffer);
     }
   } finally { await reader.cancel().catch(() => undefined); }
   const filename = decodeURIComponent(new URL(url).pathname.split("/").pop() || "media");
