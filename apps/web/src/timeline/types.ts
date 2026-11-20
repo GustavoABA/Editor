@@ -103,6 +103,8 @@ export interface LibraryAudioElement extends BaseAudioElement {
 export type AudioElement = UploadAudioElement | LibraryAudioElement;
 
 interface BaseTimelineElement {
+	/** Persisted protection flag; omitted means editable. */
+	locked?: boolean;
 	id: string;
 	name: string;
 	duration: MediaTime;
