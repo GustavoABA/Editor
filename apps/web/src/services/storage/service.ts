@@ -318,6 +318,9 @@ class StorageService {
 			duration: mediaAsset.duration,
 			thumbnailUrl: mediaAsset.thumbnailUrl,
 			ephemeral: mediaAsset.ephemeral,
+			remoteProxy: mediaAsset.remoteProxy,
+			originalSize: mediaAsset.originalSize,
+			originalMimeType: mediaAsset.originalMimeType,
 		};
 
 		try {
@@ -391,6 +394,9 @@ class StorageService {
 			duration: metadata.duration,
 			thumbnailUrl: metadata.thumbnailUrl,
 			ephemeral: metadata.ephemeral,
+			remoteProxy: metadata.remoteProxy,
+			originalSize: metadata.originalSize,
+			originalMimeType: metadata.originalMimeType,
 		};
 	}
 
