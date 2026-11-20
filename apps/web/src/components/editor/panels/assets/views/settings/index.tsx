@@ -33,12 +33,13 @@ import { OcSquarePlusIcon } from "@/components/icons";
 import type { TCanvasSize } from "@/project/types";
 import { createReframeUpdates, type ReframeMode } from "@/timeline/reframe";
 import { AudioNormalizePanel } from "./audio-normalize";
+import { ShortcutSettings } from "./shortcuts";
 import { BatchCommand, UpdateElementsCommand, UpdateProjectSettingsCommand } from "@/commands";
 
-type SettingsView = "project-info" | "background";
+type SettingsView = "project-info" | "background" | "shortcuts";
 
 function isSettingsView(value: string): value is SettingsView {
-	return value === "project-info" || value === "background";
+	return value === "project-info" || value === "background" || value === "shortcuts";
 }
 
 const PRESET_LABELS: Record<string, string> = {
@@ -253,6 +254,7 @@ Uma única ação de Desfazer reverte a conversão.`)) return;
 					<TabsList>
 						<TabsTrigger value="project-info">Project info</TabsTrigger>
 						<TabsTrigger value="background">Background</TabsTrigger>
+						<TabsTrigger value="shortcuts">Atalhos</TabsTrigger>
 					</TabsList>
 				</Tabs>
 			}
@@ -375,6 +377,7 @@ Uma única ação de Desfazer reverte a conversão.`)) return;
 				</div>
 			)}
 			{view === "background" && <BackgroundContent />}
+			{view === "shortcuts" && <ShortcutSettings />}
 		</PanelView>
 	);
 }
