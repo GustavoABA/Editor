@@ -61,7 +61,8 @@ export async function POST(request: Request) {
     const segments = data.segments.slice(0, 40_000).flatMap((segment) => {
       if (!segment || typeof segment !== "object") return [];
       const item = segment as Record<string, unknown>;
-      if (typeof item.text !== "string" || !Number.isFinite(item.start) || !Number.isFinite(item.end) ||
+      if (typeof item.text !== "string" || typeof item.start !== "number" || typeof item.end !== "number" ||
+          !Number.isFinite(item.start) || !Number.isFinite(item.end) ||
           Number(item.start) < 0 || Number(item.end) < Number(item.start)) return [];
       return [{ text: item.text, start: Number(item.start), end: Number(item.end) }];
     });
