@@ -453,7 +453,12 @@ export class DragDropController {
 		dragData: Extract<TimelineDragData, { type: "effect" }>;
 	}): void {
 		const selected = target.targetElement;
-		if (!selected || !dragData.targetElementTypes.includes(selected.type as never)) {
+		const tracks = this.config.getSceneTracks();
+		const targetTrack = [tracks.main, ...tracks.overlay, ...tracks.audio]
+			.find((track) => track.id === selected?.trackId);
+		const targetClip = targetTrack?.elements.find((element) => element.id === selected?.elementId);
+		if (!selected || !targetClip || targetClip.locked ||
+			!dragData.targetElementTypes.includes(targetClip.type as never)) {
 			toast.info("Arraste o efeito para cima de um vídeo, imagem ou clipe visual. Não criamos mais pistas de efeito independentes.");
 			return;
 		}
