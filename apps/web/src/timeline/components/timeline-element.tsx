@@ -629,7 +629,7 @@ function ElementInner({
 				style={
 					isSelected
 						? {
-								boxShadow: `0 0 0 ${ELEMENT_RING_WIDTH_PX}px var(--primary)`,
+								boxShadow: `0 0 0 ${ELEMENT_RING_WIDTH_PX}px #FFF2A6`,
 							}
 						: undefined
 				}
