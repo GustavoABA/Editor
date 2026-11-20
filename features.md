@@ -18,7 +18,7 @@
 |---|---|---|
 | **F02 LUFS** | [x] Métricas EBU R128 no host e UI de ganho reversível por clipe | [ ] Medir mix final, fades/keyframes, fidelidade export |
 | **F03 Roteador IA** | [x] NVIDIA, Kimi/Moonshot, OpenAI, Claude e DeepSeek por API, Ollama local, cofre AES-GCM, fallback | [ ] Executor Node isolado, autenticação granular, tests de modelos reais |
-| **F04 HyperFrames** | [x] Overlay de texto editável e sincronização simples por picos de áudio | [ ] Runtime HTML/CSS e IA de composição segura, export completo |
+| **F04 HyperFrames** | [x] Modo simples por batidas + novo painel HTML/CSS editável, transcrição Parakeet/Whisper, IA semântica, serviço opcional com CLI oficial e inserção WebM na timeline | [ ] Homologar Docker real, transparência/export, preview fiel, HTML/JS completo e integração multimídia |
 | **F07 Links** | [x] Iframes somente preview YouTube/Twitch; importação de URL direta com autorização e limite | [ ] Casos CORS, integrações adicionais, testes/licenças |
 | **F05 Stickers** | [x] Ajuste CSS de scroll/touch | [ ] Reprodução de bug e confirmação desktop/mobile |
 | **F09 MCP ngrok** | [x] Agente opcional, status e toggle de endpoint dedicado ao MCP | [ ] Teste real HTTPS, revogação, autenticação e observabilidade |
@@ -363,7 +363,7 @@ Fonte oficial: https://docs.api.nvidia.com/nim/docs/product
 
 ## F04 — HyperFrames dentro de IA & Automação (FASE 3)
 
-> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: componentes de texto editáveis com sincronização a batidas e prévia declarativa; pendentes HTML/CSS HyperFrames completo, execução de composições geradas por IA e equivalência de export.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL EM TESTE: componentes de texto por batidas + composição HTML/CSS editável e gerada por IA a partir de transcrição semântica Parakeet/Whisper e contexto da timeline; CLI oficial em serviço Docker opcional renderiza WebM e insere como clipe de vídeo, com fontes HTML/CSS salvas nos parâmetros do clipe. Ainda não homologados: build/executação reais do worker, alfa no navegador/export, preview por seek, JS arbitrário, mídias externas, edição DOM por objeto e E2E. Consulte `docs/hyperframes-integration.md`.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Prioridade imediata após o roteador IA:** confirmar e reaproveitar o que já estiver construído de HyperFrames, conectá-lo aos provedores da fase 2 e colocá-lo para funcionar na edição e na exportação. **Não depender de F01**, F09 ou F08.
 
