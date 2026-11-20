@@ -40,9 +40,18 @@ export function applyCanvasClipEffects({
         break;
       }
       case "grayscale": {
-        ctx.drawImage(current, 0, 0, width, height);
         const intensity = Number(effect.params.intensity ?? 100);
         const strength = Math.max(0, Math.min(1, Number.isFinite(intensity) ? intensity / 100 : 1));
+        // Chromium, used by browser preview and the host renderer, supports
+        // canvas filters. Prefer that fast native path over reading millions
+        // of RGBA pixels back into JS on every video frame.
+        if ("filter" in ctx) {
+          ctx.filter = `grayscale(${strength * 100}%)`;
+          ctx.drawImage(current, 0, 0, width, height);
+          ctx.filter = "none";
+          break;
+        }
+        ctx.drawImage(current, 0, 0, width, height);
         if (strength === 0) break;
         const frame = ctx.getImageData(0, 0, width, height);
         const data = frame.data;
