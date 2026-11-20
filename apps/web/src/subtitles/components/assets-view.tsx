@@ -101,6 +101,7 @@ export function Captions() {
 	const [placement, setPlacement] = useState<CaptionPlacement>("bottom");
 	const [preset, setPreset] = useState<CaptionPreset>("clean");
 	const [wordsPerCaption, setWordsPerCaption] = useState(5);
+	const [transcriptionEngine, setTranscriptionEngine] = useState<"parakeet" | "whisper">("parakeet");
 	const [processing, dispatch] = useReducer(processingReducer, IDLE_STATE);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -148,16 +149,40 @@ export function Captions() {
 			});
 
 			dispatch({ type: "update_step", step: "Preparing audio..." });
-			const { samples } = await decodeAudioToFloat32({
-				audioBlob,
-				sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE,
-			});
-
-			const result = await transcriptionService.transcribe({
-				audioData: samples,
-				language: selectedLanguage === "auto" ? undefined : selectedLanguage,
-				onProgress: handleProgress,
-			});
+			const result = transcriptionEngine === "parakeet"
+				? await (async () => {
+					dispatch({ type: "update_step", step: "Parakeet Redux · CPU no host..." });
+					const response = await fetch("/api/transcription/parakeet", {
+						method: "POST",
+						headers: { "Content-Type": "audio/wav" },
+						body: audioBlob,
+						signal: AbortSignal.timeout(245_000),
+					});
+					const body: unknown = await response.json().catch(() => null);
+					if (!response.ok || !body || typeof body !== "object") {
+						const error = body && typeof body === "object" && "error" in body &&
+							typeof body.error === "string" ? body.error : "Parakeet indisponível.";
+						throw new Error(error + " Se necessário, selecione Whisper (compatibilidade).");
+					}
+					const transcript = body as Record<string, unknown>;
+					if (!Array.isArray(transcript.segments)) throw new Error("Segmentos inválidos do Parakeet.");
+					return {
+						text: typeof transcript.text === "string" ? transcript.text : "",
+						segments: transcript.segments as Array<{ text: string; start: number; end: number }>,
+						language: typeof transcript.language === "string" ? transcript.language : "auto",
+					};
+				})()
+				: await (async () => {
+					const { samples } = await decodeAudioToFloat32({
+						audioBlob,
+						sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE,
+					});
+					return transcriptionService.transcribe({
+						audioData: samples,
+						language: selectedLanguage === "auto" ? undefined : selectedLanguage,
+						onProgress: handleProgress,
+					});
+				})();
 
 			dispatch({ type: "update_step", step: "Generating captions..." });
 			const captionChunks = buildCaptionChunks({
@@ -328,6 +353,17 @@ export function Captions() {
 			>
 				<SectionContent className="flex flex-col gap-4 h-full pt-1">
 					<SectionFields>
+						<SectionField label="Motor de transcrição">
+							<Select value={transcriptionEngine}
+								onValueChange={(value) => setTranscriptionEngine(value === "whisper" ? "whisper" : "parakeet")}>
+								<SelectTrigger><SelectValue /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="parakeet">Parakeet Redux · CPU no host</SelectItem>
+									<SelectItem value="whisper">Whisper · compatibilidade no navegador</SelectItem>
+								</SelectContent>
+							</Select>
+							<p className="text-muted-foreground text-[11px]">Parakeet requer o serviço opcional Docker e conexão ao host; não usa chave de IA paga.</p>
+						</SectionField>
 						<SectionField label="Language">
 							<Select
 								value={selectedLanguage}
