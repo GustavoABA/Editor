@@ -1,6 +1,13 @@
 # F10 — Implementação inicial do Editor híbrido LAN
 
-> **Status (19/11/2026):** primeira entrega **experimental**, em branch `feature/lan-hybrid-sync`. Não declarar F10 concluída até integração, testes e revisão de segurança. Ver [features.md](../features.md) e [cross-device-project-sync.md](cross-device-project-sync.md).
+> **Status (19/11/2026):** primeira entrega **experimental**, em branch `teste/implementacao` e [PR #2](https://github.com/GustavoABA/Editor/pull/2). **Somente esta branch pode receber validação e código da implementação**. Não declarar F10 concluída até integração, testes reais e revisão de segurança. Ver [features.md](../features.md) e [cross-device-project-sync.md](cross-device-project-sync.md).
+
+## Orientação a Codex / outras IAs
+
+1. Fazer checkout de `teste/implementacao` e confirmar a branch com `git branch --show-current`.
+2. Ler o `features.md` e `AGENTS.md` desta branch. Auditar/validar código existente antes de refazer qualquer funcionalidade.
+3. Implementar **somente aqui** os itens pendentes da F10, manter testes/CI e corrigir regressões. Não modificar código da `main`, não trabalhar em `feature/lan-hybrid-sync`, nem fazer merge até aprovação.
+4. Atualizar status/checkboxes da F10 com prova de testes. Distinguir **implementado no código**, **testado em CI** e **validado em rede LAN com aparelhos reais**.
 
 ## Componentes implementados nesta etapa
 
