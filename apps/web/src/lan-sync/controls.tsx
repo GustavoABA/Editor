@@ -25,6 +25,7 @@ export function LanSyncControls() {
   const [status, setStatus] = useState("LAN não conectada");
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>({});
   const [busy, setBusy] = useState(false);
+  const [remoteMissing, setRemoteMissing] = useState<string[]>([]);
   const inFlight = useRef(new Set<string>());
   const completed = useRef(new Set<string>());
   const retryAfter = useRef(new Map<string, number>());
@@ -48,6 +49,13 @@ export function LanSyncControls() {
     const saved = getLanToken();
     if (saved) void connect(saved);
   }, [connect]);
+  useEffect(() => {
+    if (!projectId) return;
+    try {
+      const values: unknown = JSON.parse(sessionStorage.getItem("opencut-lan-missing:" + projectId) || "[]");
+      setRemoteMissing(Array.isArray(values) ? values.filter((item): item is string => typeof item === "string") : []);
+    } catch { setRemoteMissing([]); }
+  }, [projectId]);
 
   const syncDocument = useCallback(async (checkpoint = false) => {
     if (!connected || !projectId || documentBusy.current) return;
@@ -74,12 +82,17 @@ export function LanSyncControls() {
         }
         revision = 0;
       }
+      // Retain references to originals that are still uploading or absent on this device.
+      const remote = await readRemoteProject(projectId);
+      const localManifest = assets.map((a) => ({
+        id: a.id, name: a.name, type: a.type, size: a.file.size, mimeType: a.file.type,
+      }));
+      const knownIds = new Set(localManifest.map((asset) => asset.id));
+      const pendingRemote = (remote?.assets ?? []).filter((asset) => !knownIds.has(asset.id));
       const result = await saveRemoteProject({
         projectId, baseRevision: revision,
         document: serialized as unknown as Record<string, unknown>,
-        assets: assets.map((a) => ({
-          id: a.id, name: a.name, type: a.type, size: a.file.size, mimeType: a.file.type,
-        })),
+        assets: [...localManifest, ...pendingRemote],
       });
       setKnownRevision(projectId, result.revision);
       lastDocumentFingerprint.current = fingerprint;
@@ -161,14 +174,16 @@ export function LanSyncControls() {
   const pending = editor.media.getAssets().filter((asset) => !completed.current.has(asset.id));
   const count = pending.length;
   const failed = pending.filter((asset) => uploadStates[asset.id]?.status === "failed").length;
+  const progress = pending.find((asset) => uploadStates[asset.id]?.status === "uploading");
 
   return (
     <div className="flex items-center gap-2 text-xs">
       {connected ? (
         <>
           <span className={count ? "text-amber-500" : "text-emerald-500"} title={status}>
-            {count ? `⚠️ ${count} mídia(s) pendentes` : "✓ Mídias no host"}
+            {(count || remoteMissing.length) ? `⚠️ ${count + remoteMissing.length} mídia(s) pendentes` : "✓ Mídias no host"}
             {failed ? ` · ${failed} falha(s)` : ""}
+            {progress ? ` · ${Math.round((uploadStates[progress.id]?.progress ?? 0) * 100)}%` : ""}
           </span>
           <button type="button" className="rounded border px-2 py-1 disabled:opacity-50"
             disabled={busy} onClick={() => void syncDocument(true)}
