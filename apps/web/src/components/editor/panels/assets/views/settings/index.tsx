@@ -32,6 +32,7 @@ import { formatNumberForDisplay } from "@/utils/math";
 import { OcSquarePlusIcon } from "@/components/icons";
 import type { TCanvasSize } from "@/project/types";
 import { createReframeUpdates, type ReframeMode } from "@/timeline/reframe";
+import { AudioNormalizePanel } from "./audio-normalize";
 import { BatchCommand, UpdateElementsCommand, UpdateProjectSettingsCommand } from "@/commands";
 
 type SettingsView = "project-info" | "background";
@@ -341,6 +342,10 @@ Uma única ação de Desfazer reverte a conversão.`)) return;
 								/>
 							</div>
 						</SectionContent>
+					</Section>
+					<Section showTopBorder={false} collapsible sectionKey="settings:audio-normalize">
+						<SectionHeader><SectionTitle>Normalizar áudio</SectionTitle></SectionHeader>
+						<SectionContent className="px-3 pb-3"><AudioNormalizePanel /></SectionContent>
 					</Section>
 					<Section showTopBorder={false} collapsible sectionKey="settings:reframe">
 						<SectionHeader><SectionTitle>Converter conteúdo (F08)</SectionTitle></SectionHeader>
