@@ -38,8 +38,9 @@ jobs:
             --data-binary @/tmp/hyperframes-smoke.json \
             http://127.0.0.1:8712/render -o /tmp/hyperframes-smoke.webm
           test "$(wc -c </tmp/hyperframes-smoke.webm)" -gt 500
-          ffprobe -v error -show_entries format=duration \
-            -of default=noprint_wrappers=1 /tmp/hyperframes-smoke.webm
+          # The GH runner may not have ffprobe. Check the actual WebM EBML
+          # signature and non-empty size without requiring host FFmpeg.
+          test "$(od -An -tx1 -N4 /tmp/hyperframes-smoke.webm | tr -d ' \\n')" = "1a45dfa3"
       - name: Print worker diagnostics on failure
         if: failure()
         run: docker logs --tail 150 opencut-hf-test || true
