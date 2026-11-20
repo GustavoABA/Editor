@@ -58,9 +58,17 @@ export async function createServerRenderJob({
 					`projects/${encodeURIComponent(project.metadata.id)}/assets/${encodeURIComponent(asset.id)}`,
 				);
 				const result = await response.json() as { uploaded: boolean; info?: { size: number } };
-				if (result.uploaded && result.info?.size === asset.file.size) hosted.add(asset.id);
-			} catch { /* Default to original upload when LAN sync is not available. */ }
+				const expectedSize = asset.remoteProxy ? asset.originalSize : asset.file.size;
+				if (result.uploaded && result.info?.size === expectedSize) hosted.add(asset.id);
+			} catch {
+				// Original files may still be uploaded directly; proxies must never be.
+			}
 		}));
+	}
+	for (const asset of mediaAssets) {
+		if (asset.remoteProxy && !hosted.has(asset.id)) {
+			throw new Error(`O arquivo original ${asset.name} não está disponível no host; uma prévia não pode ser exportada como original.`);
+		}
 	}
 	const formData = new FormData();
 	formData.append(
@@ -72,8 +80,8 @@ export async function createServerRenderJob({
 					id: asset.id,
 					name: asset.name,
 					type: asset.type,
-					mimeType: asset.file.type,
-					size: asset.file.size,
+					mimeType: asset.remoteProxy ? asset.originalMimeType : asset.file.type,
+					size: asset.remoteProxy ? asset.originalSize : asset.file.size,
 				})),
 				...remoteOnly,
 			],
@@ -88,7 +96,9 @@ export async function createServerRenderJob({
 		}),
 	);
 	for (const asset of mediaAssets) {
-		if (!hosted.has(asset.id)) formData.append(`asset:${asset.id}`, asset.file, asset.name);
+		if (!hosted.has(asset.id) && !asset.remoteProxy) {
+			formData.append(`asset:${asset.id}`, asset.file, asset.name);
+		}
 	}
 
 	const response = await fetch("/api/server-render/jobs", {
