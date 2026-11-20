@@ -75,8 +75,6 @@ services:
       - LAN_SYNC_DIR=/app/lan-sync
       - LAN_SYNC_TOKEN=${OPENCUT_LAN_SYNC_TOKEN:-}
       - PARAKEET_SERVICE_URL=http://parakeet:8707
-      - HYPERFRAMES_SERVICE_URL=http://hyperframes-render:8712
-      - HYPERFRAMES_INTERNAL_TOKEN=${HYPERFRAMES_INTERNAL_TOKEN:-}
       - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
       - MCP_NGROK_AGENT_URL=http://ngrok:4040/api
       - CHROMIUM_PATH=/usr/bin/chromium-browser
@@ -88,9 +86,10 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
       - MCP_HTTP_URL=http://mcp-http:3101
-    networks:
-      - default
-      - hyperframes-private
+    # CLI runs on-demand inside the web container. tmpfs presents enough
+    # free space to the official renderer preflight (does not preallocate 4GiB).
+    tmpfs:
+      - /tmp:size=4g,mode=1777
     volumes:
       - render_jobs_v2:/app/render-jobs
       - lan_sync_data:/app/lan-sync
@@ -181,29 +180,6 @@ services:
     volumes:
       - parakeet_models:/models
 
-  # Official HyperFrames CLI in a dedicated, opt-in renderer container.
-  # Never expose port 8712 or attach this service to the default network.
-  # Its internal-only network prevents arbitrary outbound network access.
-  hyperframes-render:
-    profiles: ["hyperframes"]
-    build:
-      context: ./services/hyperframes
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      - HYPERFRAMES_INTERNAL_TOKEN=${HYPERFRAMES_INTERNAL_TOKEN:-}
-    expose:
-      - "8712"
-    networks:
-      - hyperframes-private
-    read_only: true
-    tmpfs:
-      - /tmp:size=4g,mode=1777
-    pids_limit: 256
-    cap_drop: ["ALL"]
-    security_opt:
-      - no-new-privileges:true
-    mem_limit: 1536m
 
 volumes:
   parakeet_models:
@@ -217,5 +193,3 @@ volumes:
 networks:
   default:
     name: opencut-network
-  hyperframes-private:
-    internal: true
