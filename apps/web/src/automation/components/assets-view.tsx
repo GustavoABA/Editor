@@ -23,6 +23,7 @@ import { useEditor } from "@/editor/use-editor";
 import { TRANSCRIPTION_DIAGNOSTICS_SCOPE } from "@/transcription/diagnostics";
 import { AutomationConnections } from "./connections";
 import { OllamaAssistant } from "./ollama-assistant";
+import { HyperFramesPanel } from "./hyperframes";
 
 function formatSeconds(seconds: number): string {
 	if (seconds < 60) return `${seconds.toFixed(1)} s`;
@@ -161,6 +162,8 @@ export function AutomationView() {
 					</div>
 				)}
 			</section>
+
+			<HyperFramesPanel />
 
 			<AutomationConnections />
 		</PanelView>
