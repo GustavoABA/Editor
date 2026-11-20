@@ -82,10 +82,12 @@ export function applyCaptionPresentation({
 	caption,
 	placement,
 	preset,
+	color,
 }: {
 	caption: SubtitleCue;
 	placement: CaptionPlacement;
 	preset: CaptionPreset;
+	color?: string;
 }): SubtitleCue {
 	return {
 		...caption,
@@ -93,6 +95,7 @@ export function applyCaptionPresentation({
 			base: caption.style,
 			override: {
 				...CAPTION_PRESETS[preset].style,
+				...(color && /^#[\da-fA-F]{6}$/.test(color) ? { color } : {}),
 				placement: { verticalAlign: placement },
 			},
 		}),
@@ -110,10 +113,12 @@ export function updateExistingCaptionPresentation({
 	editor,
 	placement,
 	preset,
+	color,
 }: {
 	editor: EditorCore;
 	placement: CaptionPlacement;
 	preset: CaptionPreset;
+	color?: string;
 }): number {
 	const canvasSize = editor.project.getActive().settings.canvasSize;
 	const textTracks = editor.scenes
@@ -133,6 +138,7 @@ export function updateExistingCaptionPresentation({
 				caption: { text: content, startTime: 0, duration: 1 },
 				placement,
 				preset,
+				color,
 			}),
 			canvasSize,
 		});
