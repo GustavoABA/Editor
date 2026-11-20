@@ -1,0 +1,48 @@
+name: HyperFrames Docker Smoke
+
+on:
+  push:
+    branches: [teste/implementacao]
+    paths:
+      - 'services/hyperframes/**'
+      - '.github/workflows/hyperframes-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  render-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated official HyperFrames worker
+        run: docker build --tag opencut-hyperframes-smoke ./services/hyperframes
+      - name: Start private renderer
+        run: |
+          docker run -d --name opencut-hf-test --read-only \
+            --tmpfs /tmp:rw,size=768m --memory 1536m \
+            -p 127.0.0.1:8712:8712 \
+            -e HYPERFRAMES_INTERNAL_TOKEN=ci-test-only-not-a-production-token \
+            opencut-hyperframes-smoke
+          sleep 5
+          curl --fail --retry 10 --retry-delay 2 --retry-connrefused \
+            -H 'x-hyperframes-token: ci-test-only-not-a-production-token' \
+            http://127.0.0.1:8712/health
+      - name: Render a 0.5-second transparent HTML/CSS overlay
+        run: |
+          cat > /tmp/hyperframes-smoke.json <<'EOF'
+          {"html":"<h1 class='title'>HyperFrames Test</h1>","css":".title{color:#fff2a6;position:absolute;top:20px;left:20px;font-size:48px;font-family:Arial}","width":640,"height":360,"duration":0.5,"fps":24}
+          EOF
+          curl --fail --show-error --max-time 240 \
+            -H 'Content-Type: application/json' \
+            -H 'x-hyperframes-token: ci-test-only-not-a-production-token' \
+            --data-binary @/tmp/hyperframes-smoke.json \
+            http://127.0.0.1:8712/render -o /tmp/hyperframes-smoke.webm
+          test "$(wc -c </tmp/hyperframes-smoke.webm)" -gt 500
+          ffprobe -v error -show_entries format=duration \
+            -of default=noprint_wrappers=1 /tmp/hyperframes-smoke.webm
+      - name: Print worker diagnostics on failure
+        if: failure()
+        run: docker logs --tail 150 opencut-hf-test || true
+      - name: Stop test renderer
+        if: always()
+        run: docker rm -f opencut-hf-test || true
