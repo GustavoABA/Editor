@@ -10,6 +10,29 @@
 >
 > **PR oficial de validação:** [#2 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/2). **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
 
+## Situação da implementação — branch de teste (19/11/2026)
+
+> **Registro de código entregue para validação, não homologação.** A tabela histórica de auditoria da `main` abaixo é um snapshot anterior e **não representa** o estado do código na `teste/implementacao`. Para testes e implantação, consulte [plano de validação](docs/test-plan.md) e [PR #2](https://github.com/GustavoABA/Editor/pull/2).
+
+| Feature | Entrega registrada no código | Ainda pendente antes de marcar concluído |
+|---|---|---|
+| **F02 LUFS** | [x] Métricas EBU R128 no host e UI de ganho reversível por clipe | [ ] Medir mix final, fades/keyframes, fidelidade export |
+| **F03 Roteador IA** | [x] NVIDIA, Kimi/Moonshot, OpenAI, Claude e DeepSeek por API, Ollama local, cofre AES-GCM, fallback | [ ] Executor Node isolado, autenticação granular, tests de modelos reais |
+| **F04 HyperFrames** | [x] Overlay de texto editável e sincronização simples por picos de áudio | [ ] Runtime HTML/CSS e IA de composição segura, export completo |
+| **F07 Links** | [x] Iframes somente preview YouTube/Twitch; importação de URL direta com autorização e limite | [ ] Casos CORS, integrações adicionais, testes/licenças |
+| **F05 Stickers** | [x] Ajuste CSS de scroll/touch | [ ] Reprodução de bug e confirmação desktop/mobile |
+| **F09 MCP ngrok** | [x] Agente opcional, status e toggle de endpoint dedicado ao MCP | [ ] Teste real HTTPS, revogação, autenticação e observabilidade |
+| **F01 Lock** | [x] Estado protegido persistente com gates em alterações centrais | [ ] Proteger fluxos adicionais de efeitos, duplicação, IA/MCP e Undo |
+| **F08 Reframe** | [x] Converter proporção e posições em comando reversível | [ ] Tracking inteligente de sujeito, keyframes |
+| **F10 LAN híbrida** | [x] Upload assíncrono, persistência host e snapshots, previews compactados, export host | [ ] Streaming segmentado, UX mobile, segurança e E2E |
+| **F11 Parakeet Redux** | [x] Serviço CPU opcional + rota autenticada + motor padrão na UI | [ ] Build do worker, download pesos, precisão PT-BR, E2E |
+| **F12 C/V/X** | [x] Atalhos padrão e migração preservando customizações | [ ] Teste no navegador, colisões/contextos |
+| **F06 Sounds** | **Adiado** pelo planejamento; não alterado nesta rodada | Aguardar autorização |
+
+**Critério geral:** até obter CI aprovado e testes reais, `[x]` nesta tabela significa **código existente**, não `CONCLUÍDO`. Não alterar a `main` sem aprovação.
+
+---
+
 ## Fluxo obrigatório para qualquer agente (Codex/IA)
 
 1. **Antes de ler ou modificar código, selecionar e confirmar a branch correta:**
@@ -125,7 +148,7 @@ Princípios obrigatórios:
 
 ## F02 — Normalizador global de áudio por loudness (FASE 1 — máxima prioridade)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (o limiter já existe, mas LUFS não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: medição LUFS/dBTP no host, proposta de ganho não destrutivo e aplicação com Undo; pendentes mix final, fades e comparação preview/export.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 ### UX
 
@@ -169,7 +192,7 @@ Princípios obrigatórios:
 
 ## F03 — Settings > IA: provedores, modelos e roteamento com fallback (FASE 2)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (Ollama existente; roteador multi-IA e Node pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: cofre AES-256-GCM e UI de chaves, fallback NVIDIA/Kimi/OpenAI/Claude/DeepSeek/Ollama, consentimento para API paga; pendente executor Node isolado e homologação das APIs.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 ### Localização e aparência
 
@@ -340,7 +363,7 @@ Fonte oficial: https://docs.api.nvidia.com/nim/docs/product
 
 ## F04 — HyperFrames dentro de IA & Automação (FASE 3)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (sem integração HyperFrames identificada)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: componentes de texto editáveis com sincronização a batidas e prévia declarativa; pendentes HTML/CSS HyperFrames completo, execução de composições geradas por IA e equivalência de export.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Prioridade imediata após o roteador IA:** confirmar e reaproveitar o que já estiver construído de HyperFrames, conectá-lo aos provedores da fase 2 e colocá-lo para funcionar na edição e na exportação. **Não depender de F01**, F09 ou F08.
 
@@ -429,7 +452,7 @@ Fluxo:
 
 ## F07 — Links: YouTube, Twitch, Pinterest/GIF, arquivos externos e iframe (FASE 4 — essencial)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (importação local existente; aba Links pendente)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: painel Links com prévias YouTube/Twitch e importação direta autorizada por CORS; pendentes fontes adicionais e testes de export/licenciamento.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Objetivo imediato:** carregar fotos, GIFs e vídeos diretamente de links permitidos; permitir prévia de **vídeos YouTube, Twitch e lives** dentro do editor. A aba é parte central do fluxo de edição, **não depende de F01**. Distinguir claramente `visualizável`, `importável` e `exportável`: embeds de players podem funcionar como prévia mas não podem ser presumidos exportáveis ou baixáveis.
 
@@ -485,7 +508,7 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ## F05 — Stickers: apenas corrigir scroll (FASE 5)
 
-> **Status de auditoria (19/11/2026):** **VALIDAR (overflow-y-auto existente; bug não comprovado como resolvido)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **IMPLEMENTADO NO CÓDIGO, VALIDAR: contenção de altura/scroll independente e touch-pan-y; validar navegador desktop/mobile.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Decisão:** não modificar categorias, catálogo, aparência, busca nem organização do painel Stickers. A única mudança solicitada é **corrigir a rolagem vertical**: ao ter muitos itens, a lista cresce, mas não permite rolar até o fim.
 
@@ -508,7 +531,7 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ## F09 — MCP externo via ngrok, controlado pela interface (FASE 6)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (MCP LAN pronto na base; ngrok/UI pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: ngrok agent em contêiner opcional e botão para ativar/desativar túnel exclusivamente MCP; falta teste público/HTTPS/autenticação e fail-safe.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Ordem:** executar depois de F05 e antes de F01 e F08. A fase 6 reaproveita o cofre de credenciais de F03 e aplica permissões atuais sem esperar o sistema de bloqueio de camadas. Atualizar política de proteção quando F01 for implementada.
 
@@ -571,7 +594,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F01 — Proteção de camada/clipe contra edição geral (FASE 7 — penúltima do ciclo prioritário)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (ações e Undo/Redo existem; proteção não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: flag persistente 🔒 com bloqueio inicial de updates/move/split/delete; faltam todas as rotas de alteração, duplicação, efeitos e testes E2E.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Regra:** implementar este recurso **somente após F02, F03, F04, F07, F05 e F09**. Não é dependência para nenhum deles. Ao adicionar bloqueio, integrar retroativamente com comandos de edição, IA, MCP e HyperFrames já existentes, preservando compatibilidade e Undo/Redo.
 
@@ -612,7 +635,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F08 — Project Info > **Auto-converter formato** (FASE 8 — última entrega do ciclo prioritário)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (canvas manual existente; autoconversão pendente)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: reframe geométrico proporção+escala com Undo e respeito a 🔒; faltam tracking de assunto e quadros-chave.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 ### UX
 
@@ -753,7 +776,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F11 — Transcrição local por Parakeet Redux (BACKLOG — prioridade a definir)
 
-> **Status de auditoria (19/11/2026):** **PENDENTE (Whisper existe; Parakeet Redux não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **PARCIAL: serviço opcional Parakeet Redux CPU + UI padrão + transcrição por palavras; manter Whisper como fallback; faltam build/execução do modelo e teste PT-BR.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Solicitação do proprietário:** substituir a geração de transcrição de fala usada para legendas por **Moondream Parakeet Redux** (`moondream/parakeet-redux`), com execução **pela CPU**, sem exigir GPU nem API paga, mantendo conversão **vídeo → áudio → texto → legendas sincronizadas**. A troca efetiva do motor só deve ser declarada concluída depois de implementação e testes no Editor.
 
@@ -792,7 +815,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F12 — Ações rápidas e atalhos personalizáveis (BACKLOG — prioridade a definir)
 
-> **Status de auditoria (19/11/2026):** **PARCIAL (comandos existem em S/Q/W; C/V/X e botões pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **IMPLEMENTADO NO CÓDIGO, VALIDAR: C/V/X defaults, botão existente rotulado, migração só de perfil não personalizado; falta verificação de atalhos no navegador.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Solicitação do proprietário:** edição ágil com teclas simples e **botões de ação rápida** na timeline. Os três comandos já existem no código: **não reimplementar operações de corte**, somente alterar *defaults*, oferecer botões/dicas e manter opção de personalizar teclas.
 
@@ -829,7 +852,7 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F06 — Sounds (ADIADO: NÃO MODIFICAR AGORA)
 
-> **Status de auditoria (19/11/2026):** **ADIADO (Sounds existente; melhorias proibidas por enquanto)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+> **Status da branch `teste/implementacao` (19/11/2026):** **ADIADO: Sounds intencionalmente não alterado.** Não declarar concluído sem testes e aceites; a auditoria antiga reflete a `main` antes desta implementação.
 
 **Decisão de 13/11/2026:** a aba Sounds fica **inteiramente fora deste ciclo de trabalho**. Não alterar pesquisa, rolagem, favoritos, layout, filtros, catálogo ou fontes. A expansão planejada anteriormente permanece apenas como ideia de backlog, **sem prioridade, implementação ou PR nesta etapa**.
 
