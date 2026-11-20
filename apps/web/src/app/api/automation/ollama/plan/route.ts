@@ -233,7 +233,7 @@ export async function POST(request: Request) {
 	} catch (error) {
 		return NextResponse.json({
 			error: error instanceof Error ? error.message : "Nenhuma IA respondeu",
-			availableProviders: supportedProviders(),
+			availableProviders: await supportedProviders(),
 		}, { status: 502 });
 	}
 	const rawPlan: unknown = JSON.parse(completion.content) as unknown;
