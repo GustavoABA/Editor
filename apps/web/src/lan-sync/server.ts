@@ -213,9 +213,12 @@ export async function finalizeAsset(params: { projectId: string; assetId: string
   const existing = await getAssetRecord(projectId, assetId);
   if (existing && existing.size === size) return existing;
   const folder = assetRoot(projectId, assetId);
+  await mkdir(folder, { recursive: true });
   const target = path.join(folder, "original");
   const temporary = target + "." + randomUUID() + ".tmp";
   const writer = createWriteStream(temporary, { flags: "wx" });
+  // Keep write errors observable via finished() instead of unhandled stream events.
+  writer.on("error", () => undefined);
   const hash = createHash("sha256");
   let total = 0;
   try {
