@@ -83,3 +83,5 @@ jobs:
           bun test src/media/loudness.test.ts
           bun test src/actions/keybindings/migrations/v7-to-v8.test.ts
           bun test src/automation/components/hyperframes.test.ts
+          bun test src/timeline/reframe.test.ts
+          bun test src/ai/config-store.test.ts
