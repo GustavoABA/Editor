@@ -16,7 +16,10 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     CHROME_BIN=/usr/bin/chromium \
     HYPERFRAMES_NO_UPDATE_CHECK=1 \
     HYPERFRAMES_NO_TELEMETRY=1 \
-    HOME=/home/renderer \
+    HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache \
+    XDG_CONFIG_HOME=/tmp/.config \
+    PUPPETEER_CACHE_DIR=/tmp/.cache/puppeteer \
     PORT=8712
 
 USER renderer
