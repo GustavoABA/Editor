@@ -15,6 +15,7 @@ type PlannedCommand = {
 
 type EditingPlan = {
 	model: string;
+	provider?: string;
 	summary: string;
 	commands: PlannedCommand[];
 };
@@ -39,7 +40,7 @@ function parsePlan(value: unknown): EditingPlan | null {
 			? [{ type: command.type, payload: command.payload }]
 			: [],
 	);
-	return { model: value.model, summary: value.summary, commands };
+	return { model: value.model, provider: typeof value.provider === "string" ? value.provider : undefined, summary: value.summary, commands };
 }
 
 function commandLabel(command: PlannedCommand): string {
@@ -107,6 +108,7 @@ async function enqueueAndWait({
 
 export function OllamaAssistant() {
 	const [instruction, setInstruction] = useState("");
+	const [provider, setProvider] = useState("auto");
 	const [plan, setPlan] = useState<EditingPlan | null>(null);
 	const [isPlanning, setIsPlanning] = useState(false);
 	const [isApplying, setIsApplying] = useState(false);
@@ -122,6 +124,7 @@ export function OllamaAssistant() {
 				body: JSON.stringify({
 					sessionId: getAutomationSessionId(),
 					instruction: instruction.trim(),
+					...(provider !== "auto" ? { provider } : {}),
 				}),
 			});
 			const body: unknown = await response.json().catch(() => null);
@@ -129,11 +132,11 @@ export function OllamaAssistant() {
 				throw new Error(
 					isRecord(body) && typeof body.error === "string"
 						? body.error
-						: "O Ollama não conseguiu criar um plano",
+						: "Nenhum provedor de IA conseguiu criar um plano",
 				);
 			}
 			const parsed = parsePlan(body);
-			if (!parsed) throw new Error("O Ollama devolveu um plano inválido");
+			if (!parsed) throw new Error("A IA devolveu um plano inválido");
 			setPlan(parsed);
 		} catch (error) {
 			toast.error("Falha ao planejar a edição", {
@@ -152,7 +155,7 @@ export function OllamaAssistant() {
 			for (const command of plan.commands) {
 				await enqueueAndWait({ sessionId, command });
 			}
-			toast.success("Plano do Ollama aplicado", {
+			toast.success("Plano da IA aplicado", {
 				description: `${plan.commands.length} ação(ões). Use Ctrl+Z para desfazer.`,
 			});
 			setPlan(null);
@@ -172,14 +175,26 @@ export function OllamaAssistant() {
 					<Bot className="size-4" />
 				</div>
 				<div>
-					<h3 className="text-sm font-medium">Assistente Ollama</h3>
+					<h3 className="text-sm font-medium">Assistente de IA · NVIDIA / OpenAI / Ollama</h3>
 					<p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
-						Descreva a edição. O modelo local prepara um plano para você revisar.
+						Descreva a edição. A IA gera um plano para revisão, com fallback automático entre provedores configurados no host.
 					</p>
 				</div>
 			</div>
+			<label className="flex items-center gap-2 text-xs">
+				<span className="text-muted-foreground">IA principal</span>
+				<select aria-label="Provedor principal de IA" className="bg-background rounded border px-2 py-1"
+					value={provider} disabled={isPlanning || isApplying}
+					onChange={(event) => setProvider(event.target.value)}>
+					<option value="auto">Automático (NVIDIA → OpenAI → Ollama)</option>
+					<option value="nvidia">NVIDIA NIM</option>
+					<option value="openai">OpenAI</option>
+					<option value="ollama">Ollama local</option>
+				</select>
+			</label>
+			<p className="text-muted-foreground text-[10px]">Configure chaves e modelos nas variáveis de ambiente do host. Nenhuma chave é enviada pelo navegador.</p>
 			<Textarea
-				aria-label="Pedido para o Ollama"
+				aria-label="Pedido para a IA"
 				placeholder="Ex.: remova pausas e deixe as legendas sociais embaixo"
 				value={instruction}
 				onChange={(event) => {
@@ -197,7 +212,7 @@ export function OllamaAssistant() {
 				disabled={instruction.trim().length < 3 || isPlanning || isApplying}
 			>
 				{isPlanning ? <Spinner /> : <Sparkles className="size-4" />}
-				{isPlanning ? "Ollama está planejando…" : "Criar plano de edição"}
+				{isPlanning ? "A IA está planejando…" : "Criar plano de edição"}
 			</Button>
 
 			{plan && (
@@ -240,7 +255,7 @@ export function OllamaAssistant() {
 						{isApplying ? "Aplicando…" : "Aplicar plano"}
 					</Button>
 					<p className="text-muted-foreground text-center text-[10px]">
-						Modelo local: {plan.model}
+						Provedor: {plan.provider || "Ollama"} · modelo: {plan.model}
 					</p>
 				</div>
 			)}
