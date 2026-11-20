@@ -12,7 +12,7 @@ function removeTrackElements<TTrack extends TimelineTrack>({
 }): TTrack {
 	const nextElements = track.elements.filter(
 		(element) =>
-			!elements.some(
+			element.locked || !elements.some(
 				(target) =>
 					target.trackId === track.id && target.elementId === element.id,
 			),
