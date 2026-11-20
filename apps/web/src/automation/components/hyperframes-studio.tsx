@@ -321,13 +321,13 @@ export function HyperFramesStudio() {
         </label>
       </div>
       <p className="text-muted-foreground text-[11px]">
-        Segurança: HTML/CSS sem JavaScript, URLs externas, fontes remotas ou iframes. O serviço Docker HyperFrames deve estar ativo.
+        Segurança: HTML/CSS sem JavaScript, URLs externas, fontes remotas ou iframes. A renderização é nativa do Editor: a CLI HyperFrames vem instalada na imagem web.
         WebM com transparência funciona principalmente em navegadores Chromium; confirme a preservação do alfa na exportação.
       </p>
       <button type="button" disabled={stage !== "idle" || !draft.html.trim()}
         onClick={() => void renderToTimeline()}
         className="w-full rounded border px-3 py-2 text-xs font-medium disabled:opacity-50">
-        {stage === "rendering" ? "Renderizando em HyperFrames…" : "Renderizar e inserir/atualizar na timeline"}
+        {stage === "rendering" ? "Processando a composição no Editor…" : "Aplicar composição à timeline (renderização automática)"}
       </button>
       {!!details && <p role="status" className="text-xs">{details}</p>}
     </section>
