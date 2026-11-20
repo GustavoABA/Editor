@@ -72,6 +72,8 @@ services:
       - FREESOUND_CLIENT_ID=${FREESOUND_CLIENT_ID}
       - FREESOUND_API_KEY=${FREESOUND_API_KEY}
       - RENDER_JOBS_DIR=/app/render-jobs
+      - LAN_SYNC_DIR=/app/lan-sync
+      - LAN_SYNC_TOKEN=${OPENCUT_LAN_SYNC_TOKEN:-}
       - CHROMIUM_PATH=/usr/bin/chromium-browser
       - FFMPEG_PATH=/usr/bin/ffmpeg
       - AUTOCUT_PATH=/usr/local/bin/opencut-autocut
@@ -83,6 +85,7 @@ services:
       - MCP_HTTP_URL=http://mcp-http:3101
     volumes:
       - render_jobs_v2:/app/render-jobs
+      - lan_sync_data:/app/lan-sync
       - automation_data:/app/automation
     depends_on:
       db:
@@ -145,6 +148,7 @@ services:
 volumes:
   postgres_data:
   render_jobs_v2:
+  lan_sync_data:
   automation_data:
   caddy_data:
   caddy_config:
