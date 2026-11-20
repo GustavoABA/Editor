@@ -30,6 +30,8 @@ interface ScrubSession {
 	didStartFromRuler: boolean;
 	/** True once the mouse has moved during a ruler drag. */
 	hasMoved: boolean;
+	startClientX: number;
+	pointerOffsetPx: number;
 	/** Most recent frame-snapped time set by scrub(). */
 	currentTime: MediaTime | null;
 }
@@ -44,6 +46,7 @@ export interface PlayheadConfig {
 	getActiveProjectFps: () => FrameRate | null;
 	isShiftHeld: () => boolean;
 	getIsPlaying: () => boolean;
+	getCurrentTime: () => MediaTime;
 	getRulerEl: () => HTMLDivElement | null;
 	getRulerScrollEl: () => HTMLDivElement | null;
 	getTracksScrollEl: () => HTMLDivElement | null;
@@ -120,10 +123,17 @@ export class PlayheadController {
 	getLastMouseClientX(): number {
 		return this.lastMouseClientX;
 	}
+	/** Auto-pan only after actual drag AND only when pointer leaves viewport. */
+	canAutoScroll(): boolean {
+		if (this.session.kind !== "scrubbing" || !this.session.hasMoved) return false;
+		const bounds = this.config.getRulerScrollEl()?.getBoundingClientRect();
+		return Boolean(bounds && (this.lastMouseClientX < bounds.left ||
+			this.lastMouseClientX > bounds.right));
+	}
 
 	/** Re-resolves the scrub time after edge auto-scroll moves the viewport. */
 	handleAutoScroll(): void {
-		if (this.session.kind !== "scrubbing") return;
+		if (!this.canAutoScroll()) return;
 		this.scrubAtClientX({
 			clientX: this.lastMouseClientX,
 			isElementSnappingEnabled: true,
@@ -144,17 +154,20 @@ export class PlayheadController {
 		if (event.button !== 0) return;
 		event.preventDefault();
 		event.stopPropagation();
+		const rect = this.config.getPlayheadEl()?.getBoundingClientRect();
+		// Keep the exact playback position when grabbing any part of the handle.
+		// Without an offset, mousedown seeks to the mouse coordinate and visibly
+		// snaps the head backwards after zooming.
 		this.session = {
 			kind: "scrubbing",
 			didStartFromRuler: false,
 			hasMoved: false,
-			currentTime: null,
+			startClientX: event.clientX,
+			pointerOffsetPx: rect ? event.clientX - (rect.left + rect.width / 2) : 0,
+			currentTime: this.config.getCurrentTime(),
 		};
+		this.lastMouseClientX = event.clientX;
 		this.config.setScrubbing(true);
-		this.scrubAtClientX({
-			clientX: event.clientX,
-			isElementSnappingEnabled: true,
-		});
 		this.activate();
 	}
 
@@ -172,6 +185,8 @@ export class PlayheadController {
 			kind: "scrubbing",
 			didStartFromRuler: true,
 			hasMoved: false,
+			startClientX: event.clientX,
+			pointerOffsetPx: 0,
 			currentTime: null,
 		};
 		this.config.setScrubbing(true);
@@ -271,8 +286,10 @@ export class PlayheadController {
 		if (!fps) return;
 
 		const { zoomLevel, duration } = this.config;
+		const effectiveClientX = this.session.kind === "scrubbing"
+			? clientX - this.session.pointerOffsetPx : clientX;
 		const rawTime = pixelToTime({
-			clientX,
+			clientX: effectiveClientX,
 			rulerEl: ruler,
 			zoomLevel,
 			duration,
@@ -314,13 +331,13 @@ export class PlayheadController {
 
 	private handleMouseMove(event: MouseEvent): void {
 		if (this.session.kind !== "scrubbing") return;
+		if (Math.abs(event.clientX - this.session.startClientX) < 3 &&
+			!this.session.hasMoved) return;
+		this.session.hasMoved = true;
 		this.scrubAtClientX({
 			clientX: event.clientX,
 			isElementSnappingEnabled: true,
 		});
-		if (this.session.didStartFromRuler) {
-			this.session.hasMoved = true;
-		}
 	}
 
 	private handleMouseUp(event: MouseEvent): void {
