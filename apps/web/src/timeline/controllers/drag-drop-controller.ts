@@ -23,6 +23,7 @@ import type {
 	DropTarget,
 	ElementType,
 	SceneTracks,
+	TimelineTrack,
 	CreateTimelineElement,
 } from "@/timeline";
 import type { TimelineDragData } from "@/timeline/drag";
@@ -120,6 +121,10 @@ function getDurationForDrag({
 	if (dragData.type !== "media") return DEFAULT_NEW_ELEMENT_DURATION;
 	const media = mediaAssets.find((asset) => asset.id === dragData.id);
 	return toElementDurationTicks({ seconds: media?.duration });
+}
+
+function orderedTracks({ sceneTracks }: { sceneTracks: SceneTracks }): TimelineTrack[] {
+	return [...sceneTracks.overlay, sceneTracks.main, ...sceneTracks.audio];
 }
 
 // --- Controller ---
