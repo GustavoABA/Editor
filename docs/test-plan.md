@@ -40,7 +40,7 @@ A compilação usa Rust/WASM e os caches conforme `.github/workflows/bun-ci.yml`
 |---|---|---|
 | F02 | Enviar áudio, conectar LAN, medir LUFS/dBTP e aplicar ganho; Ctrl+Z; testar audio mutado/silêncio | Fonte não alterada, volume reversível; medição final do mix ainda pendente |
 | F03 | HTTPS: inserir API key/modelo/prioridade, salvar, atualizar página e confirmar chave mascarada; testar autorização de custos e fallback | Tokens nunca aparecem no JSON GET nem no repo; modelos falham sem executar comandos; exigir confirmação manual de plano |
-| F04 | Inserir overlay em playhead e detectar batidas em música; exportar 16:9/9:16 | Texto editável e render coerente; **HTML/CSS e IA gerativa ainda não implementados** |
+| F04 | Gerar HTML/CSS com IA a partir de fala transcrita; revisar código; renderizar WebM alpha pelo worker oficial; inserir/reabrir/re-renderizar clipe; testar 16:9/9:16 e export | IA só recebe transcrição textual/timestamps, prévia usa sandbox, fonte fica no projeto; **worker, transparência e E2E ainda não homologados** |
 | F05 | Rolagem de dezenas de Stickers em tela baixa, mobile e mouse/trackpad | Área rolável, abas e pesquisa não quebram |
 | F07 | Colar YouTube e Twitch e confirmar iframe apenas de prévia; URL direta com CORS + autorização | Não baixar YouTube/Twitch; nenhuma URL externa no servidor |
 | F09 | Iniciar perfil ngrok, conectar token LAN, ativar na aba Conexões, copiar URL `/mcp`, testar token MCP; desativar | Apenas MCP na internet; acesso ao Editor e mídias não permitido; não expor porta 4040 |
