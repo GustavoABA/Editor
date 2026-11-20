@@ -45,7 +45,7 @@ export function applyCanvasClipEffects({
         // Chromium, used by browser preview and the host renderer, supports
         // canvas filters. Prefer that fast native path over reading millions
         // of RGBA pixels back into JS on every video frame.
-        if ("filter" in ctx) {
+        if (typeof ctx.filter === "string") {
           ctx.filter = `grayscale(${strength * 100}%)`;
           ctx.drawImage(current, 0, 0, width, height);
           ctx.filter = "none";
