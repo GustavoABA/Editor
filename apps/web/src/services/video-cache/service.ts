@@ -43,7 +43,11 @@ export class VideoCache {
 		const previous = this.frameChain.get(mediaId) ?? Promise.resolve();
 		const current = previous.then(() => {
 			if (this.seekGenerations.get(mediaId) !== generation) {
-				return sinkData.currentFrame ?? null;
+				// An out-of-date render request must never return a frame from an
+				// earlier (or later) timestamp: that visibly flickers/reverses MP4.
+				const cached = sinkData.currentFrame;
+				return cached && this.isFrameValid({ frame: cached, time })
+					? cached : null;
 			}
 			return this.resolveFrame({ sinkData, time });
 		});
@@ -127,7 +131,7 @@ export class VideoCache {
 				// Check if the nextFrame (which might have just arrived) is what we need
 				if (
 					sinkData.nextFrame &&
-					sinkData.nextFrame.timestamp <= targetTime + 0.05 // Tolerance
+					sinkData.nextFrame.timestamp <= targetTime + 0.000001 // Never display a future frame
 				) {
 					sinkData.currentFrame = sinkData.nextFrame;
 					sinkData.nextFrame = null;
@@ -175,14 +179,17 @@ export class VideoCache {
 			}
 
 			sinkData.nextFrame = null;
-			sinkData.iterator = sinkData.sink.canvases(time);
-			sinkData.lastTime = time;
-
-			// Fetch current frame
-			const { value: frame } = await sinkData.iterator.next();
-
+			// canvases(time) begins with the NEXT frame whose timestamp >= time.
+			// For VFR/B-frame MP4, that is often not the frame displayed AT time;
+			// using it caused forwards/backwards flicker on consecutive renders.
+			// getCanvas(time) is explicitly presentation-timestamp aware.
+			const frame = await sinkData.sink.getCanvas(time);
 			if (frame) {
 				sinkData.currentFrame = frame;
+				sinkData.lastTime = frame.timestamp;
+				// Resume sequential playback only AFTER this frame, avoiding an
+				// unnecessary seek on every subsequent request.
+				sinkData.iterator = sinkData.sink.canvases(frame.timestamp + Math.max(frame.duration, 0.000001));
 				this.startPrefetch({ sinkData });
 				return frame;
 			}
