@@ -439,6 +439,9 @@ export function TimelineElement({
 							onResizeStart={onResizeStart}
 							isDropTarget={isDropTarget}
 						/>
+						{element.locked && (
+							<div className="pointer-events-none absolute right-1 top-0 z-10 text-xs" title="Clipe protegido">🔒</div>
+						)}
 						{isSelected && (
 							<div
 								className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden"
@@ -458,6 +461,17 @@ export function TimelineElement({
 					</div>
 				</ContextMenuTrigger>
 				<ContextMenuContent className="w-64">
+					<ContextMenuItem
+						onClick={(event: React.MouseEvent) => {
+							event.stopPropagation();
+							editor.timeline.updateElements({ updates: [{
+								trackId: track.id, elementId: element.id,
+								patch: { locked: !element.locked },
+							}] });
+						}}
+					>
+						{element.locked ? "🔓 Desbloquear clipe" : "🔒 Proteger clipe"}
+					</ContextMenuItem>
 					{element.type === "text" && (
 						<ContextMenuItem
 							icon={<HugeiconsIcon icon={TextFontIcon} />}
