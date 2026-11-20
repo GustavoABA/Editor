@@ -56,8 +56,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 RUN apk add --no-cache chromium ffmpeg mesa-egl mesa-gles mesa-dri-gallium xvfb xvfb-run
-RUN mkdir -p /app/render-jobs /app/automation \
-	&& chown nextjs:nodejs /app/render-jobs /app/automation
+RUN mkdir -p /app/render-jobs /app/automation /app/lan-sync \
+	&& chown nextjs:nodejs /app/render-jobs /app/automation /app/lan-sync
 
 COPY --from=autocut-builder /src/rust/crates/autocut/target/release/opencut-autocut /usr/local/bin/opencut-autocut
 
