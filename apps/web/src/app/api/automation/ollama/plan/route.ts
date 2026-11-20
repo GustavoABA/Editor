@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeAutomationRequest } from "@/server-automation/auth";
 import { readAutomationSession } from "@/server-automation/store";
+import { createRoutedPlan, supportedProviders } from "@/ai/plan-router";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -212,57 +213,32 @@ export async function POST(request: Request) {
 		);
 	}
 
-	const ollamaBase = (
-		process.env.OLLAMA_BASE_URL ?? "http://host.docker.internal:11434"
-	).replace(/\/$/, "");
-	const model = process.env.OLLAMA_MODEL ?? "qwen2.5:1.5b";
 	const snapshot = JSON.stringify(session.snapshot).slice(0, 120_000);
-	const response = await fetch(`${ollamaBase}/api/chat`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			model,
-			stream: false,
+	let completion: Awaited<ReturnType<typeof createRoutedPlan>>;
+	try {
+		completion = await createRoutedPlan({
+			preferred: body.provider,
 			format: planSchema,
-			options: { temperature: 0 },
 			messages: [
 				{
 					role: "system",
-					content:
-						"Você é um assistente de edição do OpenCut Classic. Gere somente um plano executável usando os comandos permitidos. Nunca invente trackId ou elementId: copie-os do snapshot. Prefira poucas alterações úteis. auto_cut usa preset gentle, balanced ou dynamic. set_caption_style usa placement top, middle ou bottom e preset clean, box ou social. split_at usa seconds. delete_elements recebe elements com trackId e elementId. update_text recebe trackId, elementId e content. undo e redo usam payload vazio. Não exporte, não apague mídia e não faça operações fora do pedido.",
+					content: "Você é um assistente de edição do OpenCut Classic. Responda somente com JSON: summary string e commands array. Use apenas comandos permitidos. Nunca invente trackId ou elementId: copie-os do snapshot. auto_cut usa gentle, balanced ou dynamic. set_caption_style usa placement top, middle ou bottom e preset clean, box ou social. split_at usa seconds. delete_elements recebe elements com trackId e elementId. update_text recebe trackId, elementId e content. undo e redo usam payload vazio. Não exporte, não apague mídia ou execute ações fora do pedido.",
 				},
 				{
 					role: "user",
-					content: `Pedido de edição:\n${body.instruction.trim()}\n\nSnapshot atual:\n${snapshot}`,
+					content: `Pedido de edição:\\n${body.instruction.trim()}\\n\\nSnapshot atual:\\n${snapshot}`,
 				},
 			],
-		}),
-		signal: AbortSignal.timeout(90_000),
-	});
-	const ollamaPayload: unknown = await response.json().catch(() => null);
-	if (!response.ok || !isRecord(ollamaPayload)) {
-		return NextResponse.json(
-			{ error: "Ollama could not create an editing plan" },
-			{ status: 502 },
-		);
+		});
+	} catch (error) {
+		return NextResponse.json({
+			error: error instanceof Error ? error.message : "Nenhuma IA respondeu",
+			availableProviders: supportedProviders(),
+		}, { status: 502 });
 	}
-	const message = ollamaPayload.message;
-	const content = isRecord(message) ? message.content : null;
-	if (typeof content !== "string") {
-		return NextResponse.json({ error: "Ollama returned no plan" }, { status: 502 });
-	}
-	let rawPlan: unknown;
-	try {
-		rawPlan = JSON.parse(content) as unknown;
-	} catch {
-		return NextResponse.json({ error: "Ollama returned invalid JSON" }, { status: 502 });
-	}
-	if (
-		!isRecord(rawPlan) ||
-		typeof rawPlan.summary !== "string" ||
-		!Array.isArray(rawPlan.commands)
-	) {
-		return NextResponse.json({ error: "Ollama returned an invalid plan" }, { status: 502 });
+	const rawPlan: unknown = JSON.parse(completion.content) as unknown;
+	if (!isRecord(rawPlan) || typeof rawPlan.summary !== "string" || !Array.isArray(rawPlan.commands)) {
+		return NextResponse.json({ error: "Provider returned invalid plan" }, { status: 502 });
 	}
 	const elementIndex = buildElementIndex(session.snapshot);
 	const commands = rawPlan.commands.slice(0, 12).flatMap((command) => {
@@ -272,7 +248,8 @@ export async function POST(request: Request) {
 		return reconciled ? [reconciled] : [];
 	});
 	return NextResponse.json({
-		model,
+		model: completion.model,
+		provider: completion.provider,
 		summary: rawPlan.summary,
 		commands,
 	});
