@@ -51,10 +51,12 @@ export type RemoteProject = {
 export async function lanRequest(route: string, options: RequestInit = {}): Promise<Response> {
   const token = getLanToken();
   if (!token) throw new LanSyncError("Configure o token da LAN antes de sincronizar.", 401);
+  const headers = new Headers(options.headers);
+  headers.set("x-lan-sync-token", token);
   const response = await fetch("/api/lan-sync/" + route, {
     ...options,
     cache: "no-store",
-    headers: { ...options.headers, "x-lan-sync-token": token },
+    headers,
   });
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
