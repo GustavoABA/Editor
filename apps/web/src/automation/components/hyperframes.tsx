@@ -6,7 +6,7 @@ import { useEditor } from "@/editor/use-editor";
 import { buildTextElement } from "@/timeline/element-utils";
 import { extractTimelineAudio } from "@/media/mediabunny";
 import { decodeAudioToFloat32 } from "@/media/audio";
-import { mediaTimeFromSeconds } from "@/wasm";
+import { mediaTimeFromSeconds, TICKS_PER_SECOND } from "@/wasm";
 
 type Beat = { seconds: number; energy: number };
 
@@ -64,7 +64,7 @@ export function HyperFramesPanel() {
 
   const insert = () => {
     if (!title.trim() || !(seconds > 0) || seconds > 60) return;
-    const stamps = mode === "beats" ? points : [editor.playback.getCurrentTime() / 1_000_000];
+    const stamps = mode === "beats" ? points : [editor.playback.getCurrentTime() / TICKS_PER_SECOND];
     if (!stamps.length) return toast.error("Analise o áudio antes de inserir uma composição.");
     for (const time of stamps) {
       const element = buildTextElement({
