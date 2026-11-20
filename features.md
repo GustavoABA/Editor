@@ -1,6 +1,7 @@
 # FEATURES.md — Roadmap priorizado do Editor (OpenCut Classic / ORUME)
 
-> **Estado:** planejamento técnico; as funcionalidades novas listadas aqui não são implementadas apenas por atualizar este documento.
+> **Estado:** roadmap de desenvolvimento + auditoria estática da branch `main` em **19/11/2026**. Marcação **[x]** significa código-base localizado, não teste funcional completo. `CONCLUÍDO` só vale quando todos os critérios da feature forem atendidos e testados. Documentar não implementa código.
+> **Decisão de arquitetura (19/11/2026):** F10 passa a especificar **edição híbrida LAN com resposta imediata no cliente, upload assíncrono de originais ao host e snapshots persistentes no servidor a cada 3 minutos**, além de Ctrl+S e continuidade PC/celular. **F10 permanece na fase 9**, sem mudança automática da ordem anterior.
 > **Ordem aprovada em 13/11/2026:** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. **F10 (continuar projeto PC ↔ celular)** entra somente depois dessas oito fases como evolução futura de baixa prioridade. Sounds (F06) continua adiado.
 > **A numeração Fxx identifica funcionalidades; NÃO indica prioridade.** A seção 10 é a referência obrigatória de fases e dependências. **F11 (Parakeet Redux) e F12 (atalhos rápidos) são novos itens de backlog, ainda sem fase fixada pelo proprietário**.
 >
@@ -24,7 +25,7 @@
 | **6** | **F09** | MCP externo **exclusivamente via ngrok**, ativação na UI, URLs LAN/remota, autenticação |
 | **7 — penúltima** | **F01** | Proteção de camada/clipe e integração com as funções já implementadas |
 | **8 — última do ciclo prioritário** | **F08** | Conversão inteligente de proporção/reposicionamento |
-| **9 — futuro, sem antecipar** | **F10** | **Salvar projeto no servidor sem renderizar e continuar edição no celular**, via Ctrl+S no PC, salvamento completo de timeline e mídias originais, reabertura autenticada em outro dispositivo |
+| **9 — futuro, sem antecipar** | **F10** | **Arquitetura híbrida LAN**: edição/preview local imediatos, upload assíncrono de mídias para host, snapshots a cada 3 min + Ctrl+S, indicadores ⚠️ para pendências, continuidade PC ↔ celular sem renderizar |
 | **Backlog sem fase definida** | **F11** | **Substituir o motor de transcrição Whisper por Parakeet Redux (CPU) como padrão**, gerando legendas sincronizadas em português, com timestamps e comparação de qualidade |
 | **Backlog sem fase definida** | **F12** | **Atalhos e ações rápidas editáveis:** Split element = **C**, Split left = **V**, Split right = **X**, com botões visíveis e preservação de configurações pessoais | 
 | **Adiado, sem fase** | **F06** | **Sounds: não mexer agora**, sem ajustes ou expansão até nova decisão |
@@ -45,6 +46,36 @@ Princípios obrigatórios:
 7. **Acessibilidade e performance:** painéis com rolagem real, busca funcional, navegação por teclado, listas grandes virtualizadas e telas responsivas.
 8. **Compatibilidade:** preservar projetos anteriores, carregar corretamente projetos com novos campos e suportar o self-host Docker/LAN.
 
+
+### Auditoria de implementação — branch `main`, 19/11/2026
+
+**Critério:** `CONCLUÍDO` = implementação integral demonstrada por código **e testes**; `PARCIAL` = blocos já existentes, mas entrega não completa; `PENDENTE` = requisito novo não localizado; `VALIDAR` = indício no código sem reprodução do bug/aceite; `ADIADO` = não iniciar. **Nenhuma das features F01–F12 foi declarada integralmente concluída nesta auditoria.**
+
+| Feature | Status da entrega solicitada | Componentes já implementados / evidência | Lacuna para concluir |
+|---|---|---|---|
+| F02 — Normalizar áudio LUFS | **PENDENTE** | **[x]** limiter, detecção e controle de picos em `apps/web/src/media/audio-mastering.ts` | **[ ]** medição LUFS/true peak, normalizar clipes/faixas/mix, UI e concordância preview/export |
+| F03 — Roteador de IA | **PARCIAL (base)** | **[x]** assistente Ollama com revisão de plano em `apps/web/src/automation/components/ollama-assistant.tsx` | **[ ]** múltiplos provedores, fallback, cofre/chaves UI, presets NVIDIA, runner Node personalizável |
+| F04 — HyperFrames | **PENDENTE** | **[x]** base genérica de timeline, clipes, preview e render (não equivale a HyperFrames) | **[ ]** componente/gerador HyperFrames, contexto de áudio, integração de IA e export coerente |
+| F07 — Aba Links | **PENDENTE** | **[x]** importação de arquivos locais (`apps/web/src/media/processing.ts`) | **[ ]** aba Links, embeds autorizados, GIF/URL, distinção preview vs export |
+| F05 — Scroll Stickers | **VALIDAR** | **[x]** catálogo/busca/abas e `overflow-y-auto` já estão no componente `apps/web/src/stickers/components/assets-view.tsx` | **[ ]** reproduzir o defeito, confirmar se rolagem realmente funciona e testar correção sem mexer no catálogo |
+| F09 — MCP ngrok | **PARCIAL (base LAN)** | **[x]** MCP Streamable HTTP LAN, ferramentas e bearer token em `apps/mcp/src/http.ts` e `docker-compose.yml` | **[ ]** ngrok liga/desliga pela UI, URL externa verificada, token exclusivo, hardening e testes |
+| F01 — Proteção de camadas | **PENDENTE** | **[x]** ações de timeline e Undo/Redo já existem; não implicam bloqueio | **[ ]** proteção persistente e respeito em edições gerais, IA e MCP |
+| F08 — Conversão de formato | **PARCIAL (base)** | **[x]** mudança manual de tamanho de canvas em `apps/web/src/components/editor/panels/assets/views/settings/index.tsx` | **[ ]** auto-reenquadramento inteligente, tracking e preview/export coerentes |
+| F10 — LAN híbrida PC/celular | **PARCIAL (infraestrutura)** | **[x]** web LAN/Docker; preview e edição local; autosave local; render final no host | **[ ]** biblioteca e documento de projeto no host, upload em segundo plano, snapshots 3 min, sinalização ⚠️, reabertura multiaparelho |
+| F11 — Parakeet Redux CPU | **PENDENTE (substituição)** | **[x]** pipeline de captions com Whisper em Web Worker (`apps/web/src/transcription/models.ts`) | **[ ]** Parakeet Redux CPU no host, integração/transcrição e testes PT-BR |
+| F12 — Atalhos C/V/X | **PARCIAL (base)** | **[x]** ações `split`, `split-left`, `split-right` e remapeamento configurável; defaults atuais **S/Q/W** (`apps/web/src/actions/definitions.ts`) | **[ ]** defaults **C/V/X**, migração segura e botões rápidos na timeline |
+| F06 — Sounds | **ADIADO** | **[x]** base de Sons/Freesound já existe | **[ ]** não executar melhorias até ordem expressa |
+
+**Itens estruturais concluídos no código (não reabrir como se faltassem):**
+- [x] Aplicação web acessível via Docker/LAN (porta 3100 configurada no Compose); disponibilidade real depende da instalação/firewall.
+- [x] Edição, manipulação de timeline e prévia local no navegador; comportamento e desempenho ainda requerem teste real.
+- [x] Persistência **local ao navegador** de projetos no IndexedDB e mídias no OPFS, com fallback IndexedDB. **Não confundir com host**.
+- [x] Autosave local com debounce de 800 ms em `apps/web/src/core/managers/save-manager.ts`.
+- [x] Endpoint de export que recebe manifest + arquivos e renderiza no **host** usando Chromium headless; upload dos originais ocorre **na exportação**, não na importação normal (`apps/web/src/server-render/client.ts`).
+- [x] Integrações básicas Ollama, MCP LAN, Auto Cut e envio/recepção n8n. Os requisitos novos de cada fase continuam pendentes.
+
+**Limite desta auditoria:** conferência de código e documentação, **sem executar aplicativo, testes de integração, build, benchmarks ou simular LAN entre dispositivos**. Não marcar checkbox de aceite de feature apenas porque existe código parecido.
+
 ### Estado atual identificado no código (não confundir com implementação nova)
 
 | Área | Já existe no código | Lacuna proposta |
@@ -63,6 +94,8 @@ Princípios obrigatórios:
 ---
 
 ## F02 — Normalizador global de áudio por loudness (FASE 1 — máxima prioridade)
+
+> **Status de auditoria (19/11/2026):** **PENDENTE (o limiter já existe, mas LUFS não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
 
 ### UX
 
@@ -105,6 +138,8 @@ Princípios obrigatórios:
 ---
 
 ## F03 — Settings > IA: provedores, modelos e roteamento com fallback (FASE 2)
+
+> **Status de auditoria (19/11/2026):** **PARCIAL (Ollama existente; roteador multi-IA e Node pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
 
 ### Localização e aparência
 
@@ -275,6 +310,8 @@ Fonte oficial: https://docs.api.nvidia.com/nim/docs/product
 
 ## F04 — HyperFrames dentro de IA & Automação (FASE 3)
 
+> **Status de auditoria (19/11/2026):** **PENDENTE (sem integração HyperFrames identificada)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+
 **Prioridade imediata após o roteador IA:** confirmar e reaproveitar o que já estiver construído de HyperFrames, conectá-lo aos provedores da fase 2 e colocá-lo para funcionar na edição e na exportação. **Não depender de F01**, F09 ou F08.
 
 ### Posição exigida
@@ -362,6 +399,8 @@ Fluxo:
 
 ## F07 — Links: YouTube, Twitch, Pinterest/GIF, arquivos externos e iframe (FASE 4 — essencial)
 
+> **Status de auditoria (19/11/2026):** **PENDENTE (importação local existente; aba Links pendente)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+
 **Objetivo imediato:** carregar fotos, GIFs e vídeos diretamente de links permitidos; permitir prévia de **vídeos YouTube, Twitch e lives** dentro do editor. A aba é parte central do fluxo de edição, **não depende de F01**. Distinguir claramente `visualizável`, `importável` e `exportável`: embeds de players podem funcionar como prévia mas não podem ser presumidos exportáveis ou baixáveis.
 
 ### Nova aba **Links**
@@ -416,6 +455,8 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 
 ## F05 — Stickers: apenas corrigir scroll (FASE 5)
 
+> **Status de auditoria (19/11/2026):** **VALIDAR (overflow-y-auto existente; bug não comprovado como resolvido)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+
 **Decisão:** não modificar categorias, catálogo, aparência, busca nem organização do painel Stickers. A única mudança solicitada é **corrigir a rolagem vertical**: ao ter muitos itens, a lista cresce, mas não permite rolar até o fim.
 
 ### Investigação e correção restrita
@@ -436,6 +477,8 @@ Adicionar seção de mídia **Links** no painel de assets, com input para URL, i
 ---
 
 ## F09 — MCP externo via ngrok, controlado pela interface (FASE 6)
+
+> **Status de auditoria (19/11/2026):** **PARCIAL (MCP LAN pronto na base; ngrok/UI pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
 
 **Ordem:** executar depois de F05 e antes de F01 e F08. A fase 6 reaproveita o cofre de credenciais de F03 e aplica permissões atuais sem esperar o sistema de bloqueio de camadas. Atualizar política de proteção quando F01 for implementada.
 
@@ -498,6 +541,8 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F01 — Proteção de camada/clipe contra edição geral (FASE 7 — penúltima do ciclo prioritário)
 
+> **Status de auditoria (19/11/2026):** **PENDENTE (ações e Undo/Redo existem; proteção não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+
 **Regra:** implementar este recurso **somente após F02, F03, F04, F07, F05 e F09**. Não é dependência para nenhum deles. Ao adicionar bloqueio, integrar retroativamente com comandos de edição, IA, MCP e HyperFrames já existentes, preservando compatibilidade e Undo/Redo.
 
 ### Experiência de uso
@@ -536,6 +581,8 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 ---
 
 ## F08 — Project Info > **Auto-converter formato** (FASE 8 — última entrega do ciclo prioritário)
+
+> **Status de auditoria (19/11/2026):** **PARCIAL (canvas manual existente; autoconversão pendente)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
 
 ### UX
 
@@ -600,46 +647,81 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ---
 
-## F10 — Salvar e continuar projetos entre PC e celular (FASE 9 — FUTURO, baixa prioridade)
+## F10 — Arquitetura híbrida LAN e continuidade PC ↔ celular (FASE 9 — FUTURO)
 
-> **Decisão do proprietário (13/11/2026):** implementar **somente depois de F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08**, sem alterar a ordem delas. F10 não é pré-requisito para outras melhorias. **F06 Sounds permanece adiado.**
+> **Decisão atualizada pelo proprietário em 19/11/2026:** a edição interativa deve acontecer **imediatamente no cliente**, enquanto os originais são enviados ao **host em segundo plano**. O host é a fonte persistente de projetos/mídias e executa render final e tarefas pesadas quando necessário. **Snapshot do projeto a cada 3 minutos no servidor**, além de **Ctrl+S / botão Salvar agora**. Se uma mídia não foi sincronizada, representar o item com **⚠️ pendente** sem perder as edições.
 >
-> **Objetivo:** iniciar a edição no computador, pressionar **Ctrl+S** e salvar no **servidor o projeto ainda editável com todas as mídias necessárias**, sem gerar um MP4 final. Mais tarde, abrir pelo navegador do celular, continuar a **editar de verdade** e concluir o trabalho no celular ou voltar ao PC.
+> **Status:** **PARCIAL SOMENTE NA BASE** — já existem edição/preview locais, armazenamento local do navegador, API de render no host e Docker/LAN. **NÃO IMPLEMENTADO**: envio de mídia em background ao importar, biblioteca de originais persistente no servidor, snapshots de 3 min, estados pendentes por asset e reabertura editável em outro dispositivo.
+>
+> **Prioridade:** manter fase 9, depois F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08, até nova decisão explícita. Sounds continua adiado.
 
-### Experiência de uso esperada
+### Divisão de responsabilidade
 
-1. **No PC**, abrir um projeto existente e pressionar **Ctrl+S** (no Mac, **Cmd+S**); também oferecer botão visível **Salvar projeto no servidor**. Exibir `Alterações não salvas`, `Enviando mídias (X/Y)`, `Salvo e sincronizado` ou `Falha/pendente`. Capturar o atalho somente quando o editor está ativo, sem quebrar atalhos de outros campos.
-2. O comando salva uma **versão não destrutiva da edição**: timeline com cortes, trims, faixas, posicionamento, efeitos, transições, keyframes, legendas, áudio, parâmetros de normalização, composições/HTML/arquivos HyperFrames e referências a assets. **Guardar também os arquivos de origem** (vídeo, áudio, imagens, GIFs e outros assets exportáveis) que ainda só existam no PC, **no armazenamento do servidor**. Não basta salvar paths como `C:\\...`, `blob:` ou `file:`; o celular não pode acessá-los.
-3. Fazer **upload resumível por partes**, verificação de integridade/hash, deduplicação quando possível, limite/quota configurável e controle de espaço. O projeto só recebe status **Sincronizado** após confirmar **metadados e todas as mídias indispensáveis**; antes disso, permitir reenvio sem perder o trabalho e mostrar quais arquivos faltam. Não renderizar/achatá-lo para sincronizar.
-4. **No celular**, acessar a versão web responsiva do Editor no mesmo servidor, fazer login, abrir a lista **Meus projetos** e escolher **Continuar edição**. Restaurar clipes e seus tempos, fontes, overlays, efeitos, HyperFrames e áudio com as mesmas posições/ajustes; oferecer preview e interação touch com timeline (selecionar, mover, cortar, ajustar, salvar). **Não entregar um player somente leitura.**
-5. Botão **Salvar** acessível no celular (sem exigir teclado); mudanças persistem no mesmo projeto do servidor, para poder retornar ao PC. Autosave opcional/rascunhos ou checkpoints de recuperação são desejáveis; Ctrl+S/save manual continua obrigatório.
-6. Separar **Salvar projeto** de **Exportar/renderizar vídeo**: salvar nunca deve exigir MP4 final, apenas armazenar estado editável e assets; exportar acontece por pedido do usuário e pode ser feito pelo serviço de render do servidor quando disponível.
-7. Permitir armazenamento self-hosted persistente (volume/objeto) e configuração de capacidade, limpeza de órfãos, backup e restauração. Proxies de baixa resolução/miniaturas/ondas de áudio no celular **podem** otimizar preview, mas **originais permanecem no servidor** para edição/exportação de qualidade.
-8. O acesso do celular pela **mesma LAN** pode usar URL privada protegida. Em outra rede, exigir rota HTTPS autenticada e explicitamente configurada para **frontend + mídia**. **Não confundir o túnel ngrok da F09, que expõe apenas MCP, com acesso web/mobile.** Não abrir portas publicamente sem autenticação/autorização, proteção de upload e TLS.
-9. Se PC e celular abrirem o mesmo projeto simultaneamente, implementar **revisões/versionamento**, lock por projeto ou detecção explícita de conflitos e escolha de versão; não sobrescrever mudanças silenciosamente. Registrar último salvamento, dispositivo e erros de sincronização.
-10. Mídias externas de URLs/embeds (F07): salvar o asset completo **somente quando o usuário tiver acesso e permissão de obtenção**; caso contrário guardar referência e explicar que visualização, disponibilidade offline e exportação podem ser limitadas. Nunca prometer download universal de YouTube/Twitch.
-11. Preservar a proposta de privacidade do Editor: **armazenamento central no servidor escolhido pelo proprietário, não envio automático a serviços de terceiros**; ativar sincronização explicitamente, esclarecer consumo de disco/banda, autenticar por usuário/projeto e **não colocar tokens de IA, chaves da NVIDIA/ngrok ou segredos no projeto sincronizado**.
-12. Diferenciar o que já existe do que será desenvolvido: a branch atual possui componentes de projeto, mas **não foi comprovado um fluxo completo de persistência remota de todos os originais com edição mobile**; realizar auditoria antes do primeiro PR de F10. Não declarar F10 implementado por existência de `Save` local.
+| Componente | Cliente remoto (web PC/celular) | Host na LAN |
+|---|---|---|
+| Importação | Drag-and-drop, mostra mídia/thumbnail e insere na timeline **imediatamente**, sem aguardar upload | Recebe originais pela fila assíncrona, com validação e persistência |
+| Edição | Interações instantâneas: mover, cortar, reposicionar, alterar texto/efeitos/keyframes, Undo/Redo; cache e preview locais | Aceita comandos/alterações versionadas, mantém snapshot persistente e histórico |
+| Visualização | Render/preview local leve e cacheado para baixa latência; usar proxies quando apropriado | Armazena/gera proxies e executa tarefas pesadas quando necessário, sem bloquear gestos |
+| Projeto | Rascunho local de recuperação, fila offline e status de upload/sync | Estado editável autoritativo, revisões e checkpoint completo **a cada 3 minutos** |
+| Arquivos | Originais locais podem existir até upload verificado, mas não são a fonte universal | Biblioteca de originais e derivados em armazenamento persistente; backup |
+| Exportação | Solicita render e recebe progresso/download | Usa assets verificados que já estão no host e executa render final; não reenvia todos desnecessariamente |
 
-### Critérios de aceitação de F10
+**Não prometer "100% sem uso de CPU" no cliente:** interface, decodificação, cache e preview leve consomem recursos. A prioridade é reduzir a latência percebida de edição sem deslocar armazenamento definitivo ou render final para o dispositivo remoto.
 
-- [ ] Um projeto com **vídeo original + música + GIF + textos/legendas + cortes + HyperFrames** salva com Ctrl+S no PC, incluindo todos os assets indispensáveis, sem renderização.
-- [ ] Status `Salvo e sincronizado` só aparece após confirmar upload e integridade dos originais; teste com vídeo grande, interrupção de rede e retomada.
-- [ ] Celular abre o projeto com os mesmos cortes, tempos, faixas e efeitos e pode **editar** (não apenas assistir), salvar e retomar o mesmo projeto no PC.
-- [ ] Preview/proxy mobile não reduz qualidade dos originais usados na renderização.
-- [ ] Projeto, assets e histórico continuam presentes após reiniciar browser/PC/servidor, com volumes persistentes e política de backup.
-- [ ] Outro dispositivo não depende de `file:`/`blob:`/caminho local do PC para carregar mídias.
-- [ ] Duas sessões concorrentes não causam perda silenciosa de alterações.
-- [ ] Acesso LAN/externo exige autenticação; a rota do MCP F09 não é reutilizada como acesso web sem configuração independente.
-- [ ] Funciona com interface touch no celular para operações fundamentais de edição e sem upload involuntário a nuvem pública.
-- [ ] Nenhuma chave de API ou segredo fica exposto no projeto salvo, mídias ou logs.
+### Fluxo obrigatório de importação e edição não bloqueante
 
-**Plano detalhado:** [docs/cross-device-project-sync.md](docs/cross-device-project-sync.md).
-**Áreas para auditoria inicial:** persistência/modelos de projeto em `apps/web/src/project`, gerenciamento de timeline e assets em `apps/web/src`, armazenamento Docker/volumes, autenticação em `apps/web/src/app/api/auth`, render server e UI responsiva. **Caminhos indicativos; confirmar componentes reais antes de codificar.**
+1. Arrastar/selecionar uma foto, vídeo, áudio ou GIF no cliente. Criar um `assetId` estável e um item de timeline **imediatamente**; usar `File`/`blob:` local para visualizar e mover sem depender da rede. Preservar o original em rascunho/cache local até confirmação do host.
+2. Enfileirar upload assíncrono do **original** ao host, sem bloquear cliques/seek/drag. Mostrar progresso, velocidade quando mensurável, pausa/cancelamento/retry, erros de cota/rede e indicador por arquivo. Priorizar chunks com retomada, checksum/hash, validação de MIME/tamanho, idempotência e deduplicação segura.
+3. O host emite o `serverAssetId` e só confirma `verificado` depois de gravar em armazenamento persistente e validar integridade. Relacionar `assetId` local ↔ `serverAssetId`, mantendo referências em cortes, duplicações e faixas.
+4. Mostrar estados claros por asset: `local_only`, `uploading`, `verified`, `failed`, `missing_on_device`. Enquanto ainda houver mídia pendente, indicar **⚠️** na biblioteca/timeline, mas **não impedir edição local**. O ⚠️ não substitui a prévia de quem tem o arquivo; é uma marca de sincronização.
+5. Em outro aparelho sem o original sincronizado, mostrar **placeholder com ⚠️ Arquivo não enviado ao servidor**, preservando nome, posição, duração, cortes e demais ajustes editáveis. Oferecer reenvio a partir do dispositivo que possui o arquivo; **nunca apagar o item nem substituir definitivamente a mídia por emoji**.
+6. Se cliente perder conexão, a edição local continua quando possível, com fila pendente e indicador **"Não sincronizado"**. Retomar uploads após reconectar e ao reabrir no mesmo navegador, se os bytes continuarem disponíveis. Ao limpar o cache do navegador ou perder o dispositivo antes do envio, deixar claro que originais pendentes não estão recuperáveis do servidor.
+
+### Salvamento e consistência — 3 minutos + salvar manual
+
+1. Manter o autosave local rápido já existente para recuperação. Separadamente, enviar mudanças de timeline/metadados leves ao host por uma API de projeto autenticada (debounce/eventos, com controle de revisão). **Não reenviar vídeo a cada ajuste**.
+2. O host cria **snapshot/checkpoint persistente a cada 3 minutos (180 segundos)** de projetos ativos, além do comando **Ctrl+S / Cmd+S / botão Salvar agora** que solicita um checkpoint imediato. Para salvar o estado mais recente, fazer flush dos eventos pendentes antes do checkpoint; se não houver conexão, salvar rascunho local e nunca declarar sucesso remoto.
+3. O checkpoint contém toda a edição **não renderizada**: cenas, faixas, ordem, recortes, posicionamento, transformações, efeitos, animações, legendas, áudio, presets e fontes HyperFrames; inclui `assetId`, `serverAssetId` (quando existente), estado de sync e referências válidas. Guardar snapshots mesmo que algum original esteja pendente: **"Projeto salvo — N mídias pendentes"**, nunca **"Tudo sincronizado"**.
+4. O servidor é a fonte de verdade **da última revisão confirmada**; alterações locais ainda não recebidas não são milagrosamente salvas. Guardar `projectId`, `revision`, timestamps e dispositivo, com bloqueio ou resolução explícita de conflitos se dois clientes editarem.
+5. Separar **Salvo localmente**, **Projeto salvo no servidor**, **Mídias pendentes** e **Sincronizado**. Somente usar **Sincronizado** quando o snapshot e **todos** os originais obrigatórios estiverem verificados. Prever snapshot no fechamento quando possível, sem depender apenas de evento `beforeunload`.
+6. Persistir projetos/originais em volumes ou storage self-hosted independente da sessão e da vida do contêiner. Oferecer recuperação, backups, cota/limpeza, logs sem segredos e tratamento de espaço insuficiente.
+
+### Troca de aparelhos e exportação
+
+1. Navegador de qualquer PC/celular autorizado na LAN lista projetos do **servidor**, abre última revisão consistente e permite continuar a **editar**. UI mobile precisa gestos touch, layout responsivo, controle de seek/corte e Salvar visível; não apenas vídeo exportado.
+2. A timeline resolve `serverAssetId` em URLs autenticadas/proxies para o cliente que não possui os originais. Originais de alta qualidade ficam no host; derivados podem ser cacheados e expiram/invalidam quando necessário.
+3. Ao pedir exportação, o host reutiliza a biblioteca persistente e a revisão confirmada, sem novo upload integral de cada arquivo. Se houver mídia obrigatória pendente, **bloquear render final com lista de faltantes** (ou permitir prévia explicitamente incompleta, nunca exportação silenciosamente errada).
+4. Continuar separando `Salvar projeto` de `Exportar MP4/WebM`; Ctrl+S e checkpoints **não** geram vídeo final. O render existente é ponto de partida e precisa ser adaptado para consultar os assets centralizados.
+5. Acesso fora da LAN, caso solicitado futuramente, exige frontend + mídia sobre HTTPS com autenticação independente; **não reutilizar ngrok da F09**, que é apenas MCP. Não enviar mídias a nuvem pública sem opção/autorização.
+
+### Implementação por marcos (todos pendentes; reaproveitar o que foi marcado [x] acima)
+
+- [ ] **F10-A — Modelos e storage do host:** mapear o `StorageService` atual, definir schema `project`/`revision`/`asset`, storage persistente e APIs seguras, migração de IndexedDB/OPFS existentes.
+- [ ] **F10-B — Importação instantânea + fila assíncrona:** manter preview drag/drop local; criar upload chunked/resumível, associação com asset no servidor, prioridade/cancelamento/retry e estados ⚠️.
+- [ ] **F10-C — Mudanças + snapshots 180 s:** sincronizar estado editável incrementalmente; job de checkpoints no host (enquanto ativo), Ctrl+S imediato, status separado de snapshot e mídia, recuperação offline.
+- [ ] **F10-D — Reabertura PC/mobile:** Meus projetos consultando servidor, URLs autenticadas/proxy, placeholders ⚠️ para faltantes, timeline touch e mesmo projeto editável de ponta a ponta.
+- [ ] **F10-E — Render integrado e resiliência:** export direto dos originais do host, conflitos/revisões, quotas/backup, controles de acesso, recuperação de falhas e testes LAN.
+
+### Critérios de aceitação (não marcar [x] sem teste real)
+
+- [ ] Arrastar foto/vídeo insere na timeline e permite editar **antes** de terminar o upload; interface não congela durante transferência.
+- [ ] Upload em background persiste original no host com hash e associa asset à edição; não transmite original a cada movimento/corte.
+- [ ] Um checkpoint é criado no **servidor** a cada 180 s de projeto ativo, e Ctrl+S cria checkpoint imediato, sem renderização.
+- [ ] Snapshot guarda clipes/efeitos e referências de mídias ainda não enviadas com aviso ⚠️; não marca tudo sincronizado incorretamente.
+- [ ] Arquivo pendente continua editável no cliente que possui original; em outro aparelho aparece placeholder ⚠️ sem destruir cortes ou timeline.
+- [ ] Falha de rede e reinício retomam uploads elegíveis; projeto/arquivos verificados permanecem após reiniciar host e cliente.
+- [ ] Mesmo projeto abre em PC e celular, pode ser editado e salvo nos dois com revisão/conflitos controlados.
+- [ ] Preview local mantém baixa latência de interação; render final acontece no host usando originais verificados, sem reupload total.
+- [ ] Export bloqueia mídia faltante de forma explícita e não substitui arquivos por placeholder no resultado final.
+- [ ] Autenticação/autorização, backup, quotas, migração do armazenamento do navegador e testes de segurança passaram.
+
+**Especificação complementar atualizada:** [docs/cross-device-project-sync.md](docs/cross-device-project-sync.md). Documentar esta arquitetura **não é implementá-la**.
 
 ---
 
 ## F11 — Transcrição local por Parakeet Redux (BACKLOG — prioridade a definir)
+
+> **Status de auditoria (19/11/2026):** **PENDENTE (Whisper existe; Parakeet Redux não)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
 
 **Solicitação do proprietário:** substituir a geração de transcrição de fala usada para legendas por **Moondream Parakeet Redux** (`moondream/parakeet-redux`), com execução **pela CPU**, sem exigir GPU nem API paga, mantendo conversão **vídeo → áudio → texto → legendas sincronizadas**. A troca efetiva do motor só deve ser declarada concluída depois de implementação e testes no Editor.
 
@@ -678,6 +760,8 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ## F12 — Ações rápidas e atalhos personalizáveis (BACKLOG — prioridade a definir)
 
+> **Status de auditoria (19/11/2026):** **PARCIAL (comandos existem em S/Q/W; C/V/X e botões pendentes)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
+
 **Solicitação do proprietário:** edição ágil com teclas simples e **botões de ação rápida** na timeline. Os três comandos já existem no código: **não reimplementar operações de corte**, somente alterar *defaults*, oferecer botões/dicas e manter opção de personalizar teclas.
 
 | Comando real no Editor | Padrão atual verificado | Novo padrão solicitado |
@@ -712,6 +796,8 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 ---
 
 ## F06 — Sounds (ADIADO: NÃO MODIFICAR AGORA)
+
+> **Status de auditoria (19/11/2026):** **ADIADO (Sounds existente; melhorias proibidas por enquanto)**. Ver tabela de evidências no início do documento; não confundir base reutilizável com feature entregue.
 
 **Decisão de 13/11/2026:** a aba Sounds fica **inteiramente fora deste ciclo de trabalho**. Não alterar pesquisa, rolagem, favoritos, layout, filtros, catálogo ou fontes. A expansão planejada anteriormente permanece apenas como ideia de backlog, **sem prioridade, implementação ou PR nesta etapa**.
 
@@ -771,7 +857,7 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 | **6** | F09 | MCP via ngrok, URLs LAN/remota e controles de acesso na UI | MCP atual e credenciais F03; **sem F01** |
 | **7 (penúltima)** | F01 | Proteção persistente de camadas/clipes, aplicada aos recursos anteriores | Áudio, IA, HyperFrames, Links, MCP já prontos |
 | **8 (última do ciclo prioritário)** | F08 | Conversão inteligente com geometria, IA, tracking e proteção | F01 + F03 |
-| **9 (futuro, baixa prioridade)** | F10 | **Ctrl+S salva projeto editável + mídias originais no servidor; reabrir/editar pelo celular e continuar no PC, sem renderizar** | Auditoria de persistência, armazenamento de originais, login, UI mobile, sincronização/concorrência. **Só depois das fases 1–8** |
+| **9 (futuro, baixa prioridade)** | F10 | **LAN híbrida: edição local imediata, upload original assíncrono, snapshots a cada 3 min + Ctrl+S, ⚠️ pendentes e continuidade PC ↔ celular** | Reutilizar editor/preview local e render host; implementar storage persistente, fila de upload, revisão, UI mobile, segurança. **Só depois das fases 1–8** |
 | **Backlog, sem fase** | F11 | Trocar motor de transcrição Whisper por **Parakeet Redux CPU** para legendas com tempos por palavra; comparar qualidade PT-BR | Auditoria do worker atual e adapter CPU local; prioridade ainda não definida |
 | **Backlog, sem fase** | F12 | Atalhos C/V/X para split/left/right, barra de ações rápidas e remapeamento seguro | Sistema de actions/keybindings já existente; prioridade ainda não definida |
 | **Adiado** | F06 | Sounds: não alterar nada neste ciclo | Nenhuma |
@@ -786,7 +872,7 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 6. **F09:** gestão ngrok, segurança, token MCP dedicado, URL LAN/remota e controles de iniciar/desligar.
 7. **F01:** proteção de faixa/clipe e integração retroativa ao que já funciona; testes de comandos, IA e MCP.
 8. **F08:** auto-conversão por regras geométricas, depois IA/tracking e suavização, com preview/export consistente.
-9. **F10 (somente depois):** auditoria de projetos/mídias atuais; Ctrl+S + snapshot no servidor; upload persistente, retomável e verificável de todos os originais; autenticação/Meus projetos; mobile editor touch; salvar/retomar no PC; testes de interrupção, concorrência e acesso remoto seguro.
+9. **F10 (somente depois):** aproveitar edição/preview local já existentes; drag/drop com edição imediata; fila de upload de originais em background; ⚠️ por mídia pendente; API de alterações leves, snapshots no host a cada **180 segundos** + Ctrl+S; armazenamento persistente; projetos PC/celular, acesso autenticado, export usando originais no host, recuperação e testes de concorrência. **Não refazer editor local nem render do host já existentes.**
 
 **F10 é backlog futuro após o ciclo prioritário**, sem implementações antecipadas nem bloqueios das fases anteriores. **F11 e F12 são ideias aprovadas para o planejamento, com prioridade de execução ainda não definida**; não antecipar ou bloquear as fases 1–9. **F06 Sounds: NÃO criar tarefas, PRs ou dependências neste ciclo.** Adiar até uma instrução posterior explícita.
 
@@ -871,6 +957,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-19 (auditoria e arquitetura híbrida LAN):** revisão estática da branch `main` de F01–F12, com tabela de status e subtarefas `[x]` de infraestrutura já existente. **Nenhuma feature integral foi declarada concluída sem os critérios/testes correspondentes.** Atualizada F10 para **edição imediata no cliente, upload assíncrono dos originais ao servidor, checkpoints de 3 minutos e Ctrl+S, placeholders ⚠️ somente para mídias indisponíveis em outro dispositivo, continuidade PC/celular**. Prioridades anteriores mantidas; somente planejamento/documentação alterados, sem implementar código novo.
 - **2026-11-13 (Parakeet Redux e atalhos rápidos):** adicionados **F11** (troca do Whisper pelo **Parakeet Redux CPU** para gerar legendas localmente, incluindo timestamps por palavra, testes PT-BR e integração com captions/HyperFrames) e **F12** (remapeamento de Split/Left/Right para **C/V/X**, barra de ações rápidas, conflitos e preservação de atalhos pessoais). Verificados no código atual **Whisper-small** e atalhos **S/Q/W**. Ambos backlog sem prioridade definida; **somente documentação, nenhum código funcional alterado**. Detalhes em `docs/parakeet-redux-shortcuts.md`.
 - **2026-11-13 (continuidade PC ↔ celular):** adicionada **F10**, após todas as oito prioridades existentes. Planejado **Ctrl+S salva estado editável e todos os arquivos originais no servidor sem render**, status de sincronização, reabertura e edição real por celular, retorno ao PC, autenticação, versionamento, upload resumível, armazenamento persistente e preview/proxy mobile; detalhes em `docs/cross-device-project-sync.md`. **Apenas documentação; nenhuma implementação.**
 - **2026-11-13 (execução Node personalizada):** esclarecimento do requisito: usuário deve poder **colar um arquivo Node.js inteiro e executar de verdade no Editor**, com `axios`, imports, streaming, credenciais por variáveis de ambiente, logs, salvar como provedor e usar no HyperFrames. Apenas gerar/copiar código **não atende**. Planejado runner isolado com segurança; referência `docs/custom-node-api-runner.md`. **Somente documentação, sem implementação.**
