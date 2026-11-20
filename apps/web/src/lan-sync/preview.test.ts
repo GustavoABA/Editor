@@ -1,11 +1,16 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { ensurePreview, previewArguments, previewFormat } from "./preview";
-import { finalizeAsset, storeChunk } from "./server";
+const base = await mkdtemp(path.join(tmpdir(), "opencut-proxy-test-"));
+process.env.LAN_SYNC_DIR = base;
+process.env.LAN_SYNC_TOKEN = "test-only-secret-over-16-characters";
+const { ensurePreview, previewArguments, previewFormat } = await import("./preview");
+const { finalizeAsset, storeChunk } = await import("./server");
+
+afterAll(async () => { await rm(base, { recursive: true, force: true }); });
 
 test("remote video preview targets a compact browser-compatible MP4", () => {
   const format = previewFormat({ type: "video", mimeType: "video/quicktime" });
@@ -49,9 +54,7 @@ if (ffmpegInstalled) {
     ], { timeout: 30_000 });
     expect(result.status).toBe(0);
     const source = await readFile(original);
-    await storeChunk(projectId, assetId, 0, source.buffer.slice(
-      source.byteOffset, source.byteOffset + source.byteLength,
-    ));
+    await storeChunk(projectId, assetId, 0, Uint8Array.from(source).buffer);
     await finalizeAsset({
       projectId, assetId, name: "source.mp4", type: "video",
       mimeType: "video/mp4", size: source.length, parts: 1,
