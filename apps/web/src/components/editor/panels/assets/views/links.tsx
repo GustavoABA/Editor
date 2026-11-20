@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
@@ -72,6 +72,19 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
   const [url, setUrl] = useState("");
   const [permission, setPermission] = useState(false);
   const [busy, setBusy] = useState(false);
+  const originalFileInputRef = useRef<HTMLInputElement>(null);
+  const importOriginalFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || busy) return;
+    setBusy(true);
+    try {
+      await onImport(file);
+      toast.success("Arquivo original adicionado à mídia editável do projeto.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível importar o arquivo original.");
+    } finally { setBusy(false); }
+  };
   const preview = useMemo(() => {
     try { return url.trim() ? resolveMediaLink(url.trim(), typeof window !== "undefined" ? window.location.hostname : "") : null; }
     catch { return null; }
@@ -102,7 +115,23 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
               className="size-full" allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
               referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
           </div>
-          <p className="text-muted-foreground text-[11px]">Visualizável somente. A incorporação não autoriza download ou exportação.</p>
+          <p className="text-muted-foreground text-[11px]">
+            Prévia externa: o player do YouTube/Twitch não fornece quadros para a timeline nem pode ser exportado como MP4 por este editor. Alguns vídeos proíbem incorporação.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={preview.url} target="_blank" rel="noopener noreferrer"
+              className="rounded border px-2 py-1 text-xs underline">Abrir vídeo original</a>
+            <input ref={originalFileInputRef} type="file" accept="video/mp4,video/webm,video/quicktime"
+              className="hidden" aria-label="Selecionar arquivo de vídeo original"
+              onChange={event => void importOriginalFile(event)} />
+            <button type="button" className="rounded border px-2 py-1 text-xs disabled:opacity-40"
+              disabled={busy} onClick={() => originalFileInputRef.current?.click()}>
+              {busy ? "Importando original…" : "Importar meu arquivo original MP4"}
+            </button>
+          </div>
+          <p className="text-muted-foreground text-[11px]">
+            Para editar e exportar, use o arquivo original que você possui e tem direito de utilizar.
+          </p>
         </>
       )}
       {preview?.kind === "external" && (
