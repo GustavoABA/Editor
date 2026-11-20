@@ -19,7 +19,7 @@ jobs:
       - name: Start private renderer
         run: |
           docker run -d --name opencut-hf-test --read-only \
-            --tmpfs /tmp:rw,size=768m --memory 1536m \
+            --tmpfs /tmp:rw,size=4g --memory 1536m \
             -p 127.0.0.1:8712:8712 \
             -e HYPERFRAMES_INTERNAL_TOKEN=ci-test-only-not-a-production-token \
             opencut-hyperframes-smoke
