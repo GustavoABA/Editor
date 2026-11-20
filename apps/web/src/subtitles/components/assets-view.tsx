@@ -438,7 +438,11 @@ export function Captions() {
 							<Select
 								value={preset}
 								onValueChange={(value) => {
-									if (isCaptionPreset(value)) setPreset(value);
+									if (isCaptionPreset(value)) {
+										setPreset(value);
+										const presetColor = CAPTION_PRESETS[value].style.color;
+										if (presetColor) setCaptionColor(presetColor);
+									}
 								}}
 							>
 								<SelectTrigger>
