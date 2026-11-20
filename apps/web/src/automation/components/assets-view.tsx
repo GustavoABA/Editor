@@ -23,7 +23,6 @@ import { useEditor } from "@/editor/use-editor";
 import { TRANSCRIPTION_DIAGNOSTICS_SCOPE } from "@/transcription/diagnostics";
 import { AutomationConnections } from "./connections";
 import { OllamaAssistant } from "./ollama-assistant";
-import { HyperFramesPanel } from "./hyperframes";
 import { HyperFramesStudio } from "./hyperframes-studio";
 import { AIProvidersPanel } from "./providers";
 
@@ -167,7 +166,6 @@ export function AutomationView() {
 			</section>
 
 			<HyperFramesStudio />
-			<HyperFramesPanel />
 
 			<AutomationConnections />
 		</PanelView>
