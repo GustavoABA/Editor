@@ -64,8 +64,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 RUN apk add --no-cache nodejs chromium ffmpeg font-dejavu mesa-egl mesa-gles mesa-dri-gallium xvfb xvfb-run
-ENV HYPERFRAMES_NO_UPDATE_CHECK=1 \\
-    CHROME_BIN=/usr/bin/chromium-browser \\
+ENV HYPERFRAMES_NO_UPDATE_CHECK=1 \
+    CHROME_BIN=/usr/bin/chromium-browser \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 RUN mkdir -p /app/render-jobs /app/automation /app/lan-sync \
 	&& chown nextjs:nodejs /app/render-jobs /app/automation /app/lan-sync
