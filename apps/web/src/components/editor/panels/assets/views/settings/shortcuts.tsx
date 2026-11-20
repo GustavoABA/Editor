@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ACTIONS } from "@/actions/definitions";
+import { ACTIONS, isActionWithOptionalArgs } from "@/actions/definitions";
 import type { TActionWithOptionalArgs } from "@/actions";
 import { isShortcutKey, type ShortcutKey } from "@/actions/keybinding";
 import { useKeybindingsStore } from "@/actions/keybindings-store";
@@ -55,9 +55,10 @@ export function ShortcutSettings() {
 
   const available = useMemo(
     () => Object.entries(ACTIONS).filter(([name, action]) =>
+      isActionWithOptionalArgs(name) && (
       name.toLowerCase().includes(search.toLowerCase()) ||
       action.description.toLowerCase().includes(search.toLowerCase()) ||
-      (CATEGORY_LABELS[action.category] || action.category).toLowerCase().includes(search.toLowerCase()),
+      (CATEGORY_LABELS[action.category] || action.category).toLowerCase().includes(search.toLowerCase())),
     ),
     [search],
   );
