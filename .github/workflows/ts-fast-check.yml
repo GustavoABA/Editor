@@ -1,0 +1,29 @@
+name: Editor TypeScript Fast Check
+
+on:
+  push:
+    branches:
+      - teste/implementacao
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: typecheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
+        with:
+          bun-version: 1.2.18
+      - name: Install dependencies
+        working-directory: apps/web
+        run: bun install
+      - name: TypeScript typecheck
+        working-directory: apps/web
+        run: bunx tsc --noEmit
