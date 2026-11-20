@@ -37,6 +37,7 @@ export function useTimelinePlayhead({
 		getActiveProjectFps: () => editor.project.getActive()?.settings.fps ?? null,
 		isShiftHeld: () => isShiftHeldRef.current,
 		getIsPlaying: () => editor.playback.getIsPlaying(),
+		getCurrentTime: () => editor.playback.getCurrentTime(),
 		getRulerEl: () => rulerRef.current,
 		getRulerScrollEl: () => rulerScrollRef.current,
 		getTracksScrollEl: () => tracksScrollRef.current,
@@ -82,6 +83,10 @@ export function useTimelinePlayhead({
 
 	useEdgeAutoScroll({
 		isActive: isScrubbing,
+		// Never move the timeline while the playhead is held in place.
+		// Auto-scroll only after a real drag outside the visible ruler.
+		shouldAutoScroll: () => ctrl.canAutoScroll(),
+		edgeThreshold: 0,
 		getMouseClientX: () => ctrl.getLastMouseClientX(),
 		onAutoScroll: () => ctrl.handleAutoScroll(),
 		rulerScrollRef,
