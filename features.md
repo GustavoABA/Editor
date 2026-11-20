@@ -651,7 +651,9 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 > **Decisão atualizada pelo proprietário em 19/11/2026:** a edição interativa deve acontecer **imediatamente no cliente**, enquanto os originais são enviados ao **host em segundo plano**. O host é a fonte persistente de projetos/mídias e executa render final e tarefas pesadas quando necessário. **Snapshot do projeto a cada 3 minutos no servidor**, além de **Ctrl+S / botão Salvar agora**. Se uma mídia não foi sincronizada, representar o item com **⚠️ pendente** sem perder as edições.
 >
-> **Status:** **PARCIAL SOMENTE NA BASE** — já existem edição/preview locais, armazenamento local do navegador, API de render no host e Docker/LAN. **NÃO IMPLEMENTADO**: envio de mídia em background ao importar, biblioteca de originais persistente no servidor, snapshots de 3 min, estados pendentes por asset e reabertura editável em outro dispositivo.
+> **Status após primeira implementação em branch `feature/lan-hybrid-sync`: PARCIAL, NÃO CONCLUÍDO.** Existem agora uma API de projetos no host com revisões e checkpoints, volume persistente, upload automático por chunks, botão LAN/Salvar e importação de projeto remoto. **PENDENTE**: integração de export direto do host, proxies para vídeos grandes, indicação ⚠️ no clipe, UI mobile completa, segurança granular e testes de ponta a ponta. **Esses itens ainda não estão em `main`.**
+>
+> **Evidência da implementação experimental:** [PR #1](https://github.com/GustavoABA/Editor/pull/1) e [documentação de setup](docs/lan-hybrid-implementation.md). Verifique CI antes de promover componentes a concluídos.
 >
 > **Prioridade:** manter fase 9, depois F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08, até nova decisão explícita. Sounds continua adiado.
 
@@ -696,11 +698,11 @@ Permitir que clientes MCP externos autorizados (incluindo agentes de IA em outra
 
 ### Implementação por marcos (todos pendentes; reaproveitar o que foi marcado [x] acima)
 
-- [ ] **F10-A — Modelos e storage do host:** mapear o `StorageService` atual, definir schema `project`/`revision`/`asset`, storage persistente e APIs seguras, migração de IndexedDB/OPFS existentes.
-- [ ] **F10-B — Importação instantânea + fila assíncrona:** manter preview drag/drop local; criar upload chunked/resumível, associação com asset no servidor, prioridade/cancelamento/retry e estados ⚠️.
-- [ ] **F10-C — Mudanças + snapshots 180 s:** sincronizar estado editável incrementalmente; job de checkpoints no host (enquanto ativo), Ctrl+S imediato, status separado de snapshot e mídia, recuperação offline.
-- [ ] **F10-D — Reabertura PC/mobile:** Meus projetos consultando servidor, URLs autenticadas/proxy, placeholders ⚠️ para faltantes, timeline touch e mesmo projeto editável de ponta a ponta.
-- [ ] **F10-E — Render integrado e resiliência:** export direto dos originais do host, conflitos/revisões, quotas/backup, controles de acesso, recuperação de falhas e testes LAN.
+- [ ] **F10-A — Modelos e storage do host:** **[x] base criada na branch (API/volume/revisões); [ ] falta testes, migração e autorização por usuário.** Mapear o `StorageService`, evoluir schema e migração do IndexedDB/OPFS.
+- [ ] **F10-B — Importação instantânea + fila assíncrona:** **[x] preview local preservado, fila de chunks automática e retry simples na branch; [ ] falta integridade ponta a ponta, cancelar/prioridade e teste real de retomada.**
+- [ ] **F10-C — Mudanças + snapshots 180 s:** **[x] revisão/snapshot no host, Ctrl+S, timer cliente e preservação de rascunho local na branch; [ ] falta delta incremental e resiliência/offline comprovada.**
+- [ ] **F10-D — Reabertura PC/mobile:** **[x] listagem e importação de projeto editável pela LAN na branch, aviso ⚠️ para mídia indisponível; [ ] falta proxy de arquivos grandes, aviso no clipe e UX touch completa.**
+- [ ] **F10-E — Render integrado e resiliência:** **[x] prevenção de sobrescrita por revisão e token dedicado na branch; [ ] export direto do host, auth por usuário, quotas/backup automatizado e testes LAN.**
 
 ### Critérios de aceitação (não marcar [x] sem teste real)
 
@@ -957,6 +959,7 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 
 ## 14. Histórico e status
 
+- **2026-11-19 (F10 — implementação inicial em branch):** criada branch `feature/lan-hybrid-sync` e PR #1 com persistência no host, revisão otimista, upload assíncrono em chunks, UI LAN/Salvar, checkpoints e listagem/importação de projetos remotos; adicionados testes de servidor e instruções. **PARCIAL, experimental, sem merge em main nem teste E2E.** Seguem pendentes proxies, export usando originais no host, validações/security granular e mobile.
 - **2026-11-19 (auditoria e arquitetura híbrida LAN):** revisão estática da branch `main` de F01–F12, com tabela de status e subtarefas `[x]` de infraestrutura já existente. **Nenhuma feature integral foi declarada concluída sem os critérios/testes correspondentes.** Atualizada F10 para **edição imediata no cliente, upload assíncrono dos originais ao servidor, checkpoints de 3 minutos e Ctrl+S, placeholders ⚠️ somente para mídias indisponíveis em outro dispositivo, continuidade PC/celular**. Prioridades anteriores mantidas; somente planejamento/documentação alterados, sem implementar código novo.
 - **2026-11-13 (Parakeet Redux e atalhos rápidos):** adicionados **F11** (troca do Whisper pelo **Parakeet Redux CPU** para gerar legendas localmente, incluindo timestamps por palavra, testes PT-BR e integração com captions/HyperFrames) e **F12** (remapeamento de Split/Left/Right para **C/V/X**, barra de ações rápidas, conflitos e preservação de atalhos pessoais). Verificados no código atual **Whisper-small** e atalhos **S/Q/W**. Ambos backlog sem prioridade definida; **somente documentação, nenhum código funcional alterado**. Detalhes em `docs/parakeet-redux-shortcuts.md`.
 - **2026-11-13 (continuidade PC ↔ celular):** adicionada **F10**, após todas as oito prioridades existentes. Planejado **Ctrl+S salva estado editável e todos os arquivos originais no servidor sem render**, status de sincronização, reabertura e edição real por celular, retorno ao PC, autenticação, versionamento, upload resumível, armazenamento persistente e preview/proxy mobile; detalhes em `docs/cross-device-project-sync.md`. **Apenas documentação; nenhuma implementação.**
