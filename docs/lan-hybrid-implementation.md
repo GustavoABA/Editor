@@ -9,7 +9,7 @@
 - API `/api/lan-sync/projects` para listar projetos editáveis e `/api/lan-sync/projects/:id` para ler/salvar o documento serializado e a lista de mídias; **revisões otimistas** retornam 409 em conflito.
 - Transferência automática de originais, iniciada ao detectar mídias no editor, **sem bloquear a timeline**, em chunks de 4 MiB, com possibilidade de pular partes já recebidas após falha de conexão. O servidor concatena, calcula SHA-256 e confirma a gravação.
 - Snapshot/checkpoint persistente no host na primeira gravação e quando uma gravação ocorre após 180 segundos; cliente conectado dispara checkpoints a cada 180 segundos. **Ctrl+S** ou botão **Salvar no host** também executam checkpoint manual.
-- Status ⚠️ de upload pendente/falha no cabeçalho e barra de progresso percentual; dispositivos sem originais podem abrir documento remoto com clipes e metadados preservados.
+- Status ⚠️ de upload pendente/falha no cabeçalho e barra de progresso percentual; dispositivos sem originais exibem **placeholder ⚠️ no clipe de vídeo/imagem e aviso para áudio**, preservando seus cortes e metadados.
 - Seção **Projetos do servidor LAN** em `/projects` para importar projeto editável do host para o navegador atual.
 
 ## Como ativar no host
@@ -39,13 +39,13 @@ O volume Docker `lan_sync_data` precisa ser incluído na política de backup. Em
 
 - **Não é entrega completa F10.** A interface mobile ainda não foi redesenhada para gestos e telas pequenas.
 - A página de projetos ainda **baixa o original inteiro** no cliente se o arquivo tiver até 80 MiB; mídias maiores não são importadas automaticamente e aparecem como ⚠️. **Proxies/streaming remoto ainda não implementados.**
-- O render final existente ainda recebe o manifest e os originais do navegador. **Não usa diretamente a biblioteca do host**. Isso precisa ser integrado antes de declarar que não há reupload na exportação.
+- A exportação final **agora reutiliza originais verificados no host** quando existe token de LAN ativo: o manifest inclui referências, o servidor recupera os originais da biblioteca persistente e os copia ao job de render. Arquivos ainda não sincronizados continuam usando o caminho de upload tradicional. Se um clipe não tiver bytes locais nem original verificado no host, a exportação é **bloqueada**. **Pendente:** testar mídia grande, falhas e integração com proxy ao vivo; cópia de host → pasta de render ainda consome espaço temporário.
 - O hash SHA-256 é calculado pelo servidor ao montar os chunks, mas ainda não é comparado com um hash produzido independentemente pelo cliente. Falta verificação end-to-end, validação de assinatura de bytes/MIME, proteção de quotas por usuário e restrições avançadas de taxa.
 - Checkpoints são criados durante uma **sessão ativa com cliente conectado**, não por daemon independente na ausência de edições/sessão. Se a conexão cair, o servidor conserva a última revisão que recebeu e o navegador mantém seu rascunho local.
 - Ao abrir projeto em outro dispositivo, o armazenamento local pode ser duplicado e grande; falta mecanismo de proxy/URL autenticada para tornar o cliente verdadeiramente leve.
 - Sem sincronização colaborativa CRDT nem merges automáticos: conflitos (409) **bloqueiam sobregravação** e exigem reabrir a versão do servidor.
 - Exclusão/renomeação/duplicação locais ainda não estão propagadas integralmente para a biblioteca do host; é necessário desenhar política de remoção sem perder mídias partilhadas.
-- Exibição de ⚠️ atualmente aparece no cabeçalho/painel de projetos, **não no próprio clipe dentro da timeline**.
+- Exibição de ⚠️ foi adicionada para **clipes visuais/áudio sem original disponível no cliente**; falta verificar UX mobile e distinguir cada motivo de indisponibilidade por asset.
 - Não houve teste prático entre dois computadores ou celulares nesta sessão. A compilação é verificada via CI quando disponível.
 
 ## Testes automatizados adicionados
