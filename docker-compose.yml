@@ -198,7 +198,7 @@ services:
       - hyperframes-private
     read_only: true
     tmpfs:
-      - /tmp:size=768m,mode=1777
+      - /tmp:size=4g,mode=1777
     pids_limit: 256
     cap_drop: ["ALL"]
     security_opt:
