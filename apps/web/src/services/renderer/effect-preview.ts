@@ -59,8 +59,8 @@ class EffectPreviewService {
 					: buildDefaultParamValues(definition.params);
 
 			const result = applyCanvasClipEffects({
-				source, width: uniformDimensions?.width ?? size,
-				height: uniformDimensions?.height ?? size,
+				source, width: size,
+				height: size,
 				effects: [{ id: "preview", type: effectType, params: resolvedParams, enabled: true }],
 			});
 
