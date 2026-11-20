@@ -1,117 +1,121 @@
-# F10 — Continuidade de edição entre PC e celular
+# F10 — Arquitetura híbrida LAN e continuidade da edição PC ↔ celular
 
-> **Status:** PLANEJADO, não implementado.
-> **Prioridade:** futura; **somente após** F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08. Sem alterar a prioridade de nenhuma delas. **F06 Sounds permanece adiado.**
-> **Decisão do proprietário:** 13/11/2026.
-> **Referência principal:** [features.md](../features.md), seção F10 e roadmap.
+> **Status (19/11/2026): PLANEJADO / infraestrutura parcialmente existente. NÃO IMPLEMENTADO integralmente.**
+> **Decisão atualizada:** cliente deve editar **imediatamente** usando arquivo local e preview leve; o **upload do original ocorre em segundo plano** ao host. O servidor mantém o projeto editável e faz **snapshots a cada 3 minutos (180 s)**, além de aceitar Ctrl+S / botão Salvar agora. Mídias faltantes são sinalizadas com **⚠️**, sem apagar clipes da timeline.
+> **Prioridade mantida:** F10 somente após F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08, até nova decisão expressa. F06 Sounds permanece adiado.
+> **Fonte principal:** [features.md](../features.md), F10, auditoria e roadmap.
 
-## 1. Resultado esperado
+## 1. Objetivo e escopo
 
-Um projeto iniciado no PC pode ser salvo com **Ctrl+S** diretamente no servidor do Editor, ainda como **projeto editável, sem exportação/renderização**. O servidor recebe tanto a descrição completa da edição (timeline, faixas, animações, áudio, overlays, transições etc.) quanto os **arquivos originais necessários** para reabrir o mesmo trabalho em outro dispositivo.
+A LAN tem **um host** (servidor self-hosted com armazenamento persistente e render final) e **um ou mais clientes** (navegadores PC/celular). O cliente recebe a interface e participa de processamento **leve e sensível à latência** para que o usuário veja a edição imediatamente, sem esperar a transferência de gigabytes. O host concentra originais, metadados autoritativos, histórico, backups e processamento pesado quando adequado.
 
-No celular, o usuário entra no Editor, escolhe o projeto em **Meus projetos**, carrega a timeline com os arquivos disponíveis e **continua a editar**; depois salva e pode voltar ao PC no mesmo projeto. O projeto no celular não pode ser somente um preview ou MP4 pré-renderizado.
+**Salvar projeto não significa renderizar vídeo.** Uma revisão salva deve conter timeline editável e referências a todos os assets, inclusive os que ainda não terminaram de subir. O host não pode fingir possuir um arquivo pendente. Um projeto só recebe `Sincronizado` quando *todas* as mídias indispensáveis e o estado editável estão confirmados no servidor.
 
-**Salvar ≠ exportar**: Ctrl+S não solicita render final, não junta faixas num único vídeo e não altera os originais. O render pode continuar no servidor quando o usuário decidir exportar.
+### Componentes já existentes no código da branch main (não reimplementar)
 
-## 2. Fluxos de experiência
+- [x] Web Next.js + Docker Compose com porta 3100 exposta à LAN.
+- [x] Editor de timeline e prévia feitos no navegador usando `CanvasRenderer`; preservar a interação instantânea.
+- [x] Salvar projeto local com `IndexedDB`, originais via `OPFS` (fallback IndexedDB) e autosave com debounce aproximado de 800 ms.
+- [x] Render no host via endpoint que recebe manifest + assets, inicia Chromium headless e entrega arquivo exportado.
+- [x] Fluxos existentes de n8n, MCP LAN e Ollama; reutilizar apenas onde apropriado.
 
-### PC → servidor
+**Ainda ausente:** armazenamento autoritativo de projetos **no servidor**, importação normal de mídia diretamente para biblioteca de originais do host em segundo plano, histórico de snapshots de 3 min, upload resumível por asset, placeholders de pendência entre dispositivos e edição de mesmo projeto por PC/celular.
 
-1. Abrir/editar projeto em PC e usar **Ctrl+S** ou botão **Salvar**; Cmd+S para sistemas que o suportem.
-2. O Editor cria versão/revisão do projeto e inventaria todos os ativos obrigatórios, suas dependências e metadados.
-3. Envia alterações do projeto e **todo asset necessário que ainda exista apenas no PC** ao armazenamento persistente do servidor. Upload de vídeo grande deve permitir **retomada após interrupção**, partes/chunks e integridade por hash.
-4. Exibe claramente três dimensões do estado:
-   - **Edição local salva como rascunho** (quando aplicável);
-   - **Descrição do projeto recebida no servidor**;
-   - **Todos os arquivos originais sincronizados e verificados**.
-5. Somente ao concluir as etapas necessárias informa **Pronto para continuar em outro dispositivo**. Se a mídia não terminou de transferir, exibe arquivos pendentes e possibilidade de retomar envio sem perder o projeto.
-6. Salva revisões com data/hora e versão, sem sobrescrever silenciosamente uma versão mais nova.
+> Os itens marcados [x] acima são **evidência de código**, não uma afirmação de que o sistema foi testado de ponta a ponta.
 
-### Servidor → celular → PC
+## 2. Fluxo de importação, edição e sincronização
 
-1. Usuário acessa endereço autorizado do Editor pelo navegador do celular e se autentica.
-2. Abre **Meus projetos**, identifica o mesmo projeto e escolhe **Continuar edição**.
-3. Timeline reconstrói clipes originais, trims, ordem, faixas, volume, fades, keyframes, stickers, efeitos, legendas, imagens, GIFs, composições HyperFrames, metadados de áudio etc.
-4. UI mobile touch-first oferece no mínimo selecionar, mover, dividir/encurtar clipes, deslocar overlays, ajustar valores, visualizar áudio e salvar. Ajustes avançados podem ser evoluídos sem tornar o projeto somente leitura.
-5. Prévia pode usar proxies de menor resolução sob demanda, economizando memória, banda e CPU do celular; o **arquivo original** permanece disponível no servidor para render/export em qualidade integral.
-6. Usuário salva no celular. Ao abrir no PC novamente, a versão mais recente é carregada, com tratamento de conflitos e histórico.
+### Cliente com original (ex.: arrastar foto para timeline)
 
-### Rede
+1. O usuário arrasta/solta uma foto, vídeo, áudio ou GIF; ela aparece **naquele instante** na biblioteca e na timeline, com miniatura/prévia local (sem aguardar upload). Cortes, posicionamentos, textos, efeitos e Undo/Redo seguem disponíveis.
+2. Criar `assetId` local estável, guardando metadados, arquivo original e estado de edição. Manter referência local (`File`/`blob:`) somente como **cache transitório**, nunca como referência definitiva do projeto compartilhado.
+3. Iniciar fila de upload **assíncrono** do original ao host. A transferência não pode bloquear drag, seek nem ações na timeline. Mostrar indicador discreto de fila, progresso, falha e reenvio.
+4. Enviar em chunks com retry limitado, pausa/retomada após perda de rede, limite/cota, hash de integridade e associação idempotente entre `assetId` e `serverAssetId` retornado. Limpar partes incompletas com segurança.
+5. Host persiste o original no storage configurado (volume Docker/armazenamento equivalente) e só marca `verified` após gravação e integridade comprovada.
+6. O cliente continua editando normalmente durante a transferência. Ao terminar, troca a referência compartilhável pelo asset persistente sem remover o clipe e sem deslocar os cortes.
 
-- **Na mesma rede local:** usar URL LAN do frontend com autenticação.
-- **Fora da rede local:** acesso HTTPS autenticado ao **frontend e mídia** por uma rota remota configurada explicitamente; avaliar arquitetura e custo durante F10.
-- O **ngrok da F09 destina-se ao endpoint MCP**: não expor por acidente frontend, biblioteca de vídeo, outros serviços ou editor por meio desse túnel.
-- Independente da escolha de acesso, a mesma identidade/autorização de usuário deve controlar projetos e assets.
+### Estados por mídia
 
-## 3. Persistência do projeto e ativos
+| Estado interno proposto | Exibição no cliente que possui o original | Em outro aparelho sem o original |
+|---|---|---|
+| `local_only` | Mídia visível/editável + indicador ⚠️ ainda não enviada | Placeholder ⚠️ + metadados e posição preservados |
+| `uploading` | Mídia editável + progresso de upload | Placeholder ⚠️ "Envio em andamento" |
+| `verified` | Mídia editável; indicador de envio concluído | Receber preview/proxy do servidor, original continua no host |
+| `failed` | Mídia editável + erro/retry ⚠️ | Placeholder ⚠️ e indicação da falha |
+| `missing_on_device` | Placeholder ⚠️, solicitar reenvio em dispositivo que possui original | Placeholder ⚠️; **não apagar o elemento** |
 
-### Documento de edição versionado
+**Regra:** ⚠️ pode aparecer como sobreposição discreta quando o usuário possui a foto/vídeo, e como imagem substituta apenas onde os bytes **não estão disponíveis**. O emoji nunca substitui permanentemente o asset, nem é renderizado no vídeo final como se fosse o original.
 
-Manter um formato de projeto compatível entre desktop/web/mobile, com versão de schema, revisions e migração. Persistir:
-- Faixas e clipes, posições e durações, recortes, ponto de início, dimensões, FPS, resolução e relação de aspecto.
-- Transformações, texto, legendas, keyframes, efeitos, transições, máscaras, volume/normalização e referências a música/áudio.
-- Composições HyperFrames **em formato editável**, com código/estrutura/versões, duração, dependências e eventuais arquivos auxiliares; não substituí-las por MP4 achatado.
-- Presets e configurações de projeto que afetam o render, preservando compatibilidade ao reabrir.
-- IDs de ativos no servidor, hash, MIME, tamanho, duração/metadata, direito/origem quando aplicável; **nunca** dependência exclusiva de `C:\\...`, `file:`, URL `blob:` ou storage local de um único navegador.
-- **Nunca** salvar API keys ou segredos de outros serviços dentro do projeto.
+### Conectividade instável
 
-### Arquivos e upload
+- Continuar edição no cliente, quando possível, se a LAN cair; guardar rascunho e fila local recuperável. Não declarar checkpoint no host enquanto offline.
+- Ao voltar a LAN, enviar mudanças pendentes e retomar chunks se ainda houver bytes originais no cache. Se o dispositivo/cache foi perdido antes do upload, informar que o servidor **não possui aquele original**.
+- Distinguir perdas de conexão temporárias de erros permanentes (cota, formato inválido, autorização); nunca travar o editor aguardando a rede.
 
-- Guardar **vídeos, áudios, imagens, GIFs e demais mídias originais** importados localmente — preferencialmente em volume persistente do servidor self-hosted ou storage de objetos que o administrador escolher.
-- Upload multipart/chunks, pausável/reiniciável, hash de integridade, progresso por arquivo, tentativas com limite e limpeza segura de uploads parciais.
-- Metadados do projeto podem ser salvos antes do fim do envio, mas o projeto deve ficar **Pendente de sincronização**, nunca **Sincronizado**, enquanto houver dependências locais faltantes.
-- Metadados e mídia devem ser referenciados por IDs gerenciados pelo servidor; garantir que o editor mobile possa resolver permissões e URLs temporárias.
-- Projetos grandes: cotas configuráveis, deduplicação (quando apropriada), armazenamento/backup, estimativa de espaço e tratamento explícito de falta de disco.
-- Gerar proxies/miniaturas/waveforms para preview apenas como derivados; não eliminar originais após gerar proxy.
-- Para fontes externas de Links, sincronizar o arquivo apenas se obtido **legalmente e com acesso autorizado**. Players incorporados podem continuar dependentes da origem e talvez não possam ser exportados. Exibir essa restrição.
+## 3. Salvamento no host a cada três minutos
 
-## 4. Edição simultânea e resiliência
+**Política definida pelo proprietário:** o host cria snapshots/checkpoints do projeto **a cada 180 segundos enquanto o projeto estiver ativo**, e deve haver **Salvar agora** (Ctrl+S/Cmd+S ou botão, também visível no mobile).
 
-- Identificar `projectId`, `revision` e etag/base revision ou equivalente; toda gravação compara a versão atual para não perder edições anteriores.
-- Definir política de edição simultânea: *single writer* com aviso e takeover explícito, ou resolução de conflito por revisão. **Não aceitar last-write-wins silencioso.**
-- Rascunho local/autosave de recuperação opcionais, sincronização manual por Ctrl+S obrigatória, status de alterações e tentativa de sair com mudanças pendentes.
-- Reabrir após reiniciar o PC, servidor, contêiner ou navegador, sem depender da sessão antiga; volumes persistentes e backup documentados.
-- Diferenciar cache de preview de projeto/propriedade da timeline para evitar divergência preview vs export.
+Arquitetura recomendada:
 
-## 5. Auditoria técnica antes da implementação
+1. Manter o autosave **local** já existente para recuperar interações recentes.
+2. O navegador envia **mudanças pequenas do estado editável** para o host continuamente, por HTTP (debounce) ou canal autenticado, sem reenviar originais a cada corte. O servidor mantém revisão de trabalho atualizada.
+3. A cada 180 segundos, o **servidor** grava um checkpoint persistente do estado conhecido e validado do projeto; implementá-lo em job confiável. Ao clicar Salvar agora, fazer flush de alterações pendentes e solicitar checkpoint imediato. Não criar checkpoint "novo" se a versão mais recente não chegou ao host.
+4. Persistir cenas, pistas/faixas, clipes, timestamps, recortes, efeitos, keyframes, textos, áudio, normalização, proporção, legendas, templates/HTML HyperFrames editáveis, além de referencias de assets e estados de sincronização.
+5. Snapshot pode ser salvo **mesmo com arquivos pendentes**: mostrar `Projeto salvo no servidor — 2 mídias pendentes`, distinto de `Tudo sincronizado`. Projetos pendentes podem ser reabertos com placeholders.
+6. Controle de concorrência usando `projectId`, `revision` e comparação de revisão base; definir lock de um editor por vez ou conflito explícito. Nunca sobrescrever alterações de outro aparelho silenciosamente.
+7. Usar retenção/limpeza de snapshots por política configurável, com versão de schema, migrações, backup e restauração.
 
-O repositório apresenta infraestrutura web em Next.js, componentes de projeto, renderização local/servidor, integração Docker e autenticação. Isso **não confirma** que todo o fluxo PC → servidor → celular já exista.
+**Limite físico:** se cliente ficar offline, o host só conhece a última revisão já recebida; o último rascunho estará local até reconectar. A cada três minutos **não** garante salvar alterações que nunca chegaram ao servidor. Exibir dois estados separados: `Local salvo` e `Servidor atualizado`.
 
-Conferir na branch atual:
-1. Onde ficam os estados de projeto/timeline, esquema e serialização; se `Ctrl+S` já é usado e o que ele persiste.
-2. Onde os uploads locais ficam e por quanto tempo: blobs, File System Access, banco, cache, volumes e assets remotos.
-3. Qual mecanismo de identidade/autorização está disponível e como proteger projetos/URLs de mídia.
-4. Qual infraestrutura de storage persistente existe no Docker/Windows e o custo de manter vídeos originais.
-5. Quais operações de timeline e componentes possuem suporte touch/mobile e o que precisa ser adaptado.
-6. Se os HyperFrames salvam composição de origem e/ou apenas output renderizado.
-7. Compatibilidade das operações F02–F08 com salvamento e reabertura do projeto. F10 deve integrar as funcionalidades já entregues.
+## 4. Edição em PC e celular
 
-**Não começar a fase F10 antes de fechar as fases prioritárias atuais.**
+1. Autenticar no Editor pela LAN e listar no painel **Meus projetos** os projetos do host, não somente `IndexedDB` do navegador atual.
+2. Abrir projeto editável com a última revisão consistente, mapeando `serverAssetId` a URLs de mídia/proxy autorizadas. O original de alta qualidade permanece centralizado.
+3. Quando o asset ainda não estiver verificado no host, manter clipe, duração, recortes, posição e metadados na timeline, exibindo o placeholder ⚠️ no dispositivo que não tem os bytes.
+4. Oferecer editor **touch-first** no celular para selecionar, mover, dividir, aparar, ajustar texto/volume e salvar, mantendo o estado que o PC poderá reabrir.
+5. Prévia rápida no cliente usando arquivo local quando disponível e proxy/derivados gerados pelo host quando não estiver; preservar sincronismo e fidelidade de enquadramento. O cliente ainda usa CPU/GPU para interface/decodificação — o objetivo é evitar peso desnecessário, não exigir CPU zero.
+6. Permitir retornar ao PC na mesma revisão, respeitando conflitos e histórico.
 
-## 6. Marcos sugeridos
+### Formato editável, não MP4
 
-- **F10-A — Auditoria e especificação**: mapa real de projeto, arquivos, persistência atual, UI mobile, storage, autenticação e migração de schema.
-- **F10-B — Save remoto**: Ctrl+S / botão salvar, revisão no servidor, progresso de sincronização e persistência de originais/resumable uploads.
-- **F10-C — Lista e reabertura**: Meus projetos, autorizações de acesso, carregamento independente do PC e restauração de dependências.
-- **F10-D — Edição mobile**: timeline responsiva, gestos touch, preview/proxies, operações essenciais, save e export do servidor quando disponível.
-- **F10-E — Segurança e consistência**: login, acesso remoto HTTPS opcional, versionamento/conflitos, quotas, backup, recuperação e testes.
+O documento de projeto é um modelo não destrutivo versionado. Nunca armazenar apenas render final, link `blob:`, `file:`, caminho `C:\\...` ou arquivos de um só navegador como fonte universal. Proxies são derivados. HyperFrames deve preservar a composição editável e dependências, não apenas o resultado achatado.
 
-## 7. Testes de aceite
+## 5. Renderização e tarefas pesadas
 
-1. Criar no PC um projeto com vídeo original grande, áudio, legendas, GIF, animação HyperFrames e três cortes. **Ctrl+S** envia estado editável e todos os originais sem renderizar.
-2. Com o servidor ativo e PC desligado, abrir projeto pelo celular; todos os arquivos podem ser acessados pelo servidor e clipes têm os mesmos cortes e tempos.
-3. Mudar trims/legendas/volume pelo celular, salvar; reabrir no PC e recuperar essas alterações.
-4. Interromper rede no meio de upload; projeto exibe **Sincronização pendente**, retoma transferências e só informa **Sincronizado** ao concluir.
-5. Garantir mesmo material em preview e render, sem perda de qualidade por uso de proxies mobile.
-6. Simular duas sessões modificando o mesmo projeto: informar conflito/lock e oferecer resolução sem perder edições.
-7. Tentar acessar um projeto de outro usuário, URLs privadas de mídia e upload inválido: bloquear corretamente.
-8. Reiniciar servidor/contêiner e confirmar que projetos e originais persistem com backup restaurável.
-9. Confirmar que a edição não requer chamadas a IAs nem exportar MP4 para salvar, e que nenhuma API key aparece no arquivo de projeto.
+- Render e export final devem rodar no host usando **originais verificados e já armazenados**. Reaproveitar o render server existente; refatorar seu protocolo para referenciar `serverAssetId` e **evitar reupload integral de todos os arquivos na exportação**.
+- Se houver original obrigatório pendente: bloquear a exportação final e informar exatamente quais assets faltam. Preview parcial pode ser permitido com aviso, mas **não** exportar vídeo final silenciosamente usando emoji/silêncio/quadro preto.
+- Efeitos/previews de baixa latência podem continuar no cliente; tarefas caras (transcrição CPU, proxy, renders) podem ir ao host por jobs separados. Não perder fluidez da interface durante jobs.
+- Garantir equivalência de enquadramento, áudio e composição entre preview e export, ou avisar limitações explicitamente.
 
-## 8. Segurança, privacidade e limites
+## 6. Segurança, privacidade e armazenamento
 
-- **Armazenamento no servidor escolhido pelo usuário** é o padrão desta feature; não escolher ou ativar armazenamento em nuvem de terceiros implicitamente.
-- A sincronização deve ser opt-in e mostrar uso aproximado de armazenamento/banda. Arquivos de vídeo podem ser grandes; **não prometer sincronização instantânea**.
-- Um arquivo salvo como `MP4` final **não** substitui os originais + estado de timeline. Preview de qualidade baixa é somente derivado.
-- Para vídeos, GIFs e mídias de terceiros, respeitar licença/termos e disponibilidade remota.
-- Segredos de modelos de IA e de ngrok pertencem ao cofre do backend; jamais serializar em documentos de projeto.
+- **LAN como padrão.** Host e clientes usam login/sessão/autorização por usuário/projeto; validar também downloads de originais/proxies, não só a interface. Evitar exposição de URLs sem credencial.
+- O ngrok de F09 destina-se **somente ao MCP**. Não expor frontend nem biblioteca no mesmo túnel. Uma eventual edição fora da LAN exige uma configuração própria de HTTPS e autenticação.
+- Validar upload de mídia, hashes, tamanho, quota e caminhos; evitar traversal, acessos indevidos a arquivos e vazamento de tokens.
+- Armazenamento self-hosted escolhido pelo usuário: originais no volume/objeto persistente do host, derivados descartáveis, backups restauráveis, cotas, deduplicação controlada, limpeza segura de órfãos.
+- Segredos de IA, ngrok, MCP ou outros provedores ficam no backend seguro e nunca em documento de projeto, mídia ou logs.
+- Para links externos/embeds (F07), não assumir download/reprodução/export automáticos: observar licenças, termos e permissões.
+
+## 7. Marcos de implementação
+
+- [ ] **F10-A — Migração/contrato:** mapear esquema e storage local atuais; definir API de projeto/asset, revisão e permissões; preparar volumes persistentes e compatibilidade.
+- [ ] **F10-B — Upload não bloqueante:** manter drag/drop e preview locais já existentes; adicionar fila automática, chunks/retry/recomeço, verificação no host, status ⚠️ por asset.
+- [ ] **F10-C — Salvamento periódico:** sincronizar deltas de timeline, implementar snapshot real no servidor a cada 180s, flush/Salvar agora, histórico, recuperação offline e estados distintos.
+- [ ] **F10-D — Reabrir em outro aparelho:** lista de projetos do host, referências remotas, proxies, placeholders faltantes, edição touch no celular e retorno PC.
+- [ ] **F10-E — Export e robustez:** render com originais do host sem upload duplicado, concorrência, autenticação, backup/quotas e testes de performance LAN.
+
+## 8. Testes de aceitação obrigatórios
+
+- [ ] Adicionar uma foto e um vídeo grande no cliente: a timeline reage imediatamente, mesmo antes de upload acabar; editar, cortar e mover durante upload.
+- [ ] Mídia original chega ao servidor por fila assíncrona, com checksum; após upload, cópia do host persiste independentemente do navegador original.
+- [ ] A cada 180 s de projeto ativo, o host cria um checkpoint consistente; Ctrl+S/Cmd+S/Salvar agora produz checkpoint imediato sem MP4.
+- [ ] Com um asset ainda pendente, salvar projeto e reabrir em outro dispositivo: clipe permanece com ⚠️, metadados/posições intactos e aviso de mídia ausente.
+- [ ] Cliente que possui original continua editando durante falha de upload; outro dispositivo não finge ter recebido arquivo.
+- [ ] Desligar cliente original depois de conclusão do upload, abrir pelo celular e editar/guardar o mesmo projeto; retornar ao PC sem perda.
+- [ ] Cortar rede no meio de upload/salvamento, reconectar e retomar com estado consistente, sem sobrescrever silenciosamente revisões concorrentes.
+- [ ] Reiniciar Docker/host e recuperar projeto, originais e snapshots de backup.
+- [ ] Render final no host reutiliza originais já verificados e bloqueia export se faltar algum; preview cacheado não reduz qualidade final.
+- [ ] Outro usuário não consegue baixar/alterar projetos ou mídias sem autorização; documentação/testes não expõem chaves secretas.
+
+**Ação atual:** documentação revisada em 19/11/2026; **nenhum código de F10 foi implementado por esta alteração**.
