@@ -12,6 +12,7 @@ const PLANNED_COMMAND_TYPES = new Set([
 	"split_at",
 	"delete_elements",
 	"update_text",
+	"insert_hyperframes",
 	"undo",
 	"redo",
 ]);
@@ -93,6 +94,24 @@ function parseCommand(value: unknown): PlannedCommand | null {
 						},
 					}
 				: null;
+		case "insert_hyperframes": {
+			if (typeof payload.title !== "string" || !payload.title.trim() ||
+				payload.title.length > 100 ||
+				!["beats", "time"].includes(String(payload.mode)) ||
+				typeof payload.durationSeconds !== "number" ||
+				!Number.isFinite(payload.durationSeconds) ||
+				payload.durationSeconds < 0.3 || payload.durationSeconds > 8 ||
+				(payload.mode === "time" &&
+					(typeof payload.startSeconds !== "number" ||
+					!Number.isFinite(payload.startSeconds) ||
+					payload.startSeconds < 0))) return null;
+			return { type: value.type, payload: {
+				title: payload.title.trim(),
+				mode: payload.mode,
+				durationSeconds: payload.durationSeconds,
+				...(payload.mode === "time" ? { startSeconds: payload.startSeconds } : {}),
+			} };
+		}
 		case "undo":
 		case "redo":
 			return { type: value.type, payload: {} };
@@ -214,6 +233,17 @@ export async function POST(request: Request) {
 	}
 
 	const snapshot = JSON.stringify(session.snapshot).slice(0, 120_000);
+	// Never accept raw audio/video from request. Only bounded analysis summaries.
+	const audioRecord = isRecord(body.audioAnalysis) ? body.audioAnalysis : null;
+	const peaks = Array.isArray(audioRecord?.peaksSeconds)
+		? audioRecord.peaksSeconds.filter((n): n is number =>
+			typeof n === "number" && Number.isFinite(n) && n >= 0 &&
+			n <= 60 * 60 * 3).slice(0, 48) : [];
+	const audioAnalysis = JSON.stringify({
+		method: "short-time RMS peaks (not speech recognition)",
+		peaksSeconds: peaks,
+		audioReadable: peaks.length > 0,
+	});
 	let completion: Awaited<ReturnType<typeof createRoutedPlan>>;
 	try {
 		completion = await createRoutedPlan({
@@ -222,11 +252,11 @@ export async function POST(request: Request) {
 			messages: [
 				{
 					role: "system",
-					content: "Você é um assistente de edição do OpenCut Classic. Responda somente com JSON: summary string e commands array. Use apenas comandos permitidos. Nunca invente trackId ou elementId: copie-os do snapshot. auto_cut usa gentle, balanced ou dynamic. set_caption_style usa placement top, middle ou bottom e preset clean, box ou social. split_at usa seconds. delete_elements recebe elements com trackId e elementId. update_text recebe trackId, elementId e content. undo e redo usam payload vazio. Não exporte, não apague mídia ou execute ações fora do pedido.",
+					content: "Você é um assistente de edição do OpenCut Classic. Responda somente com JSON: summary string e commands array. Use apenas comandos permitidos. Nunca invente trackId ou elementId: copie-os do snapshot. auto_cut usa gentle, balanced ou dynamic. set_caption_style usa placement top, middle ou bottom e preset clean, box ou social. split_at usa seconds. delete_elements recebe elements com trackId e elementId. update_text recebe trackId, elementId e content. insert_hyperframes usa title (até 100 caracteres), durationSeconds (0.3 a 8), mode beats para sobrepor texto nas batidas do áudio ou mode time com startSeconds. Um HyperFrame será sempre uma camada de texto editável e não executará HTML/JS gerado. Use os picos em audioAnalysis para decidir, e identifique se a análise contém somente energia, não transcrição. undo e redo usam payload vazio. Não exporte, não apague mídia ou execute ações fora do pedido.",
 				},
 				{
 					role: "user",
-					content: `Pedido de edição:\\n${body.instruction.trim()}\\n\\nSnapshot atual:\\n${snapshot}`,
+					content: `Pedido de edição:\\n${body.instruction.trim()}\\n\\nSnapshot atual:\\n${snapshot}\\n\\nAudioAnalysis (picos de volume reais extraídos da timeline):\\n${audioAnalysis}`,
 				},
 			],
 		});
