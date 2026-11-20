@@ -35,9 +35,12 @@ export function sanitizeComposition({ html, css }) {
 
 export function compositionHtml({ html, css, width, height, duration }) {
   const safe = sanitizeComposition({ html, css });
+  // The official CLI injects its own seekable inline runtime (window.__hf).
+  // Keep that runtime working while sanitization rejects ALL user scripts,
+  // handlers, SVG, imports and external resources before constructing HTML.
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy"
- content="default-src 'none'; script-src 'none'; img-src 'none'; font-src 'none'; connect-src 'none'; media-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+ content="default-src 'none'; script-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <style>
 *,*::before,*::after{box-sizing:border-box}
 html,body{width:100%;height:100%;margin:0;padding:0;background:transparent;overflow:hidden}
