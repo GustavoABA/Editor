@@ -1,8 +1,8 @@
 import { createCanvasSurface } from "./canvas-utils";
-import { effectsRegistry, resolveEffectPasses } from "@/effects";
+import { effectsRegistry } from "@/effects";
 import { buildDefaultParamValues } from "@/params/registry";
 import type { ParamValues } from "@/params";
-import { gpuRenderer } from "./gpu-renderer";
+import { applyCanvasClipEffects } from "@/effects/canvas-effects";
 
 const PREVIEW_SIZE = 160;
 const PREVIEW_IMAGE_PATH = "/effects/preview.jpg";
@@ -58,17 +58,10 @@ class EffectPreviewService {
 					? params
 					: buildDefaultParamValues(definition.params);
 
-			const passes = resolveEffectPasses({
-				definition,
-				effectParams: resolvedParams,
-				width: uniformDimensions?.width ?? size,
+			const result = applyCanvasClipEffects({
+				source, width: uniformDimensions?.width ?? size,
 				height: uniformDimensions?.height ?? size,
-			});
-			const result = this.applyGpuEffect({
-				source,
-				width: size,
-				height: size,
-				passes,
+				effects: [{ id: "preview", type: effectType, params: resolvedParams, enabled: true }],
 			});
 
 			targetCtx.drawImage(result, 0, 0, size, size);
@@ -128,24 +121,7 @@ class EffectPreviewService {
 		return this.testSourceCanvas;
 	}
 
-	private applyGpuEffect({
-		source,
-		width,
-		height,
-		passes,
-	}: {
-		source: OffscreenCanvas;
-		width: number;
-		height: number;
-		passes: ReturnType<typeof resolveEffectPasses>;
-	}): OffscreenCanvas {
-		return gpuRenderer.applyEffect({
-			source,
-			width,
-			height,
-			passes,
-		});
-	}
+
 }
 
 export const effectPreviewService = new EffectPreviewService();
