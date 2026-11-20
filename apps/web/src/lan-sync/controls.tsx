@@ -65,7 +65,9 @@ export function LanSyncControls() {
     const scenes = editor.scenes.getScenes();
     const fingerprint = JSON.stringify({
       scenes, settings: active.settings, name: active.metadata.name,
-      media: assets.map((a) => ({ id: a.id, size: a.file.size, name: a.name })),
+      media: assets.map((a) => ({
+        id: a.id, size: a.remoteProxy ? a.originalSize : a.file.size, name: a.name,
+      })),
     });
     if (!checkpoint && lastDocumentFingerprint.current === fingerprint) return;
     documentBusy.current = true;
@@ -85,7 +87,11 @@ export function LanSyncControls() {
       // Retain references to originals that are still uploading or absent on this device.
       const remote = await readRemoteProject(projectId);
       const localManifest = assets.map((a) => ({
-        id: a.id, name: a.name, type: a.type, size: a.file.size, mimeType: a.file.type,
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        size: a.remoteProxy ? (a.originalSize ?? a.file.size) : a.file.size,
+        mimeType: a.remoteProxy ? a.originalMimeType : a.file.type,
       }));
       const knownIds = new Set(localManifest.map((asset) => asset.id));
       const pendingRemote = (remote?.assets ?? []).filter((asset) => !knownIds.has(asset.id));
@@ -124,6 +130,8 @@ export function LanSyncControls() {
     let disposed = false;
     const uploadNewAssets = () => {
       for (const asset of editor.media.getAssets()) {
+        // Remote proxies are derived viewing copies. Never upload one as an original.
+        if (asset.remoteProxy) continue;
         if (completed.current.has(asset.id) || inFlight.current.has(asset.id)) continue;
         if ((retryAfter.current.get(asset.id) ?? 0) > Date.now()) continue;
         inFlight.current.add(asset.id);
@@ -171,7 +179,9 @@ export function LanSyncControls() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [connected, syncDocument]);
 
-  const pending = editor.media.getAssets().filter((asset) => !completed.current.has(asset.id));
+  const pending = editor.media.getAssets().filter(
+    (asset) => !asset.remoteProxy && !completed.current.has(asset.id),
+  );
   const count = pending.length;
   const failed = pending.filter((asset) => uploadStates[asset.id]?.status === "failed").length;
   const progress = pending.find((asset) => uploadStates[asset.id]?.status === "uploading");
