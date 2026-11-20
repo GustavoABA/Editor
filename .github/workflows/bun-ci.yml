@@ -77,5 +77,6 @@ jobs:
 
       - name: Run tests
         working-directory: apps/web
-        run: echo "No tests implemented yet"
-        continue-on-error: true
+        run: |
+          bun test src/lan-sync/server.test.ts
+          bun test src/lan-sync/preview.test.ts
