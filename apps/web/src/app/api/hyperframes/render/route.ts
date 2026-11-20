@@ -74,6 +74,7 @@ export async function POST(request: Request) {
         CHROME_BIN: "/usr/bin/chromium-browser",
         PUPPETEER_EXECUTABLE_PATH: "/usr/bin/chromium-browser",
         HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        HYPERFRAMES_NO_TELEMETRY: "1",
         NO_PROXY: "*",
         HTTP_PROXY: "",
         HTTPS_PROXY: "",
