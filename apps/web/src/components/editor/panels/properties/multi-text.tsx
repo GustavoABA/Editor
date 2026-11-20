@@ -72,7 +72,7 @@ export function BatchTextProperties({ selected }: { selected: SelectedText[] }) 
             value={motion} onChange={e => setMotion(e.target.value as TextMotionPreset)}>
             <option value="fade">Aparecer / desaparecer</option>
             <option value="slide">Deslizar + transparência</option>
-            <option value="none">Sem movimento (somente transparência)</option>
+            <option value="scale">Zoom suave + transparência</option>
           </select>
         </label>
         <label className="flex items-center justify-between gap-2 text-xs">
