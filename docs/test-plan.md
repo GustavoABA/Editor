@@ -32,7 +32,7 @@ bun test src/automation/components/hyperframes.test.ts
 bun test src/ai/config-store.test.ts
 ```
 
-A compilação usa Rust/WASM e os caches conforme `.github/workflows/bun-ci.yml`. O CI valida build e unit tests; **não substitui teste de UI nem todos os serviços opcionais**.
+A compilação usa Rust/WASM e os caches conforme `.github/workflows/bun-ci.yml`. O CI valida build e unit tests; **não substitui teste de UI nem todos os serviços opcionais**. O HyperFrames está empacotado no `web`, sem perfil ou serviço separado: confira também `.github/workflows/hyperframes-smoke.yml` e [`hyperframes-integration.md`](hyperframes-integration.md).
 
 ## 2. Matriz de aceite por funcionalidade
 
@@ -55,7 +55,7 @@ A compilação usa Rust/WASM e os caches conforme `.github/workflows/bun-ci.yml`
 
 - F02: análise do mix exportado, keyframes, fades e limites verdadeiros após mixagem.
 - F03: executor de código Node personalizável **em sandbox isolado** e validação de provedores reais, sem execução arbitrária no servidor com credenciais.
-- F04: compositor completo HyperFrames/HTML/CSS, bibliotecas de templates e IA que entregue composição editável.
+- F04: compositor HTML/CSS + IA já presente no `web`; pendentes testes de imagem web completa, transparência, fidelidade de export, arrastar elementos HTML individualmente e segurança do subprocesso.
 - F07: integração de outras fontes autorizadas, monitoramento de live e casos CORS/licenciamento.
 - F09: validar agente ngrok real e configurações de autenticação.
 - F01: proteger comandos adicionais de efeitos, keyframes, duplicação e automação.
