@@ -1,13 +1,12 @@
 # LAN, MCP, Ollama and n8n automation
 
-## Current implementation versus planned LAN architecture
+## Current implementation — branch `teste/implementacao`
 
-**Verified in source (19 Nov 2026):** the Next.js UI can be accessed over the LAN, but normal editing and interactive preview run inside the client browser. The current project document is saved in browser IndexedDB and imported originals are stored in browser OPFS (fallback IndexedDB). They are **not yet automatically centralized on the host** at import time. The server-side export endpoint uploads the manifest and media files to a render job on the host and uses headless Chromium for final rendering. MCP commands are applied by the open editor tab.
+**For Codex/other agents:** all development, validation, builds, and fixes must target `teste/implementacao` (PR #2), not `main`. Read `AGENTS.md`, `features.md` and [F10 implementation](lan-hybrid-implementation.md).
 
-**Planned, not implemented:** [F10 hybrid LAN editing](cross-device-project-sync.md) keeps immediate browser editing while uploading original media to persistent host storage in the background; the server checkpoints project state every three minutes and on manual Save. Missing uploads remain visible as ⚠️ placeholders on other devices. Do not equate server-side export or the n8n media inbox with synchronized, editable projects.
+**Already implemented experimentally in this branch:** the Next.js UI runs in LAN; timeline interaction, client-side preview and recovery drafts remain local. There are now opt-in LAN endpoints for host-persisted projects, revisions and checkpoints, background chunk upload of originals, missing-media warnings, remote project import, and server render reuse of verified originals. Docker now contains a separate `lan_sync_data` volume. **This is not a completed F10:** remote proxies for big videos, mobile-first UX, granular access policies and real two-device E2E testing remain open.
 
-The instructions below describe services and integrations that exist in the repository; live LAN availability, authentication and rendering still require deployment and testing.
-
+**The `main` branch only contains the original LAN implementation and the reference plan.** Do not mistake the state of the `main` for the newer experimental branch. MCP automation still requires an editor tab for interactive actions.
 ## Start automatically
 
 The Compose services use `restart: unless-stopped`. Start them once with:
