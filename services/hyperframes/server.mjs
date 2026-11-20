@@ -91,6 +91,7 @@ export async function renderToFile(body, destination) {
         PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
         CHROME_BIN: process.env.CHROME_BIN || "/usr/bin/chromium",
         HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        HYPERFRAMES_NO_TELEMETRY: "1",
         NO_PROXY: "*",
         HTTP_PROXY: "",
         HTTPS_PROXY: "",
