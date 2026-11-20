@@ -1,4 +1,4 @@
-import { authorizeAutomationRequest } from "@/server-automation/auth";
+import { authorizeSync } from "@/lan-sync/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +16,8 @@ function internalConfig() {
 }
 
 function authorized(request: Request): Response | null {
-  const result = authorizeAutomationRequest({ request, allowSameOrigin: true });
-  if (!result.ok) return Response.json({ error: result.error }, { status: result.status });
-  return null;
+  // Require the same host token as other CPU-intensive LAN media endpoints.
+  return authorizeSync(request);
 }
 
 export async function GET(request: Request) {
