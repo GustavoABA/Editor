@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 // Audio peak analysis is exported from the component for reuse and integration testing.
-import { findAudioPeaks } from "./hyperframes";
+import { findAudioPeaks } from "../audio-peaks";
 test("detect distinct peaks and reject silent timeline", () => {
   const data = new Float32Array(16_000 * 2);
   for (let i = 16_000 * 0.5; i < 16_000 * 0.65; i++) data[i] = 0.75;
