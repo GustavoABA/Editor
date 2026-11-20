@@ -1,68 +1,101 @@
 import { authorizeSync } from "@/lan-sync/server";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 240;
 
-const HOST = "http://hyperframes-render:8712";
-function worker() {
-  const token = process.env.HYPERFRAMES_INTERNAL_TOKEN || "";
-  // The worker never accepts a caller-supplied host or URL (SSRF guard).
-  const config = process.env.HYPERFRAMES_SERVICE_URL || HOST;
-  if (config !== HOST && config !== "http://127.0.0.1:8712")
-    return null;
-  return token.length >= 16 ? { url: config, token } : null;
+const execute = promisify(execFile);
+const NATIVE_RENDERER = "/opt/opencut-hyperframes/server.mjs";
+const NATIVE_CLI = "/opt/opencut-hyperframes/node_modules/.bin/hyperframes";
+const MAX_JSON = 96_000;
+const MAX_VIDEO = 55 * 1024 * 1024;
+let rendering = false;
+
+async function installed(): Promise<boolean> {
+  try {
+    await Promise.all([access(NATIVE_RENDERER), access(NATIVE_CLI)]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function GET(request: Request) {
   const denied = authorizeSync(request);
   if (denied) return denied;
-  const config = worker();
-  if (!config) return Response.json({ available: false, reason: "Configure HYPERFRAMES_INTERNAL_TOKEN." });
-  try {
-    const response = await fetch(config.url + "/health", {
-      headers: { "x-hyperframes-token": config.token },
-      signal: AbortSignal.timeout(4_000), cache: "no-store",
-    });
-    return Response.json({ available: response.ok, engine: "official-hyperframes-cli",
-      format: "webm", transparent: true });
-  } catch {
-    return Response.json({ available: false, engine: "official-hyperframes-cli" });
-  }
+  return Response.json({
+    available: await installed(), busy: rendering,
+    integrated: true, service: "web", engine: "official-hyperframes-cli",
+    format: "webm", needsSeparateContainer: false,
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
   const denied = authorizeSync(request);
   if (denied) return denied;
-  const config = worker();
-  if (!config) return Response.json({ error: "Renderizador HyperFrames não configurado." }, { status: 503 });
+  if (!(await installed())) {
+    return Response.json({ error: "HyperFrames não instalado no contêiner web. Reconstrua a imagem do Editor." },
+      { status: 503 });
+  }
+  if (rendering) return Response.json({ error: "Renderização HyperFrames já em execução." }, { status: 429 });
+
   const len = Number(request.headers.get("content-length") || "0");
-  if (!Number.isSafeInteger(len) || len < 1 || len > 96_000)
-    return Response.json({ error: "HTML/CSS muito grande (máximo de 96 KB)." }, { status: 413 });
+  if (!Number.isSafeInteger(len) || len < 1 || len > MAX_JSON) {
+    return Response.json({ error: "Composição precisa ter entre 1 byte e 96 KB." }, { status: 413 });
+  }
+  rendering = true;
+  let directory: string | null = null;
   try {
     const raw = await request.text();
-    if (Buffer.byteLength(raw) > 96_000) return Response.json({ error: "Payload muito grande." }, { status: 413 });
-    const response = await fetch(config.url + "/render", {
-      method: "POST", headers: {
-        "Content-Type": "application/json",
-        "x-hyperframes-token": config.token,
-      }, body: raw, signal: AbortSignal.timeout(225_000), cache: "no-store",
-    });
-    if (!response.ok) {
-      const err: unknown = await response.json().catch(() => null);
-      return Response.json({ error: err && typeof err === "object" && "error" in err &&
-        typeof err.error === "string" ? err.error : "Falha no renderizador HyperFrames." },
-        { status: response.status === 429 ? 429 : 502 });
+    if (Buffer.byteLength(raw, "utf8") > MAX_JSON) {
+      return Response.json({ error: "Composição acima de 96 KB." }, { status: 413 });
     }
-    if (!response.body) return Response.json({ error: "Renderizador retornou mídia vazia." }, { status: 502 });
-    // Stream the rendered overlay directly back to the browser. Do not persist
-    // untrusted composition code or intermediate files in the web container.
-    return new Response(response.body, {
-      headers: { "Content-Type": "video/webm", "Cache-Control": "no-store",
-        "Content-Disposition": 'attachment; filename="hyperframes-overlay.webm"' },
+    // One-shot subprocess, not an HTTP worker. Generate random private file
+    // paths; never pass caller-controlled paths to the CLI or shell.
+    directory = await mkdtemp(join(tmpdir(), "opencut-hf-request-"));
+    const input = join(directory, "input.json");
+    const output = join(directory, "overlay.webm");
+    await writeFile(input, raw, { mode: 0o600 });
+    await execute("node", [NATIVE_RENDERER, input, output], {
+      timeout: 220_000,
+      maxBuffer: 150_000,
+      // Child process must not inherit app, database, LAN or AI credentials.
+      env: {
+        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+        HOME: "/tmp",
+        XDG_CACHE_HOME: "/tmp/.cache",
+        XDG_CONFIG_HOME: "/tmp/.config",
+        CHROME_BIN: "/usr/bin/chromium-browser",
+        PUPPETEER_EXECUTABLE_PATH: "/usr/bin/chromium-browser",
+        HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        NO_PROXY: "*",
+        HTTP_PROXY: "",
+        HTTPS_PROXY: "",
+      },
     });
-  } catch (err) {
-    return Response.json({ error: err instanceof Error && err.name === "TimeoutError"
-      ? "HyperFrames excedeu o tempo limite." : "HyperFrames indisponível. Ative o perfil Docker hyperframes." },
+    const bytes = await readFile(output);
+    if (bytes.length < 100 || bytes.length > MAX_VIDEO ||
+        bytes.subarray(0, 4).toString("hex") !== "1a45dfa3") {
+      throw Error("Invalid WebM output");
+    }
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        "Content-Type": "video/webm",
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": 'attachment; filename="hyperframes-overlay.webm"',
+      },
+    });
+  } catch (error) {
+    console.error("[hyperframes-native] failed", error instanceof Error ? error.message.slice(0, 300) : "");
+    return Response.json({ error: "Não foi possível renderizar a composição HyperFrames. Revise HTML/CSS e os logs do Editor." },
       { status: 502 });
+  } finally {
+    if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {});
+    rendering = false;
   }
 }
