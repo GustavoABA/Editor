@@ -80,10 +80,11 @@ export function AudioNormalizePanel() {
       const track = tracks.find((t) => t.id === row.trackId);
       const element = track?.elements.find((e) => e.id === row.elementId);
       if (!element || element.locked || !["audio", "video"].includes(element.type)) continue;
-      const before = typeof element.params.volume === "number" ? element.params.volume : 0;
+      // FFmpeg measured the ORIGINAL source, without timeline gain. The new
+      // absolute volume must equal the computed gain to preserve its peak ceiling.
       updates.push({
         trackId: row.trackId, elementId: row.elementId,
-        patch: { params: { ...element.params, volume: clampDb(before + row.gainDb) } },
+        patch: { params: { ...element.params, volume: clampDb(row.gainDb) } },
       });
     }
     if (!updates.length) { setMessage("Nenhum clipe selecionado para aplicar."); return; }
