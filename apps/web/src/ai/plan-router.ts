@@ -71,14 +71,14 @@ function responseContent(raw: unknown, provider: PlanProvider): string | null {
   return typeof content === "string" && content.length ? content : null;
 }
 
-async function callProvider(config: Config, messages: PlanMessage[], format: unknown): Promise<PlanCompletion> {
+async function callProvider(config: Config, messages: PlanMessage[], format: unknown, maxTokens = 1024): Promise<PlanCompletion> {
   const { provider, model, url, token } = config;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   let body: unknown;
   if (provider === "anthropic") {
     headers["x-api-key"] = token || "";
     headers["anthropic-version"] = "2023-06-01";
-    body = { model, max_tokens: 1024,
+    body = { model, max_tokens: maxTokens,
       system: messages.filter(m=>m.role==="system").map(m=>m.content).join("\n"),
       messages: messages.filter(m=>m.role!=="system") };
   } else if (provider === "ollama") {
@@ -111,10 +111,12 @@ export async function createRoutedPlan(params: {
   messages: PlanMessage[];
   format: unknown;
   preferred?: unknown;
+  maxTokens?: number;
 }): Promise<PlanCompletion> {
   const order = await providerOrder(params.preferred);
   for (const provider of order) {
-    try { return await callProvider(provider, params.messages, params.format); }
+    try { return await callProvider(provider, params.messages, params.format,
+      Math.min(4096, Math.max(1024, params.maxTokens ?? 1024))); }
     catch (error) {
       console.warn("[ai-router] provider failed:", provider.provider,
         error instanceof Error ? error.message : "unknown error");
