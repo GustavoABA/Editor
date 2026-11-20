@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  downloadRemoteAsset, getLanToken, listRemoteProjects, readRemoteProject,
-  setKnownRevision, setLanToken,
+  downloadRemoteAsset, downloadRemotePreviewAsset, getLanToken, listRemoteProjects,
+  readRemoteProject, setKnownRevision, setLanToken,
 } from "@/lan-sync/client";
 import { storageService } from "@/services/storage/service";
 import { processMediaAssets } from "@/media/processing";
@@ -60,18 +60,30 @@ export function LanRemoteProjectsPanel() {
           missing.push(asset.name + " (upload pendente)");
           continue;
         }
-        if (asset.size > MAX_REMOTE_BROWSER_FILE) {
-          missing.push(asset.name + " (grande demais para a importação web atual)");
-          continue;
-        }
         try {
-          const file = await downloadRemoteAsset(id, asset);
+          const useProxy = asset.size > MAX_REMOTE_BROWSER_FILE;
+          const file = useProxy
+            ? await downloadRemotePreviewAsset(id, asset)
+            : await downloadRemoteAsset(id, asset);
           const processed = await processMediaAssets({ files: [file] });
           const item = processed[0];
           if (!item) throw new Error("Formato indisponível neste navegador");
-          await storageService.saveMediaAsset({ projectId: id, mediaAsset: { ...item, id: asset.id } });
-        } catch {
-          missing.push(asset.name + " (não disponível neste aparelho)");
+          await storageService.saveMediaAsset({
+            projectId: id,
+            mediaAsset: {
+              ...item,
+              id: asset.id,
+              name: asset.name,
+              ...(useProxy ? {
+                remoteProxy: true,
+                originalSize: asset.size,
+                originalMimeType: asset.mimeType || "",
+              } : {}),
+            },
+          });
+        } catch (error) {
+          console.warn("[lan-sync] media preview unavailable:", asset.id, error);
+          missing.push(asset.name + " (prévia indisponível; original preservado no host)");
         }
       }
       const document = remote.document as unknown as SerializedProject;
@@ -108,8 +120,9 @@ export function LanRemoteProjectsPanel() {
       </div>
       <p className="text-muted-foreground mt-1 text-xs">
         Projetos editáveis no host. Mídias não enviadas permanecem pendentes ⚠️.
-        Nesta primeira versão, originais acima de 80 MB não são baixados no cliente;
-        será necessário implementar proxies para visualizá-los remotamente.
+        Arquivos acima de 80 MB usam uma prévia compactada gerada no host (FFmpeg);
+        o original continua armazenado no servidor para a exportação em qualidade total.
+        Se a prévia falhar, o clipe permanece com ⚠️.
       </p>
       {error && <p role="alert" className="mt-2 text-xs text-amber-500">{error}</p>}
       {!!projects.length && (
