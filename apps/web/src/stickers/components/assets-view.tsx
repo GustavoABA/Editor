@@ -50,7 +50,7 @@ export function StickersView() {
 	}, [browseContent, browseStickers, viewMode]);
 
 	return (
-		<div className="flex h-full flex-col py-2">
+		<div className="flex h-full min-h-0 flex-col overflow-hidden py-2">
 			<div className="px-2">
 				<Input
 					size="sm"
@@ -86,7 +86,7 @@ export function StickersView() {
 						</TabsTrigger>
 					))}
 				</TabsList>
-				<div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4">
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 touch-pan-y">
 					<StickersContentView />
 				</div>
 			</Tabs>
