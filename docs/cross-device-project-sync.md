@@ -1,5 +1,7 @@
 # F10 — Arquitetura híbrida LAN e continuidade da edição PC ↔ celular
 
+> **IMPORTANTE PARA CODEX/IA — LEIA PRIMEIRO:** o desenvolvimento e os testes desta F10 já foram iniciados **somente na branch [`teste/implementacao`](https://github.com/GustavoABA/Editor/tree/teste/implementacao)**, com código e pendências no [PR #2](https://github.com/GustavoABA/Editor/pull/2). Este documento na **`main` é referência de planejamento, NÃO a implementação mais recente**. Agentes devem trocar para `teste/implementacao`, validar o que existe e implementar ali o que falta, sem escrever código na `main`. O PR #1/branch antiga foram substituídos.
+
 > **Status (19/11/2026): PLANEJADO / infraestrutura parcialmente existente. NÃO IMPLEMENTADO integralmente.**
 > **Decisão atualizada:** cliente deve editar **imediatamente** usando arquivo local e preview leve; o **upload do original ocorre em segundo plano** ao host. O servidor mantém o projeto editável e faz **snapshots a cada 3 minutos (180 s)**, além de aceitar Ctrl+S / botão Salvar agora. Mídias faltantes são sinalizadas com **⚠️**, sem apagar clipes da timeline.
 > **Prioridade mantida:** F10 somente após F02 → F03 → F04 → F07 → F05 → F09 → F01 → F08, até nova decisão expressa. F06 Sounds permanece adiado.
