@@ -1,4 +1,4 @@
-name: Editor TypeScript Fast Check
+name: Editor Next Fast Build
 
 on:
   push:
@@ -24,6 +24,6 @@ jobs:
       - name: Install dependencies
         working-directory: apps/web
         run: bun install
-      - name: TypeScript typecheck
+      - name: Next.js production compile and typecheck
         working-directory: apps/web
-        run: bunx tsc --noEmit
+        run: bun run build
