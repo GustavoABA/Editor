@@ -60,6 +60,6 @@ O volume Docker `lan_sync_data` precisa ser incluído na política de backup. Em
 
 ## Testes automatizados adicionados
 
-`cd apps/web && bun test src/lan-sync/server.test.ts src/lan-sync/preview.test.ts` cobre token, revisões, snapshots, upload em partes e opções de formatos/FFmpeg para proxies. Os testes de formato **não executam FFmpeg real**: testes E2E de transcodificação com mídias de amostra e LAN permanecem obrigatórios.
+`cd apps/web && bun test src/lan-sync/server.test.ts src/lan-sync/preview.test.ts` cobre token, revisões, snapshots, upload em partes e opções de formatos/FFmpeg para proxies. Além da verificação dos formatos, foi adicionado teste de transcodificação de vídeo curto com FFmpeg **quando o binário está disponível no runner**; nesse teste, o original é comparado antes/depois. **Isso não substitui testes de vídeos reais longos, compatibilidade mobile e LAN entre aparelhos**.
 
 **Critério de conclusão:** não fazer merge em `main` nem marcar F10 como finalizada enquanto CI, testes reais em LAN, transmissão, proxy, conflitos, segurança e export direto dos originais do host não estiverem verificados.
