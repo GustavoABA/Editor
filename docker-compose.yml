@@ -118,6 +118,10 @@ services:
     restart: unless-stopped
     ports:
       - "443:443"
+    environment:
+      # Set this to the host's LAN IP or local DNS name so Caddy presents a
+      # certificate for the address clients actually use.
+      - OPENCUT_LAN_HOST=${OPENCUT_LAN_HOST:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

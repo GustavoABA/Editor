@@ -1,4 +1,4 @@
-https://192.168.2.184 {
+https://{$OPENCUT_LAN_HOST:localhost} {
 	tls internal
 	reverse_proxy web:3000
 }
