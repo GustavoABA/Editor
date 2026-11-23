@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 const base = await mkdtemp(path.join(tmpdir(), "opencut-proxy-test-"));
@@ -10,7 +10,9 @@ process.env.LAN_SYNC_TOKEN = "test-only-secret-over-16-characters";
 const { ensurePreview, previewArguments, previewFormat } = await import("./preview");
 const { finalizeAsset, storeChunk } = await import("./server");
 
-afterAll(async () => { await rm(base, { recursive: true, force: true }); });
+afterAll(async () => {
+  await rm(base, { recursive: true, force: true });
+});
 
 test("remote video preview targets a compact browser-compatible MP4", () => {
   const format = previewFormat({ type: "video", mimeType: "video/quicktime" });
@@ -24,10 +26,12 @@ test("remote video preview targets a compact browser-compatible MP4", () => {
 
 test("audio and still image proxies preserve asset categories", () => {
   expect(previewFormat({ type: "audio", mimeType: "audio/wav" })).toEqual({
-    extension: "m4a", mimeType: "audio/mp4",
+    extension: "m4a",
+    mimeType: "audio/mp4",
   });
   expect(previewFormat({ type: "image", mimeType: "image/jpeg" })).toEqual({
-    extension: "png", mimeType: "image/png",
+    extension: "png",
+    mimeType: "image/png",
   });
   const audioArgs = previewArguments({ type: "audio" }, "source.wav", "proxy.m4a");
   expect(audioArgs).toContain("48k");
@@ -48,16 +52,20 @@ if (ffmpegInstalled) {
     const projectId = "proxy_" + randomUUID();
     const assetId = "video_" + randomUUID();
     const original = path.join(tmpdir(), "opencut-preview-fixture-" + randomUUID() + ".mp4");
-    const result = spawnSync(ffmpeg, [
-      "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64:r=5",
-      "-t", "0.4", "-an", "-c:v", "mpeg4", "-y", original,
-    ], { timeout: 30_000 });
+    const result = spawnSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64:r=5", "-t", "0.4", "-an", "-c:v", "mpeg4", "-y", original], { timeout: 30_000 });
     expect(result.status).toBe(0);
     const source = await readFile(original);
-    await storeChunk(projectId, assetId, 0, Uint8Array.from(source).buffer);
+    const checksum = createHash("sha256").update(source).digest("hex");
+    await storeChunk(projectId, assetId, 0, Uint8Array.from(source).buffer, checksum);
     await finalizeAsset({
-      projectId, assetId, name: "source.mp4", type: "video",
-      mimeType: "video/mp4", size: source.length, parts: 1,
+      projectId,
+      assetId,
+      name: "source.mp4",
+      type: "video",
+      mimeType: "video/mp4",
+      size: source.length,
+      parts: 1,
+      chunkSha256: [checksum],
     });
     const proxy = await ensurePreview(projectId, assetId);
     expect(proxy.mimeType).toBe("video/mp4");

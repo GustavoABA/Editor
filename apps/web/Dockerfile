@@ -41,7 +41,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build-time env stubs to pass zod validation
 ENV DATABASE_URL="postgresql://opencut:opencut@localhost:5432/opencut"
-ENV BETTER_AUTH_SECRET="build-time-secret"
+ENV BETTER_AUTH_SECRET="build-time-secret-only-not-for-runtime-32"
 ENV UPSTASH_REDIS_REST_URL="http://localhost:8079"
 ENV UPSTASH_REDIS_REST_TOKEN="example_token"
 ENV NEXT_PUBLIC_SITE_URL="http://localhost:3000"

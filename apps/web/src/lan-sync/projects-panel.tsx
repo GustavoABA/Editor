@@ -3,17 +3,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  downloadRemoteAsset, downloadRemotePreviewAsset, getLanToken, listRemoteProjects,
-  readRemoteProject, setKnownRevision, setLanToken,
-} from "@/lan-sync/client";
+import { downloadRemoteAsset, downloadRemotePreviewAsset, getLanToken, listRemoteProjects, readRemoteProject, setKnownRevision, setLanToken } from "@/lan-sync/client";
 import { storageService } from "@/services/storage/service";
 import { processMediaAssets } from "@/media/processing";
 import type { SerializedProject } from "@/services/storage/types";
 
 const MAX_REMOTE_BROWSER_FILE = 80 * 1024 * 1024;
 
-type ListedProject = { id: string; name: string; revision: number; updatedAt: string };
+type ListedProject = {
+  id: string;
+  name: string;
+  revision: number;
+  updatedAt: string;
+};
 
 /** Load an editable revision from the host, not an exported MP4. */
 export function LanRemoteProjectsPanel() {
@@ -62,9 +64,7 @@ export function LanRemoteProjectsPanel() {
         }
         try {
           const useProxy = asset.size > MAX_REMOTE_BROWSER_FILE;
-          const file = useProxy
-            ? await downloadRemotePreviewAsset(id, asset)
-            : await downloadRemoteAsset(id, asset);
+          const file = useProxy ? await downloadRemotePreviewAsset(id, asset) : await downloadRemoteAsset(id, asset);
           const processed = await processMediaAssets({ files: [file] });
           const item = processed[0];
           if (!item) throw new Error("Formato indisponível neste navegador");
@@ -74,11 +74,13 @@ export function LanRemoteProjectsPanel() {
               ...item,
               id: asset.id,
               name: asset.name,
-              ...(useProxy ? {
-                remoteProxy: true,
-                originalSize: asset.size,
-                originalMimeType: asset.mimeType || "",
-              } : {}),
+              ...(useProxy
+                ? {
+                    remoteProxy: true,
+                    originalSize: asset.size,
+                    originalMimeType: asset.mimeType || "",
+                  }
+                : {}),
             },
           });
         } catch (error) {
@@ -107,31 +109,28 @@ export function LanRemoteProjectsPanel() {
   };
 
   return (
-    <section className="mx-4 rounded-lg border p-3" aria-label="Projetos no servidor LAN">
+    <section className="mx-2 rounded-lg border p-3 sm:mx-4" aria-label="Projetos no servidor LAN">
       <div className="flex flex-wrap items-center gap-2">
         <strong className="text-sm">Projetos do servidor LAN</strong>
-        <input type="password" autoComplete="off" aria-label="Token do servidor LAN"
-          className="bg-background w-40 rounded border px-2 py-1 text-xs"
-          placeholder="Token privado do host" value={token}
-          onChange={(e) => setToken(e.target.value)} />
-        <button type="button" className="rounded border px-3 py-1 text-xs" onClick={() => void connect()}>
+        <input type="password" autoComplete="off" aria-label="Token do servidor LAN" className="bg-background min-h-10 min-w-0 flex-1 rounded border px-2 py-1 text-xs sm:w-40 sm:flex-none" placeholder="Token privado do host" value={token} onChange={(e) => setToken(e.target.value)} />
+        <button type="button" className="min-h-10 rounded border px-3 py-1 text-xs" onClick={() => void connect()}>
           Conectar / Atualizar
         </button>
       </div>
-      <p className="text-muted-foreground mt-1 text-xs">
-        Projetos editáveis no host. Mídias não enviadas permanecem pendentes ⚠️.
-        Arquivos acima de 80 MB usam uma prévia compactada gerada no host (FFmpeg);
-        o original continua armazenado no servidor para a exportação em qualidade total.
-        Se a prévia falhar, o clipe permanece com ⚠️.
-      </p>
-      {error && <p role="alert" className="mt-2 text-xs text-amber-500">{error}</p>}
+      <p className="text-muted-foreground mt-1 text-xs">Projetos editáveis no host. Mídias não enviadas permanecem pendentes ⚠️. Arquivos acima de 80 MB usam uma prévia compactada gerada no host (FFmpeg); o original continua armazenado no servidor para a exportação em qualidade total. Se a prévia falhar, o clipe permanece com ⚠️.</p>
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-amber-500">
+          {error}
+        </p>
+      )}
       {!!projects.length && (
-        <ul className="mt-2 flex flex-wrap gap-2">
+        <ul className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {projects.map((project) => (
-            <li key={project.id} className="flex items-center gap-2 rounded border px-2 py-1 text-xs">
-              <span>{project.name} (rev. {project.revision})</span>
-              <button type="button" disabled={busy !== null} className="underline disabled:opacity-40"
-                onClick={() => void open(project.id)}>
+            <li key={project.id} className="flex min-w-0 items-center justify-between gap-2 rounded border px-2 py-2 text-xs">
+              <span className="truncate">
+                {project.name} (rev. {project.revision})
+              </span>
+              <button type="button" disabled={busy !== null} className="min-h-10 shrink-0 underline disabled:opacity-40" onClick={() => void open(project.id)}>
                 {busy === project.id ? "Carregando..." : "Continuar edição"}
               </button>
             </li>

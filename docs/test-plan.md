@@ -23,6 +23,7 @@ No diretório `apps/web`:
 ```bash
 bun install
 bun run build
+bun test src/lan-sync/checksum.test.ts
 bun test src/lan-sync/server.test.ts
 bun test src/lan-sync/preview.test.ts
 bun test src/media/loudness.test.ts
@@ -33,6 +34,8 @@ bun test src/ai/config-store.test.ts
 ```
 
 A compilação usa Rust/WASM e os caches conforme `.github/workflows/bun-ci.yml`. O CI valida build e unit tests; **não substitui teste de UI nem todos os serviços opcionais**. O HyperFrames está empacotado no `web`, sem perfil ou serviço separado: confira também `.github/workflows/hyperframes-smoke.yml` e [`hyperframes-integration.md`](hyperframes-integration.md).
+
+O workflow `.github/workflows/docker-smoke.yml` também constrói a imagem de produção, sobe Postgres/Redis/web pelo Compose e exige resposta saudável em `/api/health`. Isso protege a executabilidade Docker da `main`, mas não substitui a validação LAN com dois aparelhos reais.
 
 ## 2. Matriz de aceite por funcionalidade
 

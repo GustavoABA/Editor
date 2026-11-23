@@ -31,7 +31,7 @@ jobs:
       MARBLE_WORKSPACE_KEY: "placeholder"
       FREESOUND_CLIENT_ID: "placeholder"
       FREESOUND_API_KEY: "placeholder"
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -78,6 +78,7 @@ jobs:
       - name: Run tests
         working-directory: apps/web
         run: |
+          bun test src/lan-sync/checksum.test.ts
           bun test src/lan-sync/server.test.ts
           bun test src/lan-sync/preview.test.ts
           bun test src/media/loudness.test.ts

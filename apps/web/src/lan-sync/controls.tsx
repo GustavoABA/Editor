@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor } from "@/editor/use-editor";
 import { storageService } from "@/services/storage/service";
-import {
-  checkpointRemoteProject, getKnownRevision, getLanToken, LanSyncError,
-  listRemoteProjects, readRemoteProject, saveRemoteProject, setKnownRevision,
-  setLanToken, uploadRemoteAsset,
-} from "./client";
+import { checkpointRemoteProject, getKnownRevision, getLanToken, LanSyncError, listRemoteProjects, readRemoteProject, saveRemoteProject, setKnownRevision, setLanToken, uploadRemoteAsset } from "./client";
 
-type UploadState = { status: "uploading" | "verified" | "failed"; progress: number };
+type UploadState = {
+  status: "uploading" | "verified" | "failed";
+  progress: number;
+};
 const CHECKPOINT_MS = 180_000;
 
 /**
@@ -26,6 +25,7 @@ export function LanSyncControls() {
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>({});
   const [busy, setBusy] = useState(false);
   const [remoteMissing, setRemoteMissing] = useState<string[]>([]);
+  const [retryNonce, setRetryNonce] = useState(0);
   const inFlight = useRef(new Set<string>());
   const completed = useRef(new Set<string>());
   const retryAfter = useRef(new Map<string, number>());
@@ -40,6 +40,7 @@ export function LanSyncControls() {
       setConfiguring(false);
       setStatus("LAN conectada");
     } catch (error) {
+      setLanToken("");
       setConnected(false);
       setStatus(error instanceof Error ? error.message : "LAN indisponível");
     }
@@ -54,65 +55,86 @@ export function LanSyncControls() {
     try {
       const values: unknown = JSON.parse(sessionStorage.getItem("opencut-lan-missing:" + projectId) || "[]");
       setRemoteMissing(Array.isArray(values) ? values.filter((item): item is string => typeof item === "string") : []);
-    } catch { setRemoteMissing([]); }
+    } catch {
+      setRemoteMissing([]);
+    }
   }, [projectId]);
 
-  const syncDocument = useCallback(async (checkpoint = false) => {
-    if (!connected || !projectId || documentBusy.current) return;
-    const active = editor.project.getActiveOrNull();
-    if (!active || active.metadata.id !== projectId) return;
-    const assets = editor.media.getAssets();
-    const scenes = editor.scenes.getScenes();
-    const fingerprint = JSON.stringify({
-      scenes, settings: active.settings, name: active.metadata.name,
-      media: assets.map((a) => ({
-        id: a.id, size: a.remoteProxy ? a.originalSize : a.file.size, name: a.name,
-      })),
-    });
-    if (!checkpoint && lastDocumentFingerprint.current === fingerprint) return;
-    documentBusy.current = true;
-    setBusy(true);
-    try {
-      await editor.project.saveCurrentProject();
-      const serialized = await storageService.readSerializedProject({ id: projectId });
-      if (!serialized) throw new Error("Rascunho local ainda não disponível");
-      let revision = getKnownRevision(projectId);
-      if (revision === null) {
-        const remote = await readRemoteProject(projectId);
-        if (remote) {
-          throw new Error("O projeto já existe no host. Abra a revisão do host para evitar sobrescrever outra edição.");
-        }
-        revision = 0;
-      }
-      // Retain references to originals that are still uploading or absent on this device.
-      const remote = await readRemoteProject(projectId);
-      const localManifest = assets.map((a) => ({
-        id: a.id,
-        name: a.name,
-        type: a.type,
-        size: a.remoteProxy ? (a.originalSize ?? a.file.size) : a.file.size,
-        mimeType: a.remoteProxy ? a.originalMimeType : a.file.type,
-      }));
-      const knownIds = new Set(localManifest.map((asset) => asset.id));
-      const pendingRemote = (remote?.assets ?? []).filter((asset) => !knownIds.has(asset.id));
-      const result = await saveRemoteProject({
-        projectId, baseRevision: revision,
-        document: serialized as unknown as Record<string, unknown>,
-        assets: [...localManifest, ...pendingRemote],
+  const syncDocument = useCallback(
+    async (checkpoint = false) => {
+      if (!connected || !projectId || documentBusy.current) return;
+      const active = editor.project.getActiveOrNull();
+      if (!active || active.metadata.id !== projectId) return;
+      const assets = editor.media.getAssets();
+      const scenes = editor.scenes.getScenes();
+      const fingerprint = JSON.stringify({
+        scenes,
+        settings: active.settings,
+        name: active.metadata.name,
+        media: assets.map((a) => ({
+          id: a.id,
+          size: a.remoteProxy ? a.originalSize : a.file.size,
+          name: a.name,
+        })),
       });
-      setKnownRevision(projectId, result.revision);
-      lastDocumentFingerprint.current = fingerprint;
-      if (checkpoint) await checkpointRemoteProject(projectId);
-      setStatus(checkpoint ? "Checkpoint salvo no host" : "Projeto salvo no host");
-    } catch (error) {
-      setStatus(error instanceof LanSyncError && error.status === 409
-        ? "⚠️ Conflito de revisão: reabra o projeto remoto antes de salvar"
-        : "⚠️ " + (error instanceof Error ? error.message : "Falha ao salvar no host"));
-    } finally {
-      documentBusy.current = false;
-      setBusy(false);
-    }
-  }, [connected, editor, projectId]);
+      if (!checkpoint && lastDocumentFingerprint.current === fingerprint) return;
+      documentBusy.current = true;
+      setBusy(true);
+      try {
+        await editor.project.saveCurrentProject();
+        const serialized = await storageService.readSerializedProject({
+          id: projectId,
+        });
+        if (!serialized) throw new Error("Rascunho local ainda não disponível");
+        let revision = getKnownRevision(projectId);
+        if (revision === null) {
+          const remote = await readRemoteProject(projectId);
+          if (remote) {
+            throw new Error("O projeto já existe no host. Abra a revisão do host para evitar sobrescrever outra edição.");
+          }
+          revision = 0;
+        }
+        // Retain references to originals that are still uploading or absent on this device.
+        const remote = await readRemoteProject(projectId);
+        const localManifest = assets.map((a) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          size: a.remoteProxy ? (a.originalSize ?? a.file.size) : a.file.size,
+          mimeType: a.remoteProxy ? a.originalMimeType : a.file.type,
+        }));
+        const knownIds = new Set(localManifest.map((asset) => asset.id));
+        const pendingRemote = (remote?.assets ?? []).filter((asset) => !knownIds.has(asset.id));
+        const result = await saveRemoteProject({
+          projectId,
+          baseRevision: revision,
+          document: serialized as unknown as Record<string, unknown>,
+          assets: [...localManifest, ...pendingRemote],
+        });
+        setKnownRevision(projectId, result.revision);
+        lastDocumentFingerprint.current = fingerprint;
+        if (checkpoint) await checkpointRemoteProject(projectId);
+        setStatus(checkpoint ? "Checkpoint salvo no host" : "Projeto salvo no host");
+      } catch (error) {
+        setStatus(error instanceof LanSyncError && error.status === 409 ? "⚠️ Conflito de revisão: reabra o projeto remoto antes de salvar" : "⚠️ " + (error instanceof Error ? error.message : "Falha ao salvar no host"));
+      } finally {
+        documentBusy.current = false;
+        setBusy(false);
+      }
+    },
+    [connected, editor, projectId],
+  );
+
+  useEffect(() => {
+    if (!connected) return;
+    const resume = () => {
+      retryAfter.current.clear();
+      setRetryNonce((value) => value + 1);
+      setStatus("LAN reconectada; retomando envios pendentes");
+    };
+    window.addEventListener("online", resume);
+    return () => window.removeEventListener("online", resume);
+  }, [connected]);
 
   useEffect(() => {
     if (!connected || !projectId) return;
@@ -135,26 +157,39 @@ export function LanSyncControls() {
         if (completed.current.has(asset.id) || inFlight.current.has(asset.id)) continue;
         if ((retryAfter.current.get(asset.id) ?? 0) > Date.now()) continue;
         inFlight.current.add(asset.id);
-        setUploadStates((s) => ({ ...s, [asset.id]: { status: "uploading", progress: 0 } }));
+        setUploadStates((s) => ({
+          ...s,
+          [asset.id]: { status: "uploading", progress: 0 },
+        }));
         void uploadRemoteAsset({
-          projectId, asset,
+          projectId,
+          asset,
           onProgress: (progress) => {
-            if (!disposed) setUploadStates((s) => ({
-              ...s, [asset.id]: { status: "uploading", progress },
-            }));
+            if (!disposed)
+              setUploadStates((s) => ({
+                ...s,
+                [asset.id]: { status: "uploading", progress },
+              }));
           },
-        }).then(() => {
-          completed.current.add(asset.id);
-          if (!disposed) setUploadStates((s) => ({
-            ...s, [asset.id]: { status: "verified", progress: 1 },
-          }));
-        }).catch((error: unknown) => {
-          retryAfter.current.set(asset.id, Date.now() + 20_000);
-          console.warn("[lan-sync] upload pending:", asset.name, error);
-          if (!disposed) setUploadStates((s) => ({
-            ...s, [asset.id]: { status: "failed", progress: 0 },
-          }));
-        }).finally(() => inFlight.current.delete(asset.id));
+        })
+          .then(() => {
+            completed.current.add(asset.id);
+            if (!disposed)
+              setUploadStates((s) => ({
+                ...s,
+                [asset.id]: { status: "verified", progress: 1 },
+              }));
+          })
+          .catch((error: unknown) => {
+            retryAfter.current.set(asset.id, Date.now() + 20_000);
+            console.warn("[lan-sync] upload pending:", asset.name, error);
+            if (!disposed)
+              setUploadStates((s) => ({
+                ...s,
+                [asset.id]: { status: "failed", progress: 0 },
+              }));
+          })
+          .finally(() => inFlight.current.delete(asset.id));
       }
     };
     const unsubscribe = editor.media.subscribe(uploadNewAssets);
@@ -165,7 +200,7 @@ export function LanSyncControls() {
       unsubscribe();
       window.clearInterval(interval);
     };
-  }, [connected, editor, projectId]);
+  }, [connected, editor, projectId, retryNonce]);
 
   useEffect(() => {
     if (!connected) return;
@@ -179,49 +214,70 @@ export function LanSyncControls() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [connected, syncDocument]);
 
-  const pending = editor.media.getAssets().filter(
-    (asset) => !asset.remoteProxy && !completed.current.has(asset.id),
-  );
+  const pending = editor.media.getAssets().filter((asset) => !asset.remoteProxy && !completed.current.has(asset.id));
   const count = pending.length;
   const failed = pending.filter((asset) => uploadStates[asset.id]?.status === "failed").length;
   const progress = pending.find((asset) => uploadStates[asset.id]?.status === "uploading");
+  const retryFailed = () => {
+    retryAfter.current.clear();
+    setRetryNonce((value) => value + 1);
+    setStatus("Tentando reenviar mídias pendentes");
+  };
 
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex max-w-full flex-wrap items-center justify-end gap-2 text-xs">
       {connected ? (
         <>
-          <span className={count ? "text-amber-500" : "text-emerald-500"} title={status}>
-            {(count || remoteMissing.length) ? `⚠️ ${count + remoteMissing.length} mídia(s) pendentes` : "✓ Mídias no host"}
+          <span className={`${count ? "text-amber-500" : "text-emerald-500"} max-w-48 truncate sm:max-w-none`} title={status}>
+            {count || remoteMissing.length ? `⚠️ ${count + remoteMissing.length} mídia(s) pendentes` : "✓ Mídias no host"}
             {failed ? ` · ${failed} falha(s)` : ""}
             {progress ? ` · ${Math.round((uploadStates[progress.id]?.progress ?? 0) * 100)}%` : ""}
           </span>
-          <button type="button" className="rounded border px-2 py-1 disabled:opacity-50"
-            disabled={busy} onClick={() => void syncDocument(true)}
-            title={status}> {busy ? "Salvando..." : "Salvar no host"} </button>
-          <button type="button" className="text-muted-foreground underline"
-            onClick={() => { setLanToken(""); setConnected(false); setStatus("LAN desconectada"); }}>
+          <button type="button" className="rounded border px-2 py-1 disabled:opacity-50" disabled={busy} onClick={() => void syncDocument(true)} title={status}>
+            {" "}
+            {busy ? "Salvando..." : "Salvar no host"}{" "}
+          </button>
+          {failed > 0 && (
+            <button type="button" className="min-h-9 rounded border border-amber-500 px-2 py-1 text-amber-500" onClick={retryFailed}>
+              Reenviar
+            </button>
+          )}
+          <button
+            type="button"
+            className="text-muted-foreground underline"
+            onClick={() => {
+              setLanToken("");
+              setConnected(false);
+              setStatus("LAN desconectada");
+            }}
+          >
             Sair LAN
           </button>
         </>
       ) : (
         <>
-          <button type="button" className="rounded border px-2 py-1"
-            onClick={() => setConfiguring((v) => !v)}>Conectar LAN</button>
+          <button type="button" className="rounded border px-2 py-1" onClick={() => setConfiguring((v) => !v)}>
+            Conectar LAN
+          </button>
           {isConfiguring && (
-            <form className="flex gap-1" onSubmit={(event) => {
-              event.preventDefault();
-              void connect(draftToken);
-            }}>
-              <input type="password" autoComplete="off" aria-label="Token privado do host LAN"
-                placeholder="Token do host" value={draftToken}
-                onChange={(event) => setDraftToken(event.target.value)}
-                className="bg-background w-36 rounded border px-1 py-1" />
-              <button type="submit" className="rounded border px-2">Entrar</button>
+            <form
+              className="flex max-w-full flex-wrap justify-end gap-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void connect(draftToken);
+              }}
+            >
+              <input type="password" autoComplete="off" aria-label="Token privado do host LAN" placeholder="Token do host" value={draftToken} onChange={(event) => setDraftToken(event.target.value)} className="bg-background min-h-9 w-36 max-w-full rounded border px-2 py-1" />
+              <button type="submit" className="min-h-9 rounded border px-2">
+                Entrar
+              </button>
             </form>
           )}
         </>
       )}
-      <span className="sr-only" aria-live="polite">{status}</span>
+      <span className="sr-only" aria-live="polite">
+        {status}
+      </span>
     </div>
   );
 }

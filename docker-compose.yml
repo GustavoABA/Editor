@@ -74,6 +74,9 @@ services:
       - RENDER_JOBS_DIR=/app/render-jobs
       - LAN_SYNC_DIR=/app/lan-sync
       - LAN_SYNC_TOKEN=${OPENCUT_LAN_SYNC_TOKEN:-}
+      - LAN_SYNC_MAX_ASSET_BYTES=${LAN_SYNC_MAX_ASSET_BYTES:-17179869184}
+      - LAN_SYNC_MAX_PROJECT_BYTES=${LAN_SYNC_MAX_PROJECT_BYTES:-68719476736}
+      - LAN_SYNC_MAX_CHECKPOINTS=${LAN_SYNC_MAX_CHECKPOINTS:-120}
       - PARAKEET_SERVICE_URL=http://parakeet:8707
       - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
       - MCP_NGROK_AGENT_URL=http://ngrok:4040/api
@@ -179,7 +182,6 @@ services:
       - "8707"
     volumes:
       - parakeet_models:/models
-
 
 volumes:
   parakeet_models:
