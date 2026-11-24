@@ -18,6 +18,7 @@ import type {
 	RenderedTextureDescriptor,
 	TextureUploadDescriptor,
 } from "./types";
+import { canReuseExternalTexture } from "./external-texture-cache";
 
 /**
  * One slot in the derived-texture cache. The OffscreenCanvas is persistent —
@@ -37,6 +38,7 @@ type ExternalCacheEntry = {
 	source: CanvasImageSource;
 	width: number;
 	height: number;
+	frameVersion?: number;
 };
 
 class WasmCompositor {
@@ -100,9 +102,7 @@ class WasmCompositor {
 		const previous = this.cache.get(texture.id);
 		if (
 			previous?.kind === "external" &&
-			previous.source === texture.source &&
-			previous.width === texture.width &&
-			previous.height === texture.height
+			canReuseExternalTexture({ previous, next: texture })
 		) {
 			incrementCounter({ name: "textureCacheHit" });
 			return;
@@ -123,6 +123,7 @@ class WasmCompositor {
 			}),
 			width: texture.width,
 			height: texture.height,
+			frameVersion: texture.frameVersion,
 		});
 		this.cache.set(texture.id, {
 			kind: "external",

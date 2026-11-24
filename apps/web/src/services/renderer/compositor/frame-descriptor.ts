@@ -6,7 +6,6 @@ import type { CanvasRenderer } from "../canvas-renderer";
 import { createCanvasSurface } from "../canvas-utils";
 import { BlurBackgroundNode } from "../nodes/blur-background-node";
 import { ColorNode } from "../nodes/color-node";
-import { EffectLayerNode } from "../nodes/effect-layer-node";
 import {
 	GraphicNode,
 	type ResolvedGraphicNodeState,
@@ -121,17 +120,6 @@ async function collectNode({
 		return;
 	}
 
-	if (node instanceof EffectLayerNode) {
-		if (!node.resolved || node.resolved.passes.length === 0) {
-			return;
-		}
-		items.push({
-			type: "sceneEffect",
-			effectPassGroups: [node.resolved.passes],
-		});
-		return;
-	}
-
 	if (node instanceof BlurBackgroundNode) {
 		if (!node.resolved) {
 			return;
@@ -227,18 +215,15 @@ async function collectVisualSourceNode({
 		node instanceof GraphicNode
 			? node.getSource({ resolvedParams: node.resolved.resolvedParams })
 			: node.resolved.source;
+	const visualResolved = node instanceof GraphicNode ? null : node.resolved;
 	if (!source) {
 		return;
 	}
 
 	const sourceWidth =
-		node instanceof GraphicNode
-			? DEFAULT_GRAPHIC_SOURCE_SIZE
-			: (node.resolved as ResolvedVisualSourceNodeState).sourceWidth;
+		visualResolved?.sourceWidth ?? DEFAULT_GRAPHIC_SOURCE_SIZE;
 	const sourceHeight =
-		node instanceof GraphicNode
-			? DEFAULT_GRAPHIC_SOURCE_SIZE
-			: (node.resolved as ResolvedVisualSourceNodeState).sourceHeight;
+		visualResolved?.sourceHeight ?? DEFAULT_GRAPHIC_SOURCE_SIZE;
 
 	const textureId = `${path}:source`;
 	const processedSource = applyCanvasClipEffects({
@@ -251,6 +236,7 @@ async function collectVisualSourceNode({
 		source: processedSource,
 		width: sourceWidth,
 		height: sourceHeight,
+		frameVersion: visualResolved?.frameVersion,
 	});
 
 	const transform = computeVisualTransform({

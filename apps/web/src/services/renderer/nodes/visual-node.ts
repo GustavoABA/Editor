@@ -29,6 +29,8 @@ export interface ResolvedVisualSourceNodeState extends ResolvedVisualNodeState {
 	source: CanvasImageSource;
 	sourceWidth: number;
 	sourceHeight: number;
+	/** Presentation timestamp for a decoded video frame, in seconds. */
+	frameVersion?: number;
 }
 
 export abstract class VisualNode<
