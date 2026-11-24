@@ -62,6 +62,8 @@ function responseContent(raw: unknown, provider: PlanProvider): string | null {
   const data = raw as Record<string, unknown>;
   if (provider === "anthropic") {
     const blocks = data.content;
+    const tool = Array.isArray(blocks) ? blocks.find(x=>x?.type==="tool_use" && x.name === "return_editing_plan") : null;
+    if (tool && typeof tool.input === "object" && tool.input !== null) return JSON.stringify(tool.input);
     const first = Array.isArray(blocks) ? blocks.find(x=>x?.type==="text") : null;
     return first && typeof first.text === "string" ? first.text : null;
   }
@@ -80,13 +82,21 @@ async function callProvider(config: Config, messages: PlanMessage[], format: unk
     headers["anthropic-version"] = "2023-06-01";
     body = { model, max_tokens: maxTokens,
       system: messages.filter(m=>m.role==="system").map(m=>m.content).join("\n"),
-      messages: messages.filter(m=>m.role!=="system") };
+      messages: messages.filter(m=>m.role!=="system"),
+      tools: [{
+        name: "return_editing_plan",
+        description: "Return the validated OpenCut editing plan.",
+        input_schema: format,
+      }],
+      tool_choice: { type: "tool", name: "return_editing_plan" },
+    };
   } else if (provider === "ollama") {
     body = { model, messages, stream: false, format, options: { temperature: 0 } };
   } else {
     headers.Authorization = "Bearer " + (token || "");
-    // Model-specific temperature fields are intentionally omitted.
-    body = { model, messages, stream: false };
+    // JSON mode is supported by OpenAI-compatible APIs. We still validate the
+    // returned plan below because individual models vary in schema support.
+    body = { model, messages, stream: false, response_format: { type: "json_object" } };
   }
   const response = await fetch(url, {
     method: "POST", headers, body: JSON.stringify(body),

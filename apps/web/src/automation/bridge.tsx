@@ -31,6 +31,15 @@ type AutomationCommand = {
 	payload: Record<string, unknown>;
 };
 
+const TRANSACTION_COMMAND_TYPES = new Set([
+	"auto_cut",
+	"set_caption_style",
+	"split_at",
+	"delete_elements",
+	"update_text",
+	"insert_hyperframes",
+]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -162,6 +171,30 @@ async function executeCommand({
 	command: AutomationCommand;
 }): Promise<Record<string, unknown>> {
 	switch (command.type) {
+		case "apply_plan": {
+			const rawCommands = command.payload.commands;
+			if (!Array.isArray(rawCommands) || rawCommands.length === 0 || rawCommands.length > 12) {
+				throw new Error("Invalid automation plan");
+			}
+			const commands = rawCommands.flatMap((value) =>
+				isRecord(value) && typeof value.type === "string" &&
+				TRANSACTION_COMMAND_TYPES.has(value.type) && isRecord(value.payload)
+					? [{ id: command.id, type: value.type, payload: value.payload }]
+					: [],
+			);
+			if (commands.length !== rawCommands.length) throw new Error("Invalid automation plan command");
+			const checkpoint = editor.command.createCheckpoint();
+			try {
+				const results: Record<string, unknown>[] = [];
+				for (const nested of commands) {
+					results.push(await executeCommand({ editor, command: nested }));
+				}
+				return { applied: results.length, results };
+			} catch (error) {
+				editor.command.rollbackTo({ checkpoint });
+				throw error;
+			}
+		}
 		case "auto_cut": {
 			const preset = requireString({ payload: command.payload, key: "preset" });
 			if (!isAutoCutPresetId(preset)) {

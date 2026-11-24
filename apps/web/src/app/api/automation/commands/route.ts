@@ -18,10 +18,28 @@ const ALLOWED_COMMANDS = new Set([
 	"undo",
 	"redo",
 	"export",
+	"apply_plan",
+]);
+
+const TRANSACTION_COMMANDS = new Set([
+	"auto_cut",
+	"set_caption_style",
+	"split_at",
+	"delete_elements",
+	"update_text",
+	"insert_hyperframes",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isTransactionalPlan(value: Record<string, unknown>): boolean {
+	const commands = value.commands;
+	return Array.isArray(commands) && commands.length > 0 && commands.length <= 12 && commands.every(
+		(command) => isRecord(command) && typeof command.type === "string" &&
+			TRANSACTION_COMMANDS.has(command.type) && isRecord(command.payload),
+	);
 }
 
 export async function GET(request: Request) {
@@ -61,7 +79,8 @@ export async function POST(request: Request) {
 		typeof payload.sessionId !== "string" ||
 		typeof payload.type !== "string" ||
 		!ALLOWED_COMMANDS.has(payload.type) ||
-		!isRecord(payload.payload)
+		!isRecord(payload.payload) ||
+		(payload.type === "apply_plan" && !isTransactionalPlan(payload.payload))
 	) {
 		return NextResponse.json({ error: "Invalid automation command" }, { status: 400 });
 	}

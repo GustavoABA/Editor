@@ -98,6 +98,17 @@ export class CommandManager {
 		return this.redoStack.length > 0;
 	}
 
+	/** Roll back every editor command created after an automation checkpoint. */
+	createCheckpoint(): number {
+		return this.history.length;
+	}
+
+	rollbackTo({ checkpoint }: { checkpoint: number }): void {
+		while (this.history.length > checkpoint) {
+			this.undo();
+		}
+	}
+
 	clear(): void {
 		this.history = [];
 		this.redoStack = [];

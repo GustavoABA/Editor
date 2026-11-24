@@ -101,7 +101,7 @@ async function enqueueAndWait({
 		const body: unknown = await response.json().catch(() => null);
 		if (!response.ok || !isRecord(body) || !isRecord(body.command)) continue;
 		if (body.command.status === "complete") return;
-		if (body.command.status === "failed") {
+		if (body.command.status === "failed" || body.command.status === "expired") {
 			throw new Error(
 				typeof body.command.error === "string"
 					? body.command.error
@@ -177,11 +177,12 @@ export function OllamaAssistant() {
 		setIsApplying(true);
 		try {
 			const sessionId = getAutomationSessionId();
-			for (const command of plan.commands) {
-				await enqueueAndWait({ sessionId, command });
-			}
+			await enqueueAndWait({
+				sessionId,
+				command: { type: "apply_plan", payload: { commands: plan.commands } },
+			});
 			toast.success("Plano da IA aplicado", {
-				description: `${plan.commands.length} ação(ões). Use Ctrl+Z para desfazer.`,
+				description: `${plan.commands.length} ação(ões) aplicadas como uma transação.`,
 			});
 			setPlan(null);
 		} catch (error) {
