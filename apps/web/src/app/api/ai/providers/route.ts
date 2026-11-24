@@ -3,6 +3,7 @@ import {
   PROVIDER_IDS, readProviderConfiguration, writeProviderConfiguration,
   publicProviderConfiguration, type ManagedProviderId, type ProviderAccount,
 } from "@/ai/config-store";
+import { testProviderConnection } from "@/ai/plan-router";
 
 export const runtime = "nodejs";
 const MAX_BODY = 16 * 1024;
@@ -53,6 +54,23 @@ export async function PUT(request: Request) {
     return Response.json(publicProviderConfiguration(current));
   } catch {
     return Response.json({ error: "Could not save provider configuration" }, { status: 500 });
+  }
+}
+
+/** An explicit UI action: verify the saved key and model without exposing either. */
+export async function POST(request: Request) {
+  const auth = denied(request);
+  if (auth) return auth;
+  const input: unknown = await request.json().catch(() => null);
+  const provider = input && typeof input === "object" ? (input as Record<string, unknown>).provider : null;
+  if (!validProvider(provider)) return Response.json({ error: "Invalid provider" }, { status: 400 });
+  try {
+    const result = await testProviderConnection(provider);
+    return Response.json({ ok: true, provider: result.provider, model: result.model });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Provider connection test failed",
+    }, { status: 502 });
   }
 }
 

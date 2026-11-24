@@ -117,6 +117,29 @@ async function callProvider(config: Config, messages: PlanMessage[], format: unk
   return { provider, model, content };
 }
 
+const connectionTestFormat = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    commands: { type: "array", maxItems: 0 },
+  },
+  required: ["summary", "commands"],
+  additionalProperties: false,
+} as const;
+
+/** Performs a minimal real request with a saved provider credential. */
+export async function testProviderConnection(provider: ManagedProviderId): Promise<Pick<PlanCompletion, "provider" | "model">> {
+  const config = (await configurations()).find((item) => item.provider === provider);
+  if (!config || config.provider === "ollama") {
+    throw new Error("Configure, habilite e autorize este provedor antes de testar");
+  }
+  const completion = await callProvider(config, [
+    { role: "system", content: "Return only the requested JSON object." },
+    { role: "user", content: "Confirm this provider connection." },
+  ], connectionTestFormat, 64);
+  return { provider: completion.provider, model: completion.model };
+}
+
 export async function createRoutedPlan(params: {
   messages: PlanMessage[];
   format: unknown;

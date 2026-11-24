@@ -39,6 +39,26 @@ async function configuredRequest(method: "GET" | "PUT" | "DELETE", data?: unknow
   return body as PublicConfiguration;
 }
 
+async function testConfiguredProvider(provider: ProviderId): Promise<{ provider: string; model: string }> {
+  if (!secureClient()) throw new Error("Para testar chaves, acesse o Editor por HTTPS ou localhost no próprio host.");
+  const token = getLanToken();
+  if (!token) throw new Error("Conecte a LAN com o token administrativo do host.");
+  const response = await fetch("/api/ai/providers", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", "x-lan-sync-token": token },
+    body: JSON.stringify({ provider }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok || !body || typeof body !== "object" ||
+    typeof (body as Record<string, unknown>).model !== "string") {
+    const reason = body && typeof body === "object" && "error" in body && typeof body.error === "string"
+      ? body.error : "O provedor não respondeu ao teste.";
+    throw new Error(reason);
+  }
+  return body as { provider: string; model: string };
+}
+
 export function AIProvidersPanel() {
   const [config, setConfig] = useState<PublicConfiguration | null>(null);
   const [provider, setProvider] = useState<ProviderId>("nvidia");
@@ -74,6 +94,14 @@ export function AIProvidersPanel() {
     setBusy(true); setError("");
     try { setConfig(await configuredRequest("DELETE", { provider: id })); }
     catch(e) { setError(e instanceof Error ? e.message : "Falha ao remover"); }
+    finally { setBusy(false); }
+  };
+  const test = async () => {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const result = await testConfiguredProvider(provider);
+      setMessage(`Conexão confirmada: ${result.provider} · ${result.model}. A chave permanece somente no host.`);
+    } catch (e) { setError(e instanceof Error ? e.message : "Falha ao testar o provedor"); }
     finally { setBusy(false); }
   };
   const allow = async (value: boolean) => {
@@ -123,6 +151,9 @@ export function AIProvidersPanel() {
       <label className="flex gap-2"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Provedor habilitado</label>
       <button type="button" className="rounded border px-2 py-1 disabled:opacity-40"
         disabled={busy || !model.trim()} onClick={()=>void save()}>{busy?"Salvando...":"Salvar configurações"}</button>
+      <button type="button" className="ml-2 rounded border px-2 py-1 disabled:opacity-40"
+        disabled={busy || !config?.allowPaid || !config.accounts.some(account => account.provider === provider && account.configured)}
+        onClick={()=>void test()}>Testar chamada</button>
       <button type="button" className="ml-2 underline" onClick={()=>void refresh()}>Atualizar status</button>
       {config && <div className="space-y-1 border-t pt-2">
         {config.accounts.map(account=><div key={account.provider} className="flex items-center justify-between gap-2">
