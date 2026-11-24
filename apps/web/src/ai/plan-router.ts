@@ -1,7 +1,7 @@
 import { readProviderConfiguration, type ManagedProviderId } from "./config-store";
 
 /** Provider tokens are decrypted on host only; never accept runtime URLs from browsers. */
-export type PlanProvider = ManagedProviderId | "ollama";
+export type PlanProvider = ManagedProviderId | "ollama" | "local";
 export type PlanMessage = { role: "system" | "user"; content: string };
 export type PlanCompletion = { provider: PlanProvider; model: string; content: string };
 type Config = { provider: PlanProvider; url: string; model: string; token?: string; priority: number };
@@ -43,6 +43,9 @@ async function configurations(): Promise<Config[]> {
   const base = (process.env.OLLAMA_BASE_URL || "http://host.docker.internal:11434").replace(/\/$/, "");
   paid.push({ provider: "ollama", url: base + "/api/chat",
     model: process.env.OLLAMA_MODEL || "qwen2.5:1.5b", priority: 999 });
+  const localBase = (process.env.LOCAL_AI_BASE_URL || "http://local-ai:8080/v1").replace(/\/$/, "");
+  paid.push({ provider: "local", url: localBase + "/chat/completions",
+    model: process.env.LOCAL_AI_MODEL || "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf", priority: 1_000 });
   return paid.sort((a,b)=>a.priority-b.priority);
 }
 

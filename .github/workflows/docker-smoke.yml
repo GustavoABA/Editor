@@ -7,6 +7,7 @@ on:
       - "apps/web/**"
       - "rust/crates/autocut/**"
       - "services/hyperframes/**"
+      - "services/local-ai/**"
       - "docker-compose.yml"
       - "package.json"
       - "bun.lock"
@@ -17,6 +18,7 @@ on:
       - "apps/web/**"
       - "rust/crates/autocut/**"
       - "services/hyperframes/**"
+      - "services/local-ai/**"
       - "docker-compose.yml"
       - "package.json"
       - "bun.lock"
@@ -45,11 +47,11 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
-      - name: Build the production web image
-        run: docker compose build web
+      - name: Build production image and embedded AI fallback
+        run: docker compose build web local-ai
 
       - name: Start required services
-        run: docker compose up -d db redis serverless-redis-http web
+        run: docker compose up -d db redis serverless-redis-http local-ai web
 
       - name: Wait for the Editor health endpoint
         run: |

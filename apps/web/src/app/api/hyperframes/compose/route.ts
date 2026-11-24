@@ -1,5 +1,6 @@
 import { authorizeSync } from "@/lan-sync/server";
 import { createRoutedPlan } from "@/ai/plan-router";
+import { createLocalHyperFramesFallback } from "@/hyperframes/local-fallback";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -97,7 +98,17 @@ e o ritmo musical sem afirmar que houve compreensão de conteúdo verbal.`,
       summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 900) : "",
     });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message :
-      "A IA não conseguiu compor o overlay." }, { status: 502 });
+    const fallback = createLocalHyperFramesFallback({
+      instruction: raw.instruction,
+      transcript: raw.transcript,
+    });
+    return Response.json({
+      html: fallback.html,
+      css: fallback.css,
+      provider: "local-template",
+      model: "embedded-deterministic-fallback",
+      summary: fallback.summary,
+      degradedFrom: error instanceof Error ? error.message.slice(0, 180) : "AI providers unavailable",
+    });
   }
 }

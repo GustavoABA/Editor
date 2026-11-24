@@ -88,6 +88,8 @@ services:
       - N8N_BASE_URL=http://host.docker.internal:5678
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
+      - LOCAL_AI_BASE_URL=http://local-ai:8080/v1
+      - LOCAL_AI_MODEL=qwen2.5-coder-0.5b-instruct-q4_k_m.gguf
       - MCP_HTTP_URL=http://mcp-http:3101
     # CLI runs on-demand inside the web container. tmpfs presents enough
     # free space to the official renderer preflight (does not preallocate 4GiB).
@@ -102,6 +104,8 @@ services:
         condition: service_healthy
       serverless-redis-http:
         condition: service_healthy
+      local-ai:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -129,6 +133,18 @@ services:
     depends_on:
       web:
         condition: service_healthy
+
+  # Embedded, CPU-only fallback: model and runtime belong to the Editor
+  # deployment. It is intentionally not exposed outside this Docker network.
+  local-ai:
+    build:
+      context: ./services/local-ai
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["-m", "/models/hyperframes-fallback.gguf", "--host", "0.0.0.0", "--port", "8080", "-c", "2048", "-ngl", "0", "--parallel", "1"]
+    expose:
+      - "8080"
+    mem_limit: 900m
 
   mcp:
     profiles: ["tools"]
