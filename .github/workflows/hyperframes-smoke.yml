@@ -6,6 +6,10 @@ on:
     paths:
       - 'services/hyperframes/**'
       - 'apps/web/Dockerfile'
+      - 'apps/web/src/app/api/hyperframes/**'
+      - 'apps/web/src/automation/components/hyperframes-studio.tsx'
+      - 'apps/web/src/automation/audio-peaks.ts'
+      - 'apps/web/src/ai/plan-router.ts'
       - '.github/workflows/hyperframes-smoke.yml'
   workflow_dispatch:
 
