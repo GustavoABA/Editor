@@ -1,5 +1,19 @@
 import type { Effect } from "./types";
 
+type EffectSurfaces = {
+  key: string;
+  width: number;
+  height: number;
+  surfaces: OffscreenCanvas[];
+  reduced: Map<string, OffscreenCanvas>;
+};
+
+// MediaBunny recycles a small pool of decoded canvases. Keep the effect
+// surfaces alongside each source canvas rather than allocating one (or more)
+// full-resolution canvases every animation frame. WeakMap makes their lifetime
+// follow the decoder/image source and prevents an unbounded global cache.
+const effectSurfaceCache = new WeakMap<object, EffectSurfaces>();
+
 /**
  * Effects are rendered on the visual clip's own pixels BEFORE placement on the
  * scene canvas. Works in both preview and server-render, with or without WebGPU.
@@ -17,11 +31,33 @@ export function applyCanvasClipEffects({
     ["pixelate", "grayscale", "blur"].includes(effect.type));
   if (!active.length || width < 1 || height < 1) return source;
 
+  const cacheKey = JSON.stringify(active.map((effect) => ({
+    type: effect.type,
+    params: effect.params,
+  })));
+  const cacheOwner = source as object;
+  const cached = effectSurfaceCache.get(cacheOwner);
+  const reusable = cached && cached.key === cacheKey && cached.width === width && cached.height === height;
+  const surfaces = reusable
+    ? cached.surfaces
+    : Array.from({ length: active.length }, () => new OffscreenCanvas(width, height));
+  if (surfaces.length !== active.length) {
+    surfaces.length = active.length;
+    for (let index = 0; index < active.length; index++) {
+      if (!surfaces[index]) surfaces[index] = new OffscreenCanvas(width, height);
+    }
+  }
+  const reduced = reusable ? cached.reduced : new Map<string, OffscreenCanvas>();
+  if (!reusable) {
+    effectSurfaceCache.set(cacheOwner, { key: cacheKey, width, height, surfaces, reduced });
+  }
+
   let current: CanvasImageSource = source;
-  for (const effect of active) {
-    const canvas = new OffscreenCanvas(width, height);
+  for (const [index, effect] of active.entries()) {
+    const canvas = surfaces[index];
     const ctx = canvas.getContext("2d", { willReadFrequently: effect.type === "grayscale" });
     if (!ctx) continue;
+    ctx.clearRect(0, 0, width, height);
     switch (effect.type) {
       case "pixelate": {
         // Deliberately remove spatial detail for censoring: nearest-neighbor
@@ -30,13 +66,16 @@ export function applyCanvasClipEffects({
         const block = Math.max(2, Math.min(200, Number.isFinite(px) ? Math.round(px) : 24));
         const smallWidth = Math.max(1, Math.ceil(width / block));
         const smallHeight = Math.max(1, Math.ceil(height / block));
-        const reduced = new OffscreenCanvas(smallWidth, smallHeight);
-        const reducedCtx = reduced.getContext("2d");
+        const reducedKey = `${index}:${smallWidth}x${smallHeight}`;
+        const reducedCanvas = reduced.get(reducedKey) ?? new OffscreenCanvas(smallWidth, smallHeight);
+        reduced.set(reducedKey, reducedCanvas);
+        const reducedCtx = reducedCanvas.getContext("2d");
         if (!reducedCtx) { ctx.drawImage(current, 0, 0, width, height); break; }
+        reducedCtx.clearRect(0, 0, smallWidth, smallHeight);
         reducedCtx.imageSmoothingEnabled = true;
         reducedCtx.drawImage(current, 0, 0, smallWidth, smallHeight);
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(reduced, 0, 0, width, height);
+        ctx.drawImage(reducedCanvas, 0, 0, width, height);
         break;
       }
       case "grayscale": {
