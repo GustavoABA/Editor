@@ -215,6 +215,9 @@ export function OllamaAssistant() {
 					<option value="auto">Automático (NVIDIA → OpenAI → Ollama)</option>
 					<option value="nvidia">NVIDIA NIM</option>
 					<option value="openai">OpenAI</option>
+					<option value="moonshot">Kimi / Moonshot</option>
+					<option value="deepseek">DeepSeek</option>
+					<option value="anthropic">Claude / Anthropic</option>
 					<option value="ollama">Ollama local</option>
 				</select>
 			</label>
