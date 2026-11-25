@@ -1,9 +1,9 @@
-export const SITE_URL = "https://opencut.app";
+export const SITE_URL = "https://cuteditor.local";
 
 export const SITE_INFO = {
-	title: "OpenCut",
+	title: "Cut Editor",
 	description:
-		"A simple but powerful video editor that gets the job done. In your browser.",
+		"Editor de vídeo profissional, auto-hospedado e acessível no navegador.",
 	url: SITE_URL,
 	openGraphImage: "/open-graph/default.jpg",
 	twitterImage: "/open-graph/default.jpg",
