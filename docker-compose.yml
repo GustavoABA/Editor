@@ -208,7 +208,9 @@ services:
   # No Docker socket is mounted: the editor cannot start or control containers.
   importer:
     profiles: ["importer"]
-    image: ghcr.io/justayden/ytdl-ui:latest
+    # Pin the application version so a new upstream image cannot silently
+    # change the editor's download workflow. Update intentionally after tests.
+    image: ghcr.io/justayden/ytdl-ui:2.5.0
     restart: unless-stopped
     environment:
       - YTDLUI_HOST=0.0.0.0
@@ -224,6 +226,18 @@ services:
       - "5000"
     volumes:
       - importer_data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/api/health' % os.environ.get('YTDLUI_PORT','5000'), timeout=4)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
   parakeet_models:
