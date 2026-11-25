@@ -203,8 +203,31 @@ services:
     volumes:
       - parakeet_models:/models
 
+  # Optional, isolated browser-based importer. It runs only when explicitly
+  # enabled with `docker compose --profile importer up -d importer`.
+  # No Docker socket is mounted: the editor cannot start or control containers.
+  importer:
+    profiles: ["importer"]
+    image: ghcr.io/justayden/ytdl-ui:latest
+    restart: unless-stopped
+    environment:
+      - YTDLUI_HOST=0.0.0.0
+      - YTDLUI_PORT=5000
+      - YTDLUI_TRUST_PROXY=1
+      - YTDLUI_PROCESSING_MODE=server
+      - YTDLUI_MAX_CONCURRENT_JOBS=${IMPORTER_MAX_CONCURRENT_JOBS:-1}
+      - YTDLUI_MAX_FILESIZE_MB=${IMPORTER_MAX_FILESIZE_MB:-2048}
+      - YTDLUI_MAX_DURATION_MINUTES=${IMPORTER_MAX_DURATION_MINUTES:-180}
+      - YTDLUI_ALLOWED_SITES=${IMPORTER_ALLOWED_SITES:-}
+      - YTDLUI_PASSWORD=${IMPORTER_PASSWORD:-}
+    expose:
+      - "5000"
+    volumes:
+      - importer_data:/app/data
+
 volumes:
   parakeet_models:
+  importer_data:
   postgres_data:
   render_jobs_v2:
   lan_sync_data:
