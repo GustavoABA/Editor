@@ -9,6 +9,7 @@ on:
       - "services/hyperframes/**"
       - "services/local-ai/**"
       - "docker-compose.yml"
+      - "Caddyfile"
       - "package.json"
       - "bun.lock"
       - ".github/workflows/docker-smoke.yml"
@@ -20,6 +21,7 @@ on:
       - "services/hyperframes/**"
       - "services/local-ai/**"
       - "docker-compose.yml"
+      - "Caddyfile"
       - "package.json"
       - "bun.lock"
       - ".github/workflows/docker-smoke.yml"
@@ -36,6 +38,7 @@ jobs:
       BETTER_AUTH_SECRET: docker-smoke-secret-only-at-least-32-characters
       UPSTASH_REDIS_REST_TOKEN: docker-smoke-redis-token
       NEXT_PUBLIC_SITE_URL: http://localhost:3100
+      OPENCUT_LAN_HOST: editor.lan
       NEXT_PUBLIC_MARBLE_API_URL: https://api.marblecms.com
       MARBLE_WORKSPACE_KEY: build-placeholder
       FREESOUND_CLIENT_ID: placeholder
@@ -66,9 +69,33 @@ jobs:
           docker compose ps
           exit 1
 
-      - name: Show web logs on failure
+      - name: Validate local AI readiness
+        run: |
+          for attempt in $(seq 1 40); do
+            if docker compose exec -T web node -e "fetch('http://local-ai:8080/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              exit 0
+            fi
+            sleep 3
+          done
+          exit 1
+
+      - name: Validate Caddy configuration and trusted LAN HTTPS
+        run: |
+          docker compose up -d caddy
+          docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          for attempt in $(seq 1 40); do
+            if docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt /tmp/editor-lan-root.crt && curl --fail --silent --show-error --noproxy '*' --cacert /tmp/editor-lan-root.crt --resolve editor.lan:443:127.0.0.1 https://editor.lan/api/health; then
+              exit 0
+            fi
+            sleep 3
+          done
+          exit 1
+
+      - name: Show service logs on failure
         if: failure()
-        run: docker compose logs --no-color web
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=200
 
       - name: Stop smoke-test services
         if: always()
