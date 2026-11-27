@@ -5,7 +5,7 @@ import { getLanToken } from "@/lan-sync/client";
 
 type ProviderId = "nvidia" | "moonshot" | "openai" | "anthropic" | "deepseek";
 type PublicAccount = { provider: ProviderId; model: string; priority: number; enabled: boolean; configured: boolean };
-export type PublicConfiguration = { allowPaid: boolean; accounts: PublicAccount[]; preferred: string; ollamaModel: string };
+export type PublicConfiguration = { allowPaid: boolean; accounts: PublicAccount[]; preferred: string; preferredModel: string; ollamaModel: string };
 const PROVIDERS: Array<{ id: ProviderId; label: string }> = [
   { id: "nvidia", label: "NVIDIA NIM" },
   { id: "moonshot", label: "Kimi / Moonshot" },
@@ -40,14 +40,14 @@ export async function configuredRequest(method: "GET" | "PUT" | "DELETE", data?:
   return body as PublicConfiguration;
 }
 
-async function testConfiguredProvider(provider: ProviderId): Promise<{ provider: string; model: string }> {
+async function testConfiguredProvider(provider: ProviderId, model: string): Promise<{ provider: string; model: string }> {
   const token = getLanToken();
   if (!token) throw new Error("Conecte a LAN com o token administrativo do host.");
   const response = await fetch("/api/ai/providers", {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json", "x-lan-sync-token": token },
-    body: JSON.stringify({ provider }),
+    body: JSON.stringify({ provider, model }),
   });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok || !body || typeof body !== "object" ||
@@ -116,17 +116,17 @@ export function AIProvidersPanel() {
     } catch (e) { setError(e instanceof Error ? e.message : "Falha ao salvar"); }
     finally { setBusy(false); }
   };
-  const remove = async (id: ProviderId) => {
+  const remove = async (id: ProviderId, model: string) => {
     if (!window.confirm("Apagar a chave deste provedor do servidor?")) return;
     setBusy(true); setError("");
-    try { setConfig(await configuredRequest("DELETE", { provider: id })); }
+    try { setConfig(await configuredRequest("DELETE", { provider: id, model })); }
     catch(e) { setError(e instanceof Error ? e.message : "Falha ao remover"); }
     finally { setBusy(false); }
   };
   const test = async () => {
     setBusy(true); setError(""); setMessage("");
     try {
-      const result = await testConfiguredProvider(provider);
+      const result = await testConfiguredProvider(provider, model.trim());
       setMessage(`Conexão confirmada: ${result.provider} · ${result.model}. A chave permanece somente no host.`);
     } catch (e) { setError(e instanceof Error ? e.message : "Falha ao testar o provedor"); }
     finally { setBusy(false); }
@@ -183,20 +183,20 @@ export function AIProvidersPanel() {
       <button type="button" className="rounded border px-2 py-1 disabled:opacity-40"
         disabled={busy || loadingModels} onClick={()=>void save()}>{busy?"Salvando...":"Salvar configurações"}</button>
       <button type="button" className="ml-2 rounded border px-2 py-1 disabled:opacity-40"
-        disabled={busy || !config?.allowPaid || !config.accounts.some(account => account.provider === provider && account.configured)}
+        disabled={busy || !config?.allowPaid || !config.accounts.some(account => account.provider === provider && account.model === model.trim() && account.configured)}
         onClick={()=>void test()}>Testar chamada</button>
       <button type="button" className="ml-2 underline" onClick={()=>void refresh()}>Atualizar status</button>
       <p className="text-muted-foreground">Use HTTPS ou localhost para proteger as credenciais. Em HTTP privado, é exigida confirmação explícita. O fallback usa apenas provedores habilitados; chamadas externas podem consumir créditos.</p>
       <div className="space-y-2 border-t pt-2">
         <h4 className="font-semibold">Modelos configurados no host</h4>
         {!config?.accounts.length && <p className="text-muted-foreground">Nenhum modelo cadastrado. Informe a chave, busque os modelos e salve.</p>}
-        {config?.accounts.map(account=><div key={account.provider} className="rounded border p-2 space-y-1">
+        {config?.accounts.map(account=><div key={account.provider+":"+account.model} className="rounded border p-2 space-y-1">
           <p className="break-all">{account.provider} · {account.model}</p>
-          <p className="text-muted-foreground">{account.configured?"Chave salva":"Sem chave"} · {account.enabled?"Habilitado":"Desabilitado"} · prioridade {account.priority}{config.preferred===account.provider?" · Principal":""}</p>
+          <p className="text-muted-foreground">{account.configured?"Chave salva":"Sem chave"} · {account.enabled?"Habilitado":"Desabilitado"} · prioridade {account.priority}{config.preferred===account.provider&&config.preferredModel===account.model?" · Principal":""}</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="underline" onClick={()=>{setProvider(account.provider);setModel(account.model);setPriority(account.priority);setEnabled(account.enabled);setSecret("");setModels([]);}}>Editar</button>
-            <button type="button" className="underline" disabled={busy || !config.allowPaid || !account.enabled} onClick={async()=>{try {setConfig(await configuredRequest("PUT",{mode:"selection",preferred:account.provider}));setMessage("Provedor principal atualizado.");}catch(e){setError(e instanceof Error?e.message:"Falha");}}}>Usar como principal</button>
-            <button type="button" className="underline" disabled={busy} onClick={()=>void remove(account.provider)}>Remover</button>
+            <button type="button" className="underline" disabled={busy || !config.allowPaid || !account.enabled} onClick={async()=>{try {setConfig(await configuredRequest("PUT",{mode:"selection",preferred:account.provider,preferredModel:account.model}));setMessage("Provedor principal atualizado.");}catch(e){setError(e instanceof Error?e.message:"Falha");}}}>Usar como principal</button>
+            <button type="button" className="underline" disabled={busy} onClick={()=>void remove(account.provider,account.model)}>Remover</button>
           </div>
         </div>)}
       </div>
