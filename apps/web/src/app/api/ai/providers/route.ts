@@ -29,12 +29,18 @@ export async function PUT(request: Request) {
   const input = data as Record<string, unknown>;
   try {
     const current = await readProviderConfiguration();
-    if (input.mode === "allow-paid") {
+    if (input.mode === "selection") {
+      const selected = input.preferred;
+      if (selected !== "auto" && selected !== "ollama" && selected !== "local" && !validProvider(selected)) return Response.json({ error: "Provedor inválido" }, { status: 400 });
+      if (validProvider(selected) && (!current.allowPaid || !current.accounts.some(a => a.provider === selected && a.enabled && a.key && a.model))) return Response.json({ error: "Habilite e configure este provedor primeiro." }, { status: 400 });
+      current.preferred = selected;
+      if (typeof input.ollamaModel === "string" && input.ollamaModel.trim().length > 0 && input.ollamaModel.length <= 150) current.ollamaModel = input.ollamaModel.trim();
+    } else if (input.mode === "allow-paid") {
       if (typeof input.allowPaid !== "boolean") return Response.json({ error: "Invalid opt-in" }, { status: 400 });
       current.allowPaid = input.allowPaid;
     } else {
       if (!validProvider(input.provider) || typeof input.model !== "string" ||
-          input.model.length < 1 || input.model.length > 150 ||
+          input.model.trim().length < 1 || input.model.length > 150 ||
           typeof input.enabled !== "boolean" ||
           typeof input.priority !== "number" || !Number.isInteger(input.priority) ||
           input.priority < 0 || input.priority > 100 ||
@@ -42,7 +48,7 @@ export async function PUT(request: Request) {
         return Response.json({ error: "Invalid provider settings" }, { status: 400 });
       }
       const old = current.accounts.find(a => a.provider === input.provider);
-      const key = typeof input.key === "string" && input.key.length ? input.key.trim() : old?.key || "";
+      const key = typeof input.key === "string" && input.key.trim() ? input.key.trim() : old?.key || "";
       if (!key) return Response.json({ error: "Configure um token para este provedor" }, { status: 400 });
       const account: ProviderAccount = {
         provider: input.provider, key, model: input.model.trim(), enabled: input.enabled,
@@ -65,6 +71,19 @@ export async function POST(request: Request) {
   const provider = input && typeof input === "object" ? (input as Record<string, unknown>).provider : null;
   if (!validProvider(provider)) return Response.json({ error: "Invalid provider" }, { status: 400 });
   try {
+    const fields = input as Record<string, unknown>;
+    if (fields.mode === "models") {
+      const config = await readProviderConfiguration();
+      const key = typeof fields.key === "string" && fields.key.trim() && fields.key.length <= 1000 ? fields.key.trim() : config.accounts.find(a=>a.provider === provider)?.key;
+      if (!key) return Response.json({ error: "Informe a API Key para buscar os modelos." }, { status: 400 });
+      const urls: Record<ManagedProviderId,string> = { nvidia: "https://integrate.api.nvidia.com/v1/models", openai: "https://api.openai.com/v1/models", moonshot: "https://api.moonshot.ai/v1/models", deepseek: "https://api.deepseek.com/models", anthropic: "https://api.anthropic.com/v1/models" };
+      const headers: Record<string,string> = provider === "anthropic" ? { "x-api-key": key, "anthropic-version": "2023-06-01" } : { Authorization: "Bearer " + key };
+      const response = await fetch(urls[provider], { headers, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15_000) });
+      if (!response.ok) throw Error("Catálogo do provedor retornou HTTP " + response.status + ". Verifique a chave.");
+      const data = await response.json() as { data?: Array<{ id?: unknown }> };
+      const models = [...new Set((Array.isArray(data.data) ? data.data : []).flatMap(m => typeof m.id === "string" ? [m.id] : []))].sort().slice(0, 2000);
+      return Response.json({ models, provider });
+    }
     const result = await testProviderConnection(provider);
     return Response.json({ ok: true, provider: result.provider, model: result.model });
   } catch (error) {
