@@ -259,17 +259,18 @@ export function AutomationConnections() {
 			<div className="space-y-2 rounded border p-2 text-xs">
 				<h4 className="font-medium">IA principal do Editor</h4>
 				<p className="text-muted-foreground">Usada automaticamente pelo Assistente e HyperFrames; configure as credenciais em Provedores.</p>
-				<select aria-label="Provedor principal global" className="bg-background w-full rounded border p-1" disabled={aiBusy || !ai} value={ai?.preferred || "auto"} onChange={async e=>{
-					setAIBusy(true);try {setAI(await configuredRequest("PUT",{mode:"selection",preferred:e.target.value}));setAIError("");}catch(err){setAIError(err instanceof Error?err.message:"Falha");}finally{setAIBusy(false);}
+				<select aria-label="Provedor principal global" className="bg-background w-full rounded border p-1" disabled={aiBusy || !ai} value={ai?.preferredModel && ai?.accounts.some(a=>a.provider===ai.preferred&&a.model===ai.preferredModel&&a.enabled&&ai.allowPaid) ? ai.preferred+":"+ai.preferredModel : (ai?.preferred === "ollama" || ai?.preferred === "local" ? ai.preferred : "auto")} onChange={async e=>{
+					const value=e.target.value; const separator=value.indexOf(":");
+					setAIBusy(true);try {setAI(await configuredRequest("PUT",{mode:"selection",preferred:separator<0?value:value.slice(0,separator),preferredModel:separator<0?"":value.slice(separator+1)}));setAIError("");}catch(err){setAIError(err instanceof Error?err.message:"Falha");}finally{setAIBusy(false);}
 				}}>
 					<option value="auto">Automático · prioridade e fallback</option>
 					<option value="ollama">Ollama local</option>
 					<option value="local">Servidor de IA local</option>
-					{ai?.accounts.filter(a=>a.enabled&&a.configured&&ai.allowPaid).map(a=><option key={a.provider} value={a.provider}>{a.provider} · {a.model}</option>)}
+					{ai?.accounts.filter(a=>a.enabled&&a.configured&&ai.allowPaid).map(a=><option key={a.provider+":"+a.model} value={a.provider+":"+a.model}>{a.provider} · {a.model}</option>)}
 				</select>
 				<label className="block">Modelo Ollama
 					<select className="bg-background mt-1 w-full rounded border p-1" disabled={!ai || aiBusy || !status?.ollama.models.length} value={ai?.ollamaModel || ""} onChange={async e=>{
-						setAIBusy(true);try {setAI(await configuredRequest("PUT",{mode:"selection",preferred:ai?.preferred || "auto",ollamaModel:e.target.value}));setAIError("");}catch(err){setAIError(err instanceof Error?err.message:"Falha");}finally{setAIBusy(false);}
+						setAIBusy(true);try {setAI(await configuredRequest("PUT",{mode:"selection",preferred:ai?.preferred || "auto",preferredModel:ai?.preferredModel,ollamaModel:e.target.value}));setAIError("");}catch(err){setAIError(err instanceof Error?err.message:"Falha");}finally{setAIBusy(false);}
 					}}>
 						{ai?.ollamaModel && !status?.ollama.models.includes(ai.ollamaModel) && <option value={ai.ollamaModel}>{ai.ollamaModel} (não detectado)</option>}
 						{status?.ollama.models.map(m=><option key={m} value={m}>{m}</option>)}
