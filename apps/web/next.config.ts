@@ -9,6 +9,17 @@ const nextConfig: NextConfig = {
 	reactStrictMode: true,
 	productionBrowserSourceMaps: true,
 	output: "standalone",
+	async rewrites() {
+		return [
+			// The importer is optional. Keeping this proxy in the app makes the
+			// embedded UI work for LAN users who access Cut Editor on port 3100,
+			// not only through the HTTPS Caddy endpoint.
+			{
+				source: "/importer/:path*",
+				destination: "http://importer:5000/:path*",
+			},
+		];
+	},
 	images: {
 		remotePatterns: [
 			{

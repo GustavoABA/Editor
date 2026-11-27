@@ -268,7 +268,7 @@ export async function browseAll({
 			...firstSection,
 			id: category,
 			title: STICKER_CATEGORIES[category] ?? firstSection.title,
-			layout: "row" as const,
+			layout: category === "saved" ? ("grid" as const) : ("row" as const),
 			action: {
 				type: "see-all" as const,
 				category,

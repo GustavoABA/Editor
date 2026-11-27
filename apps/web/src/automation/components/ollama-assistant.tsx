@@ -101,7 +101,7 @@ async function enqueueAndWait({
 		const body: unknown = await response.json().catch(() => null);
 		if (!response.ok || !isRecord(body) || !isRecord(body.command)) continue;
 		if (body.command.status === "complete") return;
-		if (body.command.status === "failed") {
+		if (body.command.status === "failed" || body.command.status === "expired") {
 			throw new Error(
 				typeof body.command.error === "string"
 					? body.command.error
@@ -115,7 +115,7 @@ async function enqueueAndWait({
 export function OllamaAssistant() {
 	const editor = useEditor();
 	const [instruction, setInstruction] = useState("");
-	const [provider, setProvider] = useState("auto");
+
 	const [plan, setPlan] = useState<EditingPlan | null>(null);
 	const [isPlanning, setIsPlanning] = useState(false);
 	const [isApplying, setIsApplying] = useState(false);
@@ -149,7 +149,6 @@ export function OllamaAssistant() {
 					sessionId: getAutomationSessionId(),
 					instruction: instruction.trim(),
 					audioAnalysis,
-					...(provider !== "auto" ? { provider } : {}),
 				}),
 			});
 			const body: unknown = await response.json().catch(() => null);
@@ -177,11 +176,12 @@ export function OllamaAssistant() {
 		setIsApplying(true);
 		try {
 			const sessionId = getAutomationSessionId();
-			for (const command of plan.commands) {
-				await enqueueAndWait({ sessionId, command });
-			}
+			await enqueueAndWait({
+				sessionId,
+				command: { type: "apply_plan", payload: { commands: plan.commands } },
+			});
 			toast.success("Plano da IA aplicado", {
-				description: `${plan.commands.length} ação(ões). Use Ctrl+Z para desfazer.`,
+				description: `${plan.commands.length} ação(ões) aplicadas como uma transação.`,
 			});
 			setPlan(null);
 		} catch (error) {
@@ -208,14 +208,7 @@ export function OllamaAssistant() {
 			</div>
 			<label className="flex items-center gap-2 text-xs">
 				<span className="text-muted-foreground">IA principal</span>
-				<select aria-label="Provedor principal de IA" className="bg-background rounded border px-2 py-1"
-					value={provider} disabled={isPlanning || isApplying}
-					onChange={(event) => setProvider(event.target.value)}>
-					<option value="auto">Automático (NVIDIA → OpenAI → Ollama)</option>
-					<option value="nvidia">NVIDIA NIM</option>
-					<option value="openai">OpenAI</option>
-					<option value="ollama">Ollama local</option>
-				</select>
+				<span className="text-muted-foreground text-xs">IA principal definida em Conexões (com fallback)</span>
 			</label>
 			<p className="text-muted-foreground text-[10px]">Configure chaves e modelos nas variáveis de ambiente do host. Nenhuma chave é enviada pelo navegador.</p>
 			<Textarea

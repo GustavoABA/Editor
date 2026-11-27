@@ -6,7 +6,8 @@ export type AutomationCommandStatus =
 	| "queued"
 	| "running"
 	| "complete"
-	| "failed";
+	| "failed"
+	| "expired";
 
 export type AutomationSession = {
 	id: string;
@@ -25,6 +26,7 @@ export type AutomationCommand = {
 	status: AutomationCommandStatus;
 	createdAt: string;
 	updatedAt: string;
+	expiresAt: string;
 	result?: Record<string, unknown>;
 	error?: string;
 };
@@ -33,6 +35,14 @@ const automationRoot = process.env.AUTOMATION_DIR ?? "/tmp/opencut-automation";
 const sessionsDirectory = path.join(automationRoot, "sessions");
 const commandsDirectory = path.join(automationRoot, "commands");
 const safeIdPattern = /^[0-9a-f-]{16,64}$/i;
+const DEFAULT_COMMAND_TTL_MS = 24 * 60 * 60 * 1_000;
+
+function commandTtlMs(): number {
+	const configured = Number(process.env.AUTOMATION_COMMAND_TTL_MS);
+	return Number.isSafeInteger(configured) && configured >= 60 * 60 * 1_000 && configured <= 7 * 24 * 60 * 60 * 1_000
+		? configured
+		: DEFAULT_COMMAND_TTL_MS;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -43,7 +53,8 @@ function isCommandStatus(value: unknown): value is AutomationCommandStatus {
 		value === "queued" ||
 		value === "running" ||
 		value === "complete" ||
-		value === "failed"
+		value === "failed" ||
+		value === "expired"
 	);
 }
 
@@ -79,6 +90,7 @@ function parseAutomationCommand(value: unknown): AutomationCommand | null {
 		!isCommandStatus(value.status) ||
 		typeof value.createdAt !== "string" ||
 		typeof value.updatedAt !== "string" ||
+		(value.expiresAt !== undefined && typeof value.expiresAt !== "string") ||
 		(value.result !== undefined && !isRecord(value.result)) ||
 		(value.error !== undefined && typeof value.error !== "string")
 	) {
@@ -92,6 +104,9 @@ function parseAutomationCommand(value: unknown): AutomationCommand | null {
 		status: value.status,
 		createdAt: value.createdAt,
 		updatedAt: value.updatedAt,
+		expiresAt: typeof value.expiresAt === "string"
+			? value.expiresAt
+			: new Date(new Date(value.createdAt).getTime() + commandTtlMs()).toISOString(),
 		...(isRecord(value.result) ? { result: value.result } : {}),
 		...(typeof value.error === "string" ? { error: value.error } : {}),
 	};
@@ -222,6 +237,7 @@ export async function createAutomationCommand({
 		status: "queued",
 		createdAt: now,
 		updatedAt: now,
+		expiresAt: new Date(Date.now() + commandTtlMs()).toISOString(),
 	};
 	await writeJsonAtomic({ filePath: commandPath(command.id), value: command });
 	return command;
@@ -247,11 +263,20 @@ export async function listQueuedAutomationCommands({
 		directory: commandsDirectory,
 		parse: parseAutomationCommand,
 	});
-	return commands
-		.filter(
-			(command) =>
-				command.sessionId === sessionId && command.status === "queued",
-		)
+	const queued = commands.filter(
+		(command) => command.sessionId === sessionId && command.status === "queued",
+	);
+	const now = Date.now();
+	const expired = queued.filter((command) => Date.parse(command.expiresAt) <= now);
+	await Promise.all(expired.map((command) => updateAutomationCommand({
+		commandId: command.id,
+		patch: {
+			status: "expired",
+			error: "Automation command expired before an editor session could apply it",
+		},
+	})));
+	return queued
+		.filter((command) => Date.parse(command.expiresAt) > now)
 		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 

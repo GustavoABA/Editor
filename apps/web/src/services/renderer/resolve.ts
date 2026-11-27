@@ -226,6 +226,9 @@ async function resolveVideoNode({
 		source: frame.canvas,
 		sourceWidth: frame.canvas.width,
 		sourceHeight: frame.canvas.height,
+		// CanvasSink may recycle a canvas object between decoded frames. Preserve
+		// the presentation timestamp so the compositor uploads its new pixels.
+		frameVersion: frame.timestamp,
 	};
 }
 

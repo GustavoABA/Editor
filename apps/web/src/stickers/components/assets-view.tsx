@@ -26,6 +26,7 @@ import type {
 } from "@/stickers";
 import { useStickersStore } from "@/stickers/stickers-store";
 import { cn } from "@/utils/ui";
+import { removePngSticker, savePngSticker } from "@/stickers/providers/saved";
 import {
 	HappyIcon,
 } from "@hugeicons/core-free-icons";
@@ -87,7 +88,13 @@ export function StickersView() {
 					))}
 				</TabsList>
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 touch-pan-y">
-					<StickersContentView />
+					{selectedCategory === "saved" && <div className="mb-3 space-y-1 text-xs">
+                    <label className="block rounded border p-2">Adicionar figurinha PNG
+                        <input className="mt-1 w-full" type="file" accept="image/png,.png" onChange={async e=>{const file=e.target.files?.[0];e.target.value="";if(!file)return;try{await savePngSticker(file);await browseStickers();toast.success("Figurinha salva.");}catch(err){toast.error(err instanceof Error?err.message:"Falha ao salvar");}}}/>
+                    </label>
+                    <p className="text-muted-foreground">Biblioteca PNG local deste navegador; mantenha o arquivo original para outros dispositivos.</p>
+                </div>}
+                <StickersContentView />
 				</div>
 			</Tabs>
 		</div>
@@ -445,6 +452,7 @@ function StickerItem({
 				variant="card"
 				containerClassName={containerClassName ?? "w-full"}
 			/>
+			{item.provider === "saved" && <button type="button" title="Remover PNG salvo" className="absolute top-1 right-1 z-10 rounded bg-black/70 px-1 text-white text-xs" onClick={e=>{e.stopPropagation();if(window.confirm("Remover esta figurinha da biblioteca? Clipes existentes poderão perder a imagem.")){removePngSticker(item.id);void useStickersStore.getState().browseStickers();}}}>×</button>}
 			{isAdding && (
 				<div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-black/60">
 					<Spinner className="size-6 text-white" />

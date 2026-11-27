@@ -15,12 +15,14 @@ import { TextView } from "@/text/components/assets-view";
 import { EffectsView } from "@/effects/components/assets-view";
 import { TransitionsView } from "@/transitions/components/assets-view";
 import { AutomationView } from "@/automation/components/assets-view";
+import { ImporterView } from "./views/importer";
 
 export function AssetsPanel() {
 	const { activeTab } = useAssetsPanelStore();
 
 	const viewMap: Record<Tab, React.ReactNode> = {
 		media: <MediaView />,
+		importer: <ImporterView />,
 		sounds: <SoundsView />,
 		text: <TextView />,
 		stickers: <StickersView />,

@@ -13,8 +13,6 @@ const PLANNED_COMMAND_TYPES = new Set([
 	"delete_elements",
 	"update_text",
 	"insert_hyperframes",
-	"undo",
-	"redo",
 ]);
 
 type PlannedCommand = {
@@ -112,9 +110,6 @@ function parseCommand(value: unknown): PlannedCommand | null {
 				...(payload.mode === "time" ? { startSeconds: payload.startSeconds } : {}),
 			} };
 		}
-		case "undo":
-		case "redo":
-			return { type: value.type, payload: {} };
 		default:
 			return null;
 	}
@@ -252,7 +247,7 @@ export async function POST(request: Request) {
 			messages: [
 				{
 					role: "system",
-					content: "Você é um assistente de edição do OpenCut Classic. Responda somente com JSON: summary string e commands array. Use apenas comandos permitidos. Nunca invente trackId ou elementId: copie-os do snapshot. auto_cut usa gentle, balanced ou dynamic. set_caption_style usa placement top, middle ou bottom e preset clean, box ou social. split_at usa seconds. delete_elements recebe elements com trackId e elementId. update_text recebe trackId, elementId e content. insert_hyperframes usa title (até 100 caracteres), durationSeconds (0.3 a 8), mode beats para sobrepor texto nas batidas do áudio ou mode time com startSeconds. Um HyperFrame será sempre uma camada de texto editável e não executará HTML/JS gerado. Use os picos em audioAnalysis para decidir, e identifique se a análise contém somente energia, não transcrição. undo e redo usam payload vazio. Não exporte, não apague mídia ou execute ações fora do pedido.",
+					content: "Você é um assistente de edição do OpenCut Classic. Responda somente com JSON: summary string e commands array. Use apenas comandos permitidos. Nunca invente trackId ou elementId: copie-os do snapshot. auto_cut usa gentle, balanced ou dynamic. set_caption_style usa placement top, middle ou bottom e preset clean, box ou social. split_at usa seconds. delete_elements recebe elements com trackId e elementId. update_text recebe trackId, elementId e content. insert_hyperframes usa title (até 100 caracteres), durationSeconds (0.3 a 8), mode beats para sobrepor texto nas batidas do áudio ou mode time com startSeconds. Um HyperFrame será sempre uma camada de texto editável e não executará HTML/JS gerado. Use os picos em audioAnalysis para decidir, e identifique se a análise contém somente energia, não transcrição. Não exporte, não desfaça/refaça, não apague mídia e não execute ações fora do pedido.",
 				},
 				{
 					role: "user",

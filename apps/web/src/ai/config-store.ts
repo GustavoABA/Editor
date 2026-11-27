@@ -12,6 +12,9 @@ export type ProviderAccount = {
 };
 export type AIProviderConfiguration = {
   allowPaid: boolean;
+  preferred?: ManagedProviderId | "ollama" | "local" | "auto";
+  preferredModel?: string;
+  ollamaModel?: string;
   accounts: ProviderAccount[];
 };
 
@@ -56,7 +59,7 @@ export async function readProviderConfiguration(): Promise<AIProviderConfigurati
     const contents: unknown = JSON.parse(await readFile(CONFIG_PATH, "utf8"));
     return decryptConfiguration(contents as Record<string, unknown>);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return DEFAULT_CONFIG;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...DEFAULT_CONFIG, accounts: [] };
     throw error;
   }
 }
@@ -73,6 +76,9 @@ export async function writeProviderConfiguration(data: AIProviderConfiguration):
 export function publicProviderConfiguration(data: AIProviderConfiguration) {
   return {
     allowPaid: data.allowPaid,
+    preferred: data.preferred || "auto",
+    preferredModel: data.preferredModel || "",
+    ollamaModel: data.ollamaModel || process.env.OLLAMA_MODEL || "qwen2.5:1.5b",
     accounts: data.accounts.map(({ provider, model, enabled, priority, key }) => ({
       provider, model, enabled, priority, configured: key.length > 0,
     })),

@@ -1,4 +1,10 @@
 https://{$OPENCUT_LAN_HOST:localhost} {
 	tls internal
-	reverse_proxy web:3000
+	handle_path /importer/* {
+		reverse_proxy importer:5000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
 }

@@ -15,6 +15,7 @@ import {
 	isGpuAvailable,
 } from "@/services/renderer/gpu-renderer";
 import { AutomationBridge } from "@/automation/bridge";
+import { activityLog } from "@/diagnostics/activity-log";
 
 interface EditorProviderProps {
 	projectId: string;
@@ -139,7 +140,28 @@ function EditorRuntimeBindings() {
 	}, [editor, rippleEditingEnabled]);
 
 	useEffect(() => {
+		const projectId = editor.project.getActiveOrNull()?.metadata.id;
+		if (!projectId) return;
+		activityLog.start({ projectId });
+		const onError = (event: ErrorEvent) => activityLog.record({
+			source: "navegador", level: "error", message: event.message || "Erro não identificado.",
+		});
+		const onRejection = (event: PromiseRejectionEvent) => activityLog.record({
+			source: "navegador", level: "error",
+			message: event.reason instanceof Error ? event.reason.message : "Falha assíncrona não identificada.",
+		});
+		window.addEventListener("error", onError);
+		window.addEventListener("unhandledrejection", onRejection);
+		return () => {
+			window.removeEventListener("error", onError);
+			window.removeEventListener("unhandledrejection", onRejection);
+			activityLog.end();
+		};
+	}, [editor]);
+
+	useEffect(() => {
 		const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+			activityLog.end();
 			if (!editor.save.getIsDirty()) return;
 			event.preventDefault();
 			(event as unknown as { returnValue: string }).returnValue = "";

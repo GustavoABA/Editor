@@ -3,6 +3,7 @@ import type { Command, CommandResult } from "@/commands";
 import type { EditorSelectionSnapshot } from "@/selection/editor-selection";
 import { applyRippleAdjustments, computeRippleAdjustments } from "@/ripple";
 import type { SceneTracks } from "@/timeline/types";
+import { activityLog } from "@/diagnostics/activity-log";
 
 interface CommandHistoryEntry {
 	command: Command;
@@ -24,6 +25,10 @@ export class CommandManager {
 			: null;
 		const previousSelection = this.getSelectionSnapshot();
 		const result = command.execute();
+		activityLog.record({
+			source: "edição",
+			message: `Executou ${command.constructor.name}.`,
+		});
 		this.applyRippleIfEnabled({ beforeTracks });
 		const selectionOverride = this.applySelectionOverride(result);
 		this.runReactors();
@@ -52,6 +57,7 @@ export class CommandManager {
 		if (this.history.length === 0) return;
 		const entry = this.history.pop();
 		entry?.command.undo();
+		if (entry) activityLog.record({ source: "edição", message: `Desfez ${entry.command.constructor.name}.` });
 		if (entry) {
 			// Only restore selection for commands that explicitly changed it.
 			// Commands without selection intent leave selection untouched,
@@ -79,6 +85,7 @@ export class CommandManager {
 			: null;
 		const previousSelection = this.getSelectionSnapshot();
 		const result = entry.command.redo();
+		activityLog.record({ source: "edição", message: `Refez ${entry.command.constructor.name}.` });
 		this.applyRippleIfEnabled({ beforeTracks });
 		const selectionOverride = this.applySelectionOverride(result);
 		this.runReactors();
@@ -96,6 +103,17 @@ export class CommandManager {
 
 	canRedo(): boolean {
 		return this.redoStack.length > 0;
+	}
+
+	/** Roll back every editor command created after an automation checkpoint. */
+	createCheckpoint(): number {
+		return this.history.length;
+	}
+
+	rollbackTo({ checkpoint }: { checkpoint: number }): void {
+		while (this.history.length > checkpoint) {
+			this.undo();
+		}
 	}
 
 	clear(): void {

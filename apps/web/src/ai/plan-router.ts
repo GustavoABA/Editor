@@ -1,7 +1,7 @@
 import { readProviderConfiguration, type ManagedProviderId } from "./config-store";
 
 /** Provider tokens are decrypted on host only; never accept runtime URLs from browsers. */
-export type PlanProvider = ManagedProviderId | "ollama";
+export type PlanProvider = ManagedProviderId | "ollama" | "local";
 export type PlanMessage = { role: "system" | "user"; content: string };
 export type PlanCompletion = { provider: PlanProvider; model: string; content: string };
 type Config = { provider: PlanProvider; url: string; model: string; token?: string; priority: number };
@@ -23,7 +23,7 @@ async function configurations(): Promise<Config[]> {
       paid.push({ provider: item.provider, url: FIXED_URLS[item.provider],
         model: item.model, token: item.key, priority: item.priority });
     }
-    const configured = new Set(paid.map(x=>x.provider));
+    const configured = new Set(vault.accounts.map(x=>x.provider));
     for (const provider of ["nvidia", "openai", "moonshot", "deepseek", "anthropic"] as const) {
       if (configured.has(provider)) continue;
       const keys: Record<ManagedProviderId, string> = {
@@ -42,7 +42,10 @@ async function configurations(): Promise<Config[]> {
   }
   const base = (process.env.OLLAMA_BASE_URL || "http://host.docker.internal:11434").replace(/\/$/, "");
   paid.push({ provider: "ollama", url: base + "/api/chat",
-    model: process.env.OLLAMA_MODEL || "qwen2.5:1.5b", priority: 999 });
+    model: vault.ollamaModel || process.env.OLLAMA_MODEL || "qwen2.5:1.5b", priority: 999 });
+  const localBase = (process.env.LOCAL_AI_BASE_URL || "http://local-ai:8080/v1").replace(/\/$/, "");
+  paid.push({ provider: "local", url: localBase + "/chat/completions",
+    model: process.env.LOCAL_AI_MODEL || "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf", priority: 1_000 });
   return paid.sort((a,b)=>a.priority-b.priority);
 }
 
@@ -51,8 +54,11 @@ export async function supportedProviders(): Promise<PlanProvider[]> {
 }
 export async function providerOrder(preferred: unknown): Promise<Config[]> {
   const configs = await configurations();
+  const vault = await readProviderConfiguration();
+  if (!preferred || preferred === "auto") preferred = vault.preferred;
   if (typeof preferred === "string" && configs.some(p=>p.provider===preferred)) {
-    return [...configs.filter(p=>p.provider===preferred),...configs.filter(p=>p.provider!==preferred)];
+    const matching = configs.filter(p=>p.provider===preferred).sort((a,b)=>Number(b.model===vault.preferredModel)-Number(a.model===vault.preferredModel));
+    return [...matching,...configs.filter(p=>p.provider!==preferred)];
   }
   return configs;
 }
@@ -62,6 +68,8 @@ function responseContent(raw: unknown, provider: PlanProvider): string | null {
   const data = raw as Record<string, unknown>;
   if (provider === "anthropic") {
     const blocks = data.content;
+    const tool = Array.isArray(blocks) ? blocks.find(x=>x?.type==="tool_use" && x.name === "return_editing_plan") : null;
+    if (tool && typeof tool.input === "object" && tool.input !== null) return JSON.stringify(tool.input);
     const first = Array.isArray(blocks) ? blocks.find(x=>x?.type==="text") : null;
     return first && typeof first.text === "string" ? first.text : null;
   }
@@ -80,13 +88,22 @@ async function callProvider(config: Config, messages: PlanMessage[], format: unk
     headers["anthropic-version"] = "2023-06-01";
     body = { model, max_tokens: maxTokens,
       system: messages.filter(m=>m.role==="system").map(m=>m.content).join("\n"),
-      messages: messages.filter(m=>m.role!=="system") };
+      messages: messages.filter(m=>m.role!=="system"),
+      tools: [{
+        name: "return_editing_plan",
+        description: "Return the validated OpenCut editing plan.",
+        input_schema: format,
+      }],
+      tool_choice: { type: "tool", name: "return_editing_plan" },
+    };
   } else if (provider === "ollama") {
     body = { model, messages, stream: false, format, options: { temperature: 0 } };
   } else {
     headers.Authorization = "Bearer " + (token || "");
-    // Model-specific temperature fields are intentionally omitted.
-    body = { model, messages, stream: false };
+    // JSON mode is supported by OpenAI-compatible APIs. We still validate the
+    // returned plan below because individual models vary in schema support.
+    // NVIDIA NIM models vary in JSON-mode support; prompt plus server-side JSON validation remains authoritative.
+    body = { model, messages, stream: false, ...(provider === "nvidia" || provider === "local" ? {} : { response_format: { type: "json_object" } }), ...(provider === "openai" ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }) };
   }
   const response = await fetch(url, {
     method: "POST", headers, body: JSON.stringify(body),
@@ -97,14 +114,37 @@ async function callProvider(config: Config, messages: PlanMessage[], format: unk
   const content = responseContent(raw, provider);
   if (!content) throw new Error(provider + " returned no text");
   let parsed: unknown;
-  try { parsed = JSON.parse(content) as unknown; }
+  try { parsed = JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as unknown; }
   catch { throw new Error(provider + " returned malformed JSON"); }
   if (!parsed || typeof parsed !== "object" ||
       typeof (parsed as Record<string, unknown>).summary !== "string" ||
       !Array.isArray((parsed as Record<string, unknown>).commands)) {
     throw new Error(provider + " returned invalid editing plan schema");
   }
-  return { provider, model, content };
+  return { provider, model, content: JSON.stringify(parsed) };
+}
+
+const connectionTestFormat = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    commands: { type: "array", maxItems: 0 },
+  },
+  required: ["summary", "commands"],
+  additionalProperties: false,
+} as const;
+
+/** Performs a minimal real request with a saved provider credential. */
+export async function testProviderConnection(provider: ManagedProviderId, model?: string): Promise<Pick<PlanCompletion, "provider" | "model">> {
+  const config = (await configurations()).find((item) => item.provider === provider && (!model || item.model === model));
+  if (!config || config.provider === "ollama") {
+    throw new Error("Configure, habilite e autorize este provedor antes de testar");
+  }
+  const completion = await callProvider(config, [
+    { role: "system", content: "Return exactly this JSON object: {\"summary\":\"ok\",\"commands\":[]}" },
+    { role: "user", content: "Confirm this provider connection." },
+  ], connectionTestFormat, 512);
+  return { provider: completion.provider, model: completion.model };
 }
 
 export async function createRoutedPlan(params: {
@@ -112,11 +152,16 @@ export async function createRoutedPlan(params: {
   format: unknown;
   preferred?: unknown;
   maxTokens?: number;
+  validate?: (content: string) => boolean;
 }): Promise<PlanCompletion> {
   const order = await providerOrder(params.preferred);
   for (const provider of order) {
-    try { return await callProvider(provider, params.messages, params.format,
-      Math.min(4096, Math.max(1024, params.maxTokens ?? 1024))); }
+    try {
+      const result = await callProvider(provider, params.messages, params.format,
+        Math.min(8192, Math.max(1024, params.maxTokens ?? 1024)));
+      if (params.validate && !params.validate(result.content)) throw Error("Invalid feature-specific output");
+      return result;
+    }
     catch (error) {
       console.warn("[ai-router] provider failed:", provider.provider,
         error instanceof Error ? error.message : "unknown error");

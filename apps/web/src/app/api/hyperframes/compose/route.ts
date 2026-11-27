@@ -1,5 +1,6 @@
 import { authorizeSync } from "@/lan-sync/server";
 import { createRoutedPlan } from "@/ai/plan-router";
+import { createLocalHyperFramesFallback } from "@/hyperframes/local-fallback";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,13 +52,15 @@ export async function POST(request: Request) {
     Number.isFinite(raw.duration) ? Math.min(12, Math.max(0.3, raw.duration)) : 5;
   const description = JSON.stringify({
     brief: raw.instruction, transcript: raw.transcript, timestamps,
+    intervalStartSeconds: typeof raw.start === "number" ? raw.start : 0,
     energyPeaks: peaks, timeline, durationSeconds: duration,
     width: raw.width, height: raw.height,
   }).slice(0, 14500);
   try {
     const ai = await createRoutedPlan({
-      preferred: raw.provider,
-      maxTokens: 4096,
+      // Global routing preference is loaded on the server for every request.
+      maxTokens: 8192,
+      validate: (content) => { try { const p = JSON.parse(content); return Array.isArray(p.commands) && p.commands.some((c: { type?: string; payload?: { html?: unknown; css?: unknown } }) => c.type === "html_css" && typeof c.payload?.html === "string" && c.payload.html.trim().length > 0 && c.payload.html.length <= 26000 && typeof c.payload.css === "string" && c.payload.css.length <= 26000); } catch { return false; } },
       format,
       messages: [{
         role: "system",
@@ -65,7 +68,7 @@ export async function POST(request: Request) {
 Analise semanticamente a transcrição e timestamps fornecidos: tema, emoções,
 palavras-chave, números, ações, mudança de assunto, além dos picos de energia.
 Projete um único overlay visual com duração limitada que faça sentido com a fala
-durante o intervalo solicitado. Crie COMPOSIÇÃO LIVRE usando HTML de elementos
+durante o intervalo solicitado. Os timestamps são absolutos da timeline; subtraia intervalStartSeconds para animar a composição a partir de zero. Crie COMPOSIÇÃO LIVRE usando HTML de elementos
 de layout (div, span, h1,h2,p,section,article,header,footer,strong,em,small,ul,li)
 e CSS autoral. Pode criar cards, infográficos tipográficos, banners, notícias,
 calendários visuais, gráficos feitos com barras CSS, títulos animados com
@@ -97,7 +100,11 @@ e o ritmo musical sem afirmar que houve compreensão de conteúdo verbal.`,
       summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 900) : "",
     });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message :
-      "A IA não conseguiu compor o overlay." }, { status: 502 });
+    // Do not disguise an AI failure as a successful AI-generated template.
+    if (raw.allowTemplate === true) {
+      const fallback = createLocalHyperFramesFallback({ instruction: raw.instruction, transcript: raw.transcript });
+      return Response.json({ html: fallback.html, css: fallback.css, provider: "local-template", model: "embedded-deterministic-fallback", summary: fallback.summary });
+    }
+    return Response.json({ error: error instanceof Error ? error.message : "Nenhum provedor respondeu. Confira Provedores e Conexões." }, { status: 502 });
   }
 }

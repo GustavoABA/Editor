@@ -5,6 +5,7 @@ import {
 	CanvasSink,
 	type WrappedCanvas,
 } from "mediabunny";
+import { isFrameAtOrBeforeTime } from "./frame-order";
 
 interface VideoSinkData {
 	input: Input;
@@ -65,7 +66,10 @@ export class VideoCache {
 		sinkData: VideoSinkData;
 		time: number;
 	}): Promise<WrappedCanvas | null> {
-		if (sinkData.nextFrame && sinkData.nextFrame.timestamp <= time) {
+		if (sinkData.nextFrame && isFrameAtOrBeforeTime({
+			frame: sinkData.nextFrame,
+			time,
+		})) {
 			sinkData.currentFrame = sinkData.nextFrame;
 			sinkData.nextFrame = null;
 			this.startPrefetch({ sinkData });
@@ -129,16 +133,28 @@ export class VideoCache {
 				}
 
 				// Check if the nextFrame (which might have just arrived) is what we need
-				if (
-					sinkData.nextFrame &&
-					sinkData.nextFrame.timestamp <= targetTime + 0.000001 // Never display a future frame
-				) {
+				if (sinkData.nextFrame && isFrameAtOrBeforeTime({
+					frame: sinkData.nextFrame,
+					time: targetTime,
+				})) {
 					sinkData.currentFrame = sinkData.nextFrame;
 					sinkData.nextFrame = null;
+				} else if (sinkData.nextFrame) {
+					// The prefetched frame is ahead of the playhead. Hold the latest
+					// presentation frame instead of consuming further frames and
+					// showing the future frame, which looks like a backwards flicker
+					// when the decoder later catches up.
+					return sinkData.currentFrame;
 				} else {
 					const { value: frame, done } = await sinkData.iterator.next();
 
 					if (done || !frame) break;
+					if (!isFrameAtOrBeforeTime({ frame, time: targetTime })) {
+						// Keep a future decoded frame for the next render. It must not
+						// become current until the playhead reaches its timestamp.
+						sinkData.nextFrame = frame;
+						return sinkData.currentFrame;
+					}
 
 					sinkData.currentFrame = frame;
 				}
@@ -152,7 +168,6 @@ export class VideoCache {
 					return frame;
 				}
 
-				if (frame.timestamp > targetTime + 1.0) break;
 			}
 		} catch (error) {
 			console.warn("Iterator failed, will restart:", error);

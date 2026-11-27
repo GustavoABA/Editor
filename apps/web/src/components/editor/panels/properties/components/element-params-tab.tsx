@@ -38,6 +38,9 @@ export function ElementParamsTab({
 	return (
 		<Section sectionKey={`${element.id}:${sectionKey}`}>
 			<SectionContent className="pt-4">
+				{sectionKey === "transform" && (
+					<p className="text-muted-foreground mb-3 text-xs">Posicione o cursor na timeline e use o ícone ◇ ao lado de uma propriedade para criar keyframes de posição, escala ou rotação.</p>
+				)}
 				<SectionFields>
 					{params
 						.filter((param) => isVisible({ param, values: baseValues }))
