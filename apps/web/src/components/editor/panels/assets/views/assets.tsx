@@ -33,6 +33,8 @@ import { invokeAction } from "@/actions";
 import { processMediaAssets } from "@/media/processing";
 import { showMediaUploadToast } from "@/media/upload-toast";
 import { LinksImportPanel } from "./links";
+import { savePngSticker } from "@/stickers/providers/saved";
+import { useStickersStore } from "@/stickers/stickers-store";
 import {
 	SelectableItem,
 	SelectableSurface,
@@ -329,6 +331,7 @@ function MediaItemWithContextMenu({
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent>
 				<ContextMenuItem>Export clips</ContextMenuItem>
+                {item.type === "image" && (item.file.type === "image/png" || /\.png$/i.test(item.name)) && <ContextMenuItem onSelect={()=>{void savePngSticker(item.file).then(()=>{toast.success("PNG salvo em Stickers → Salvos");void useStickersStore.getState().browseStickers();}).catch(e=>toast.error(e instanceof Error?e.message:"Falha ao salvar figurinha"));}}>Salvar PNG como sticker</ContextMenuItem>}
 				<ContextMenuItem
 					variant="destructive"
 					onClick={(event: React.MouseEvent<HTMLDivElement>) =>
