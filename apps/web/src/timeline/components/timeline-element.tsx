@@ -445,7 +445,7 @@ export function TimelineElement({
 						{isSelected && (
 							<div
 								className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden"
-								style={{ height: `${baseTrackHeight}px` }}
+								style={{ height: `${baseTrackHeight}px`, ...(element.type === "video" ? {backgroundColor:"#a84b13",borderBottom:"3px solid #f59e42"} : {}) }}
 							>
 								<KeyframeIndicators
 									indicators={keyframeIndicators}
@@ -1190,8 +1190,8 @@ function TiledMediaContent({
 			<div
 				className="absolute inset-0"
 				style={{
-					backgroundColor: "var(--muted)",
-					backgroundImage: `url(${imageUrl})`,
+					backgroundColor: element.type === "video" ? "#a84b13" : "var(--muted)",
+					backgroundImage: element.type === "video" ? `linear-gradient(to bottom, rgba(233,111,37,0.55), rgba(233,111,37,0.18)), url(${imageUrl})` : `url(${imageUrl})`,
 					backgroundRepeat: "repeat-x",
 					backgroundSize: `${tileWidth}px ${trackHeight}px`,
 					backgroundPosition: "left center",
@@ -1206,6 +1206,7 @@ function TiledMediaContent({
 					) : null
 				}
 				hasFade={true}
+				isVideo={element.type === "video"}
 			/>
 		</>
 	);
@@ -1215,10 +1216,12 @@ function MediaElementHeader({
 	name,
 	leading,
 	hasFade,
+	isVideo = false,
 }: {
 	name?: string | null;
 	leading?: ReactNode;
 	hasFade?: boolean;
+	isVideo?: boolean;
 }) {
 	if (!name && !leading) {
 		return null;
@@ -1229,6 +1232,7 @@ function MediaElementHeader({
 			className={cn(
 				"absolute top-0 left-0 flex h-5 w-full bg-linear-to-b pt-1",
 				hasFade && "from-black/30 to-transparent",
+				isVideo && "bg-orange-700/80 border-t border-orange-400",
 			)}
 		>
 			{leading && <div className="pl-1">{leading}</div>}
