@@ -55,6 +55,8 @@ WORKDIR /app/apps/web
 RUN bun run build
 
 # Production image
+FROM ngrok/ngrok:3-alpine AS ngrok-bin
+
 FROM base AS runner
 WORKDIR /app
 
@@ -69,6 +71,8 @@ ENV HYPERFRAMES_NO_UPDATE_CHECK=1 \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 RUN mkdir -p /app/render-jobs /app/automation /app/lan-sync \
 	&& chown nextjs:nodejs /app/render-jobs /app/automation /app/lan-sync
+
+COPY --from=ngrok-bin /bin/ngrok /usr/local/bin/ngrok
 
 COPY --from=autocut-builder /src/rust/crates/autocut/target/release/opencut-autocut /usr/local/bin/opencut-autocut
 COPY --from=hyperframes-cli-builder --chown=nextjs:nodejs /opt/opencut-hyperframes /opt/opencut-hyperframes
