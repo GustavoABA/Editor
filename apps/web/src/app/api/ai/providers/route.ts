@@ -32,8 +32,9 @@ export async function PUT(request: Request) {
     if (input.mode === "selection") {
       const selected = input.preferred;
       if (selected !== "auto" && selected !== "ollama" && selected !== "local" && !validProvider(selected)) return Response.json({ error: "Provedor inválido" }, { status: 400 });
-      if (validProvider(selected) && (!current.allowPaid || !current.accounts.some(a => a.provider === selected && a.enabled && a.key && a.model))) return Response.json({ error: "Habilite e configure este provedor primeiro." }, { status: 400 });
+      if (validProvider(selected) && (!current.allowPaid || !current.accounts.some(a => a.provider === selected && a.enabled && a.key && a.model && (typeof input.preferredModel !== "string" || !input.preferredModel || a.model === input.preferredModel)))) return Response.json({ error: "Habilite e configure este provedor primeiro." }, { status: 400 });
       current.preferred = selected;
+      current.preferredModel = validProvider(selected) ? (typeof input.preferredModel === "string" && input.preferredModel ? input.preferredModel : current.accounts.find(a=>a.provider===selected&&a.enabled&&a.key)?.model || "") : "";
       if (typeof input.ollamaModel === "string" && input.ollamaModel.trim().length > 0 && input.ollamaModel.length <= 150) current.ollamaModel = input.ollamaModel.trim();
     } else if (input.mode === "allow-paid") {
       if (typeof input.allowPaid !== "boolean") return Response.json({ error: "Invalid opt-in" }, { status: 400 });
@@ -47,14 +48,14 @@ export async function PUT(request: Request) {
           (input.key !== undefined && (typeof input.key !== "string" || input.key.length > 1000))) {
         return Response.json({ error: "Invalid provider settings" }, { status: 400 });
       }
-      const old = current.accounts.find(a => a.provider === input.provider);
+      const old = current.accounts.find(a => a.provider === input.provider && a.model === (input.model as string).trim()) || current.accounts.find(a => a.provider === input.provider);
       const key = typeof input.key === "string" && input.key.trim() ? input.key.trim() : old?.key || "";
       if (!key) return Response.json({ error: "Configure um token para este provedor" }, { status: 400 });
       const account: ProviderAccount = {
         provider: input.provider, key, model: input.model.trim(), enabled: input.enabled,
         priority: input.priority,
       };
-      current.accounts = [...current.accounts.filter(a => a.provider !== account.provider), account];
+      current.accounts = [...current.accounts.filter(a => a.provider !== account.provider || a.model !== account.model), account];
     }
     await writeProviderConfiguration(current);
     return Response.json(publicProviderConfiguration(current));
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
       const models = [...new Set((Array.isArray(data.data) ? data.data : []).flatMap(m => typeof m.id === "string" ? [m.id] : []))].sort().slice(0, 2000);
       return Response.json({ models, provider });
     }
-    const result = await testProviderConnection(provider);
+    const result = await testProviderConnection(provider, typeof fields.model === "string" ? fields.model : undefined);
     return Response.json({ ok: true, provider: result.provider, model: result.model });
   } catch (error) {
     return Response.json({
@@ -101,7 +102,9 @@ export async function DELETE(request: Request) {
   if (!validProvider(provider)) return Response.json({ error: "Invalid provider" }, { status: 400 });
   try {
     const config = await readProviderConfiguration();
-    config.accounts = config.accounts.filter(a => a.provider !== provider);
+    const model = (input as Record<string, unknown>).model;
+    config.accounts = config.accounts.filter(a => a.provider !== provider || (typeof model === "string" && a.model !== model));
+    if(config.preferred === provider && (!config.accounts.some(a=>a.provider===provider&&a.model===config.preferredModel))) {config.preferred="auto";config.preferredModel="";}
     await writeProviderConfiguration(config);
     return Response.json(publicProviderConfiguration(config));
   } catch { return Response.json({ error: "Could not remove provider" }, { status: 500 }); }
