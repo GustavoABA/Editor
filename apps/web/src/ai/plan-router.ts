@@ -54,9 +54,11 @@ export async function supportedProviders(): Promise<PlanProvider[]> {
 }
 export async function providerOrder(preferred: unknown): Promise<Config[]> {
   const configs = await configurations();
-  if (!preferred || preferred === "auto") preferred = (await readProviderConfiguration()).preferred;
+  const vault = await readProviderConfiguration();
+  if (!preferred || preferred === "auto") preferred = vault.preferred;
   if (typeof preferred === "string" && configs.some(p=>p.provider===preferred)) {
-    return [...configs.filter(p=>p.provider===preferred),...configs.filter(p=>p.provider!==preferred)];
+    const matching = configs.filter(p=>p.provider===preferred).sort((a,b)=>Number(b.model===vault.preferredModel)-Number(a.model===vault.preferredModel));
+    return [...matching,...configs.filter(p=>p.provider!==preferred)];
   }
   return configs;
 }
@@ -133,8 +135,8 @@ const connectionTestFormat = {
 } as const;
 
 /** Performs a minimal real request with a saved provider credential. */
-export async function testProviderConnection(provider: ManagedProviderId): Promise<Pick<PlanCompletion, "provider" | "model">> {
-  const config = (await configurations()).find((item) => item.provider === provider);
+export async function testProviderConnection(provider: ManagedProviderId, model?: string): Promise<Pick<PlanCompletion, "provider" | "model">> {
+  const config = (await configurations()).find((item) => item.provider === provider && (!model || item.model === model));
   if (!config || config.provider === "ollama") {
     throw new Error("Configure, habilite e autorize este provedor antes de testar");
   }
