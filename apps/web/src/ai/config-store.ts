@@ -13,6 +13,7 @@ export type ProviderAccount = {
 export type AIProviderConfiguration = {
   allowPaid: boolean;
   preferred?: ManagedProviderId | "ollama" | "local" | "auto";
+  preferredModel?: string;
   ollamaModel?: string;
   accounts: ProviderAccount[];
 };
@@ -76,6 +77,7 @@ export function publicProviderConfiguration(data: AIProviderConfiguration) {
   return {
     allowPaid: data.allowPaid,
     preferred: data.preferred || "auto",
+    preferredModel: data.preferredModel || "",
     ollamaModel: data.ollamaModel || process.env.OLLAMA_MODEL || "qwen2.5:1.5b",
     accounts: data.accounts.map(({ provider, model, enabled, priority, key }) => ({
       provider, model, enabled, priority, configured: key.length > 0,
