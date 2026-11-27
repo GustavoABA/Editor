@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { planHyperFramesIntervals, formatTimelineDuration } from "@/hyperframes/intervals";
+import { configuredRequest, type PublicConfiguration } from "./providers";
 import { toast } from "sonner";
 import { useEditor } from "@/editor/use-editor";
 import { useElementSelection } from "@/timeline/hooks/element/use-element-selection";
@@ -17,7 +19,7 @@ import { mediaTimeFromSeconds, mediaTimeToSeconds } from "@/wasm";
 type Segment = { text: string; start: number; end: number };
 type Draft = { html: string; css: string; summary?: string; provider?: string; model?: string };
 type Stage = "idle" | "analyzing" | "designing" | "rendering";
-const MAX_DURATION = 12;
+type CompositionPart = Draft & { start: number; duration: number };
 
 function isRecord(data: unknown): data is Record<string, unknown> {
   return !!data && typeof data === "object" && !Array.isArray(data);
@@ -54,11 +56,16 @@ export function HyperFramesStudio() {
     html: '<div class="card"><div class="eyebrow">HYPERFRAMES</div><h1>Edição com IA</h1><p>Composição HTML/CSS editável</p></div>',
     css: '.card{position:absolute;inset:10%;padding:40px;border-radius:32px;background:linear-gradient(130deg,#172b47,#142015);color:#fff;font-family:Arial;display:flex;flex-direction:column;justify-content:center;box-shadow:0 20px 50px #0005}.eyebrow{font-size:16px;color:#fff2a6;letter-spacing:5px}h1{font-size:clamp(28px,6vw,72px);margin:15px 0}p{font-size:24px}',
   });
-  const [duration, setDuration] = useState(5);
+  const [duration, setDuration] = useState(0);
   const [start, setStart] = useState(0);
   const [stage, setStage] = useState<Stage>("idle");
   const [details, setDetails] = useState("");
-  const [provider, setProvider] = useState("auto");
+  const [parts, setParts] = useState<CompositionPart[]>([]);
+  const [partIndex, setPartIndex] = useState(0);
+  const [routing, setRouting] = useState<PublicConfiguration | null>(null);
+  const totalSeconds = useEditor(e => mediaTimeToSeconds({time:e.timeline.getTotalDuration()}));
+  const intervals = planHyperFramesIntervals(start, duration, totalSeconds);
+  const effectiveDuration = intervals.reduce((sum,p)=>sum+p.duration,0);
 
   const project = editor.project.getActiveOrNull();
   const size = project?.settings.canvasSize ?? { width: 1920, height: 1080 };
@@ -84,6 +91,8 @@ export function HyperFramesStudio() {
       html: String(source.element.params["hyperframes.html"]),
       css: String(source.element.params["hyperframes.css"]),
     });
+    setParts([]);
+    setPartIndex(0);
     setDuration(mediaTimeToSeconds({ time: source.element.duration }));
     setStart(mediaTimeToSeconds({ time: source.element.startTime }));
     toast.success("Código HTML/CSS do clipe recuperado para edição.");
@@ -138,7 +147,9 @@ export function HyperFramesStudio() {
     if (stage !== "idle") return;
     if (!getLanToken()) return toast.error("Configure o token LAN para usar a IA do host.");
     if (brief.trim().length < 3) return toast.error("Escreva o que a composição deve transmitir.");
-    setStage("designing"); setDetails("Enviando briefing, transcrição e contexto da timeline ao modelo selecionado...");
+    if (!intervals.length) return toast.error("Escolha um intervalo válido dentro da timeline.");
+    if (intervals.length > 1 && !window.confirm(`Gerar ${intervals.length} composições para ${formatTimelineDuration(effectiveDuration)}? Cada trecho pode consumir uma chamada de IA.`)) return;
+    setStage("designing"); setDetails("Carregando configuração global de IA...");
     try {
       const scene = editor.scenes.getActiveScene().tracks;
       const timeline = [scene.main, ...scene.overlay, ...scene.audio].flatMap(track =>
@@ -148,27 +159,34 @@ export function HyperFramesStudio() {
           duration: Number(mediaTimeToSeconds({ time: element.duration }).toFixed(2)),
         })).slice(0, 40),
       );
-      const response = await fetch("/api/hyperframes/compose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lan-sync-token": getLanToken() },
-        body: JSON.stringify({ instruction: brief.trim(), transcript: transcript.slice(0, 7000),
-          transcriptSegments: segments.filter(s => s.end >= start && s.start < start + duration).slice(0, 100),
-          peaks: peaks.filter(p => p >= start && p < start + duration),
-          timeline, duration, width: resolution.width, height: resolution.height,
-          ...(provider !== "auto" ? { provider } : {}) }),
-        signal: AbortSignal.timeout(70_000),
-      });
-      const responseBody: unknown = await response.json().catch(() => null);
-      if (!response.ok || !isRecord(responseBody) || typeof responseBody.html !== "string" ||
-          typeof responseBody.css !== "string") {
-        throw Error(isRecord(responseBody) && typeof responseBody.error === "string" ?
-          responseBody.error : "A IA não retornou uma composição válida.");
+      const config = await configuredRequest("GET");
+      setRouting(config);
+      const next: CompositionPart[] = [];
+      for (const [index, interval] of intervals.entries()) {
+        setDetails(`Gerando trecho ${index+1}/${intervals.length} · ${formatTimelineDuration(interval.start)}...`);
+        const relevant = segments.filter(s => s.end > interval.start && s.start < interval.start + interval.duration).slice(0,100);
+        const contextualText = relevant.length ? relevant.map(s=>s.text).join(" ") : transcript;
+        const response = await fetch("/api/hyperframes/compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-lan-sync-token": getLanToken() },
+          body: JSON.stringify({ instruction: brief.trim(), transcript: contextualText.slice(0,4000),
+            transcriptSegments: relevant.map(s=>({...s,text:s.text.slice(0,100)})),
+            peaks: peaks.filter(p => p >= interval.start && p < interval.start + interval.duration).slice(0,32),
+            timeline: timeline.filter(e => e.start < interval.start+interval.duration && e.start+e.duration > interval.start).slice(0,20),
+            start: interval.start, duration: interval.duration, width: resolution.width, height: resolution.height }),
+          signal: AbortSignal.timeout(310_000),
+        });
+        const result: unknown = await response.json().catch(() => null);
+        if (!response.ok || !isRecord(result) || typeof result.html !== "string" || typeof result.css !== "string") {
+          throw Error(`Trecho ${index+1}: ${isRecord(result) && typeof result.error === "string" ? result.error : "IA não retornou composição válida."}`);
+        }
+        next.push({ ...interval, html: result.html, css: result.css,
+          summary: typeof result.summary === "string" ? result.summary : undefined,
+          provider: typeof result.provider === "string" ? result.provider : undefined,
+          model: typeof result.model === "string" ? result.model : undefined });
       }
-      setDraft({ html: responseBody.html, css: responseBody.css,
-        summary: typeof responseBody.summary === "string" ? responseBody.summary : undefined,
-        provider: typeof responseBody.provider === "string" ? responseBody.provider : undefined,
-        model: typeof responseBody.model === "string" ? responseBody.model : undefined });
-      setDetails("Composição HTML/CSS criada. Revise a prévia e o código antes de renderizar.");
+      setParts(next); setPartIndex(0); setDraft(next[0]);
+      setDetails(`${next.length} composições geradas. Revise os trechos antes de aplicar.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha na IA.";
       setDetails(message); toast.error(message);
@@ -179,58 +197,50 @@ export function HyperFramesStudio() {
     if (stage !== "idle") return;
     if (!getLanToken()) return toast.error("Configure o token LAN.");
     if (!project) return toast.error("Abra um projeto primeiro.");
-    if (!(duration >= 0.3 && duration <= MAX_DURATION)) return toast.error("Duração deve ser entre 0,3 e 12 segundos.");
+    if (!intervals.length) return toast.error("Escolha um intervalo válido dentro da timeline.");
     const existing = selectedSource();
-    setStage("rendering"); setDetails("Renderizando HTML/CSS no HyperFrames oficial, quadro a quadro...");
+    const planned: CompositionPart[] = parts.length ? parts.map((p,i)=>i===partIndex?{...p,...draft}:p) : intervals.map(interval=>({...draft,...interval}));
+    if (parts.length && (Math.abs(planned[0].start-start)>0.001 || Math.abs(planned.reduce((sum,p)=>sum+p.duration,0)-effectiveDuration)>0.001)) return toast.error("O intervalo mudou. Gere novamente a composição antes de aplicar.");
+    setStage("rendering");
     try {
-      const response = await fetch("/api/hyperframes/render", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-lan-sync-token": getLanToken() },
-        body: JSON.stringify({
-          html: draft.html, css: draft.css,
-          width: resolution.width, height: resolution.height, duration, fps: 30,
-        }),
-        signal: AbortSignal.timeout(230_000),
-      });
-      if (!response.ok) {
-        const body: unknown = await response.json().catch(() => null);
-        throw Error(isRecord(body) && typeof body.error === "string" ? body.error : "Renderizador indisponível.");
-      }
-      const blob = await response.blob();
-      if (blob.size < 100) throw Error("O renderizador retornou um vídeo vazio.");
-      const file = new File([blob], "HyperFrames-" + Date.now() + ".webm", { type: "video/webm" });
-      const imported = await processMediaAssets({ files: [file] });
-      if (!imported.length) throw Error("O editor não conseguiu decodificar o WebM renderizado.");
-      const asset = await editor.media.addMediaAsset({
-        projectId: project.metadata.id, asset: imported[0],
-      });
-      if (!asset) throw Error("Falha ao salvar WebM no projeto.");
-
-      const durationTicks = mediaTimeFromSeconds({ seconds: duration });
-      const sourceParams = {
-        "hyperframes.html": draft.html,
-        "hyperframes.css": draft.css,
-        "hyperframes.durationSeconds": duration,
-        "hyperframes.summary": draft.summary || "",
-      };
-      if (existing && existing.element.type === "video") {
-        editor.timeline.updateElements({ updates: [{
-          trackId: existing.track.id, elementId: existing.element.id,
-          patch: { mediaId: asset.id, duration: durationTicks,
-            params: { ...existing.element.params, ...sourceParams } },
-        }] });
-        toast.success("Clipe HyperFrames atualizado. O código-fonte permanece no projeto.");
-      } else {
-        const trackId = editor.timeline.addTrack({ type: "video", index: 0 });
-        const element = buildElementFromMedia({
-          mediaId: asset.id, mediaType: "video", name: "HyperFrames · HTML/CSS",
-          duration: durationTicks, startTime: mediaTimeFromSeconds({ seconds: Math.max(0, start) }),
+      const rendered: Array<{ part: CompositionPart; mediaId: string }> = [];
+      for (const [index, part] of planned.entries()) {
+        setDetails(`Renderizando ${index+1}/${planned.length} · ${formatTimelineDuration(part.start)}...`);
+        const response = await fetch("/api/hyperframes/render", {
+          method: "POST", headers: { "Content-Type": "application/json", "x-lan-sync-token": getLanToken() },
+          body: JSON.stringify({ html: part.html, css: part.css, width: resolution.width, height: resolution.height, duration: part.duration, fps: 30 }),
+          signal: AbortSignal.timeout(230_000),
         });
-        editor.timeline.insertElement({ placement: { mode: "explicit", trackId },
-          element: { ...element, params: { ...element.params, ...sourceParams } } });
-        toast.success("Overlay HyperFrames inserido na timeline. É possível editá-lo e renderizar de novo.");
+        if (!response.ok) {
+          const body: unknown = await response.json().catch(() => null);
+          throw Error(`Trecho ${index+1}: ${isRecord(body) && typeof body.error === "string" ? body.error : "Renderizador indisponível."}`);
+        }
+        const blob = await response.blob();
+        if (blob.size < 100) throw Error("O renderizador retornou um vídeo vazio.");
+        const file = new File([blob], "HyperFrames-" + Date.now() + "-" + index + ".webm", { type: "video/webm" });
+        const imported = await processMediaAssets({ files: [file] });
+        if (!imported.length) throw Error("O editor não conseguiu decodificar o WebM renderizado.");
+        const asset = await editor.media.addMediaAsset({ projectId: project.metadata.id, asset: imported[0] });
+        if (!asset) throw Error("Falha ao salvar WebM no projeto.");
+        rendered.push({part,mediaId:asset.id});
       }
-      setDetails("WebM renderizado e salvo. Abra o clipe na timeline para reproduzir ou exportar com o vídeo.");
+      const trackId = existing && rendered.length === 1 ? existing.track.id : editor.timeline.addTrack({ type: "video", index: 0 });
+      for (const {part,mediaId} of rendered) {
+        const durationTicks = mediaTimeFromSeconds({ seconds: part.duration });
+        const sourceParams = {
+          "hyperframes.html": part.html, "hyperframes.css": part.css,
+          "hyperframes.durationSeconds": part.duration, "hyperframes.summary": part.summary || "",
+        };
+        if (existing && existing.element.type === "video" && rendered.length === 1) {
+          editor.timeline.updateElements({ updates: [{ trackId, elementId: existing.element.id,
+            patch: { mediaId, duration: durationTicks, startTime: mediaTimeFromSeconds({seconds:part.start}), params: { ...existing.element.params, ...sourceParams } } }] });
+        } else {
+          const element = buildElementFromMedia({ mediaId, mediaType:"video", name:"HyperFrames · HTML/CSS",
+            duration:durationTicks, startTime:mediaTimeFromSeconds({seconds:part.start}) });
+          editor.timeline.insertElement({placement:{mode:"explicit",trackId},element:{...element,params:{...element.params,...sourceParams}}});
+        }
+      }
+      setDetails(`${rendered.length} composições aplicadas à timeline.`); toast.success("HyperFrames aplicado.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao renderizar HTML/CSS.";
       setDetails(message); toast.error(message);
@@ -254,11 +264,12 @@ export function HyperFramesStudio() {
           <input type="number" min={0} step={0.1} value={start} onChange={e=>setStart(Number(e.target.value))}
             className="bg-background mt-1 w-full rounded border p-1" />
         </label>
-        <label>Duração (s, máximo 12)
-          <input type="number" min={0.3} max={12} step={0.1} value={duration} onChange={e=>setDuration(Number(e.target.value))}
+        <label>Duração máxima (s, 0 = até o fim)
+          <input type="number" min={0} step={0.1} value={duration} onChange={e=>setDuration(Number(e.target.value))}
             className="bg-background mt-1 w-full rounded border p-1" />
         </label>
       </div>
+      <p className="text-muted-foreground text-xs">Timeline: {formatTimelineDuration(totalSeconds)} · Intervalo: {formatTimelineDuration(effectiveDuration)} · {intervals.length} trecho(s) de renderização interna.</p>
       <button type="button" className="rounded border px-2 py-1 text-xs"
         onClick={loadSelected} disabled={stage !== "idle"}>Carregar HTML/CSS do clipe selecionado</button>
       <div className="rounded border p-2 space-y-2">
@@ -284,22 +295,17 @@ export function HyperFramesStudio() {
           A fala é transcrita localmente; ao clicar em Gerar com IA, o texto pode ser enviado ao provedor configurado. Não envia o áudio original à IA externa.
         </p>
       </div>
-      <label className="flex items-center gap-2 text-xs">Provedor
-        <select aria-label="Provedor de IA HyperFrames" className="bg-background rounded border p-1"
-          value={provider} onChange={e=>setProvider(e.target.value)}>
-          <option value="auto">Automático (fallback)</option>
-          <option value="ollama">Ollama local</option>
-          <option value="nvidia">NVIDIA</option>
-          <option value="openai">OpenAI</option>
-          <option value="moonshot">Kimi / Moonshot</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="anthropic">Claude</option>
-        </select>
-      </label>
+      <p className="text-muted-foreground text-xs">IA principal: {routing?.preferred || "definida em Conexões"} · fallback conforme prioridades de Provedores. Não é necessário selecionar novamente.</p>
+
       <button type="button" className="w-full rounded border px-3 py-2 text-xs font-medium disabled:opacity-50"
         disabled={stage !== "idle"} onClick={() => void generate()}>
         {stage === "designing" ? "Criando composição…" : "Gerar HTML/CSS com IA e contexto do áudio"}
       </button>
+      {parts.length > 1 && <label className="block text-xs">Revisar trecho
+        <select className="bg-background w-full rounded border p-1" disabled={stage!=="idle"} value={partIndex} onChange={e=>{const index=Number(e.target.value);setParts(prev=>prev.map((p,i)=>i===partIndex?{...p,...draft}:p));setPartIndex(index);setDraft(parts[index]);}}>
+          {parts.map((p,i)=><option key={i} value={i}>{i+1} · {formatTimelineDuration(p.start)}–{formatTimelineDuration(p.start+p.duration)}</option>)}
+        </select>
+      </label>}
       {draft.summary && <p className="text-xs">{draft.summary} ({draft.provider || "IA"} / {draft.model || "modelo"})</p>}
       <div className="rounded border bg-[repeating-conic-gradient(#555_0%_25%,#777_0%_50%)_0_0/20px_20px] overflow-hidden"
         style={{ aspectRatio: `${resolution.width} / ${resolution.height}` }}>
