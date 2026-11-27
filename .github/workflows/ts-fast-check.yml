@@ -36,6 +36,9 @@ jobs:
         run: bun install
       - name: Check HyperFrames worker JavaScript syntax
         run: node --check services/hyperframes/server.mjs
+      - name: Test provider vault and timeline duration
+        working-directory: apps/web
+        run: bun test src/ai/config-store.test.ts src/hyperframes/intervals.test.ts
       - name: Next.js production compile and typecheck
         working-directory: apps/web
         run: bun run build
