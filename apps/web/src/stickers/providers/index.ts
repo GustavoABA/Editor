@@ -3,11 +3,13 @@ import type { StickerProvider } from "@/stickers/types";
 import { flagsProvider } from "./flags";
 import { logosProvider } from "./logos";
 import { shapesProvider } from "./shapes";
+import { savedProvider } from "./saved";
 
 const defaultProviders: StickerProvider[] = [
 	logosProvider,
 	flagsProvider,
 	shapesProvider,
+	savedProvider,
 ];
 
 export function registerDefaultStickerProviders({
