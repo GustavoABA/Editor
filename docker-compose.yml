@@ -91,6 +91,8 @@ services:
       - LOCAL_AI_BASE_URL=http://local-ai:8080/v1
       - LOCAL_AI_MODEL=qwen2.5-coder-0.5b-instruct-q4_k_m.gguf
       - MCP_HTTP_URL=http://mcp-http:3101
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # CLI runs on-demand inside the web container. tmpfs presents enough
     # free space to the official renderer preflight (does not preallocate 4GiB).
     tmpfs:
