@@ -55,7 +55,9 @@ WORKDIR /app/apps/web
 RUN bun run build
 
 # Production image
-FROM ngrok/ngrok:3-alpine AS ngrok-bin
+FROM ngrok/ngrok:alpine AS ngrok-bin
+USER root
+RUN cp -L "$(command -v ngrok)" /tmp/ngrok-native && chmod 755 /tmp/ngrok-native
 
 FROM base AS runner
 WORKDIR /app
@@ -72,7 +74,8 @@ ENV HYPERFRAMES_NO_UPDATE_CHECK=1 \
 RUN mkdir -p /app/render-jobs /app/automation /app/lan-sync \
 	&& chown nextjs:nodejs /app/render-jobs /app/automation /app/lan-sync
 
-COPY --from=ngrok-bin /bin/ngrok /usr/local/bin/ngrok
+COPY --from=ngrok-bin /tmp/ngrok-native /usr/local/bin/ngrok
+RUN /usr/local/bin/ngrok version
 
 COPY --from=autocut-builder /src/rust/crates/autocut/target/release/opencut-autocut /usr/local/bin/opencut-autocut
 COPY --from=hyperframes-cli-builder --chown=nextjs:nodejs /opt/opencut-hyperframes /opt/opencut-hyperframes
