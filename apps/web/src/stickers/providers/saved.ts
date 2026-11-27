@@ -25,7 +25,7 @@ export async function savePngSticker(file:File) {
     reader.readAsDataURL(file);
   });
   const existing=load();if(existing.some(v=>v.url===url))return;
-  save([{id:"saved:"+crypto.randomUUID(),name:file.name.replace(/\.png$/i,""),url},...existing]);
+  save([{id:"saved:"+Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,"0")).join(""),name:file.name.replace(/\.png$/i,""),url},...existing]);
 }
 export function removePngSticker(id:string){save(load().filter(v=>v.id!==id));}
 export const savedProvider:StickerProvider={
