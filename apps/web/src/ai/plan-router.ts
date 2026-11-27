@@ -23,7 +23,7 @@ async function configurations(): Promise<Config[]> {
       paid.push({ provider: item.provider, url: FIXED_URLS[item.provider],
         model: item.model, token: item.key, priority: item.priority });
     }
-    const configured = new Set(paid.map(x=>x.provider));
+    const configured = new Set(vault.accounts.map(x=>x.provider));
     for (const provider of ["nvidia", "openai", "moonshot", "deepseek", "anthropic"] as const) {
       if (configured.has(provider)) continue;
       const keys: Record<ManagedProviderId, string> = {
@@ -42,7 +42,7 @@ async function configurations(): Promise<Config[]> {
   }
   const base = (process.env.OLLAMA_BASE_URL || "http://host.docker.internal:11434").replace(/\/$/, "");
   paid.push({ provider: "ollama", url: base + "/api/chat",
-    model: process.env.OLLAMA_MODEL || "qwen2.5:1.5b", priority: 999 });
+    model: vault.ollamaModel || process.env.OLLAMA_MODEL || "qwen2.5:1.5b", priority: 999 });
   const localBase = (process.env.LOCAL_AI_BASE_URL || "http://local-ai:8080/v1").replace(/\/$/, "");
   paid.push({ provider: "local", url: localBase + "/chat/completions",
     model: process.env.LOCAL_AI_MODEL || "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf", priority: 1_000 });
@@ -54,6 +54,7 @@ export async function supportedProviders(): Promise<PlanProvider[]> {
 }
 export async function providerOrder(preferred: unknown): Promise<Config[]> {
   const configs = await configurations();
+  if (!preferred || preferred === "auto") preferred = (await readProviderConfiguration()).preferred;
   if (typeof preferred === "string" && configs.some(p=>p.provider===preferred)) {
     return [...configs.filter(p=>p.provider===preferred),...configs.filter(p=>p.provider!==preferred)];
   }
@@ -99,7 +100,8 @@ async function callProvider(config: Config, messages: PlanMessage[], format: unk
     headers.Authorization = "Bearer " + (token || "");
     // JSON mode is supported by OpenAI-compatible APIs. We still validate the
     // returned plan below because individual models vary in schema support.
-    body = { model, messages, stream: false, response_format: { type: "json_object" } };
+    // NVIDIA NIM models vary in JSON-mode support; prompt plus server-side JSON validation remains authoritative.
+    body = { model, messages, stream: false, ...(provider === "nvidia" || provider === "local" ? {} : { response_format: { type: "json_object" } }), ...(provider === "openai" ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }) };
   }
   const response = await fetch(url, {
     method: "POST", headers, body: JSON.stringify(body),
@@ -110,14 +112,14 @@ async function callProvider(config: Config, messages: PlanMessage[], format: unk
   const content = responseContent(raw, provider);
   if (!content) throw new Error(provider + " returned no text");
   let parsed: unknown;
-  try { parsed = JSON.parse(content) as unknown; }
+  try { parsed = JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as unknown; }
   catch { throw new Error(provider + " returned malformed JSON"); }
   if (!parsed || typeof parsed !== "object" ||
       typeof (parsed as Record<string, unknown>).summary !== "string" ||
       !Array.isArray((parsed as Record<string, unknown>).commands)) {
     throw new Error(provider + " returned invalid editing plan schema");
   }
-  return { provider, model, content };
+  return { provider, model, content: JSON.stringify(parsed) };
 }
 
 const connectionTestFormat = {
@@ -137,9 +139,9 @@ export async function testProviderConnection(provider: ManagedProviderId): Promi
     throw new Error("Configure, habilite e autorize este provedor antes de testar");
   }
   const completion = await callProvider(config, [
-    { role: "system", content: "Return only the requested JSON object." },
+    { role: "system", content: "Return exactly this JSON object: {\"summary\":\"ok\",\"commands\":[]}" },
     { role: "user", content: "Confirm this provider connection." },
-  ], connectionTestFormat, 64);
+  ], connectionTestFormat, 512);
   return { provider: completion.provider, model: completion.model };
 }
 
@@ -148,11 +150,16 @@ export async function createRoutedPlan(params: {
   format: unknown;
   preferred?: unknown;
   maxTokens?: number;
+  validate?: (content: string) => boolean;
 }): Promise<PlanCompletion> {
   const order = await providerOrder(params.preferred);
   for (const provider of order) {
-    try { return await callProvider(provider, params.messages, params.format,
-      Math.min(4096, Math.max(1024, params.maxTokens ?? 1024))); }
+    try {
+      const result = await callProvider(provider, params.messages, params.format,
+        Math.min(8192, Math.max(1024, params.maxTokens ?? 1024)));
+      if (params.validate && !params.validate(result.content)) throw Error("Invalid feature-specific output");
+      return result;
+    }
     catch (error) {
       console.warn("[ai-router] provider failed:", provider.provider,
         error instanceof Error ? error.message : "unknown error");
