@@ -9,6 +9,7 @@ import { useEditor } from "@/editor/use-editor";
 import { processMediaAssets } from "@/media/processing";
 import { cn } from "@/utils/ui";
 import { NgrokMcpPanel } from "./ngrok-mcp";
+import { configuredRequest, type PublicConfiguration } from "./providers";
 import {
 	isN8nWebhookPathValid,
 	useIntegrationStore,
@@ -130,6 +131,9 @@ export function AutomationConnections() {
 	const editor = useEditor();
 	const project = useEditor((e) => e.project.getActive());
 	const [status, setStatus] = useState<IntegrationStatus | null>(null);
+	const [ai, setAI] = useState<PublicConfiguration | null>(null);
+	const [aiError, setAIError] = useState("");
+	const [aiBusy, setAIBusy] = useState(false);
 	const [inbox, setInbox] = useState<InboxMedia[]>([]);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [importingId, setImportingId] = useState<string | null>(null);
@@ -146,6 +150,7 @@ export function AutomationConnections() {
 			const nextInbox = parseInbox(await inboxResponse.json());
 			setStatus(nextStatus);
 			setInbox(nextInbox);
+			try { setAI(await configuredRequest("GET")); setAIError(""); } catch(e) { setAIError(e instanceof Error ? e.message : "Configuração de IA indisponível"); }
 		} catch {
 			setStatus(null);
 		} finally {
@@ -249,6 +254,28 @@ export function AutomationConnections() {
 							: "Iniciando ou indisponível"
 					}
 				/>
+			</div>
+
+			<div className="space-y-2 rounded border p-2 text-xs">
+				<h4 className="font-medium">IA principal do Editor</h4>
+				<p className="text-muted-foreground">Usada automaticamente pelo Assistente e HyperFrames; configure as credenciais em Provedores.</p>
+				<select aria-label="Provedor principal global" className="bg-background w-full rounded border p-1" disabled={aiBusy || !ai} value={ai?.preferred || "auto"} onChange={async e=>{
+					setAIBusy(true);try {setAI(await configuredRequest("PUT",{mode:"selection",preferred:e.target.value}));setAIError("");}catch(err){setAIError(err instanceof Error?err.message:"Falha");}finally{setAIBusy(false);}
+				}}>
+					<option value="auto">Automático · prioridade e fallback</option>
+					<option value="ollama">Ollama local</option>
+					<option value="local">Servidor de IA local</option>
+					{ai?.accounts.filter(a=>a.enabled&&a.configured&&ai.allowPaid).map(a=><option key={a.provider} value={a.provider}>{a.provider} · {a.model}</option>)}
+				</select>
+				<label className="block">Modelo Ollama
+					<select className="bg-background mt-1 w-full rounded border p-1" disabled={!ai || aiBusy || !status?.ollama.models.length} value={ai?.ollamaModel || ""} onChange={async e=>{
+						setAIBusy(true);try {setAI(await configuredRequest("PUT",{mode:"selection",preferred:ai?.preferred || "auto",ollamaModel:e.target.value}));setAIError("");}catch(err){setAIError(err instanceof Error?err.message:"Falha");}finally{setAIBusy(false);}
+					}}>
+						{ai?.ollamaModel && !status?.ollama.models.includes(ai.ollamaModel) && <option value={ai.ollamaModel}>{ai.ollamaModel} (não detectado)</option>}
+						{status?.ollama.models.map(m=><option key={m} value={m}>{m}</option>)}
+					</select>
+				</label>
+				{aiError && <p role="alert" className="text-amber-500">{aiError}</p>}
 			</div>
 
 			<NgrokMcpPanel />
