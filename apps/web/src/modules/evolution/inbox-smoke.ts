@@ -23,7 +23,7 @@ try{
     if(url.includes("/instance/connectionState/"))return Response.json({instance:{state:"open"}});
     if(url.includes("/chat/getBase64FromMediaMessage/"))return fail?new Response(null,{status:503}):Response.json({base64:png.toString("base64"),mimetype:"image/png"});
     throw Error("Unexpected URL");
-  },{preconnect:originalFetch.preconnect}) as typeof fetch;
+  },originalFetch) as typeof fetch;
   const payload=(id:string,sender="5511999999999")=>({instance:"cut-editor",event:"messages.upsert",data:{key:{id,remoteJid:sender+"@s.whatsapp.net",fromMe:false},messageTimestamp:Math.floor(Date.now()/1000),message:{imageMessage:{mimetype:"image/png"}}}});
   await api.configure("project-a",true,"5511999999999");
   await assert.rejects(api.configure("project-b",true,"5511999999999"));
