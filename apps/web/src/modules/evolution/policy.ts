@@ -12,7 +12,7 @@ export function phone(value: unknown): string | null {
   return /^[1-9]\d{7,14}$/.test(number)?number:null;
 }
 export function validProject(value: unknown): value is string {
-  return typeof value==="string" && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
+  return typeof value==="string" && !["__proto__","constructor","prototype"].includes(value) && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
 }
 export function record(value: unknown): value is Record<string,unknown> {
   return !!value && typeof value==="object" && !Array.isArray(value);
@@ -35,7 +35,7 @@ export function incoming(payload: unknown) {
   if (!kind) return null;
   const media=message[kind] as Record<string,unknown>;
   const mime=typeof media.mimetype==="string"?media.mimetype.split(";")[0].toLowerCase():kind==="stickerMessage"?"image/webp":"";
-  if (!Object.hasOwn(MIME_EXTENSIONS,mime)) return null;
+  if (!Object.prototype.hasOwnProperty.call(MIME_EXTENSIONS,mime)) return null;
   const length=Number(media.fileLength);
   if (Number.isFinite(length) && length>MAX_MEDIA_BYTES) return null;
   const timestamp=Number(d.messageTimestamp);
