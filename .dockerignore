@@ -20,3 +20,5 @@ apps/web/.font-cache
 
 .cut-editor/
 **/__pycache__/
+
+.cut-editor-status/
