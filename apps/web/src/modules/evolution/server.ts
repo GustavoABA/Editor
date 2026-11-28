@@ -8,10 +8,14 @@ const root=path.join(process.env.LAN_SYNC_DIR||"/app/lan-sync","modules","evolut
 type Host={state:string;requestId?:string;apiKey?:string;webhookSecret?:string;error?:string};
 type Rule={enabled:boolean;sender:string;enabledAt:number};
 type Item={id:string;name:string;mimeType:string;size:number;receivedAt:string};
-let queue=Promise.resolve();
+type Inbound = NonNullable<ReturnType<typeof incoming>>;
+type Job={id:string;projectId:string;rule:Rule;msg:Inbound;attempts:number;nextAt:number;state:"pending"|"failed";error?:string};
+const jobsDir=path.join(root,"queue");
+// Share the lock across Next route bundles in the same Node process.
+const globalLock=globalThis as typeof globalThis & {cutEditorEvolutionQueue?:Promise<void>};
 async function exclusive<T>(fn:()=>Promise<T>):Promise<T>{
-  const previous=queue; let release!:()=>void;
-  queue=new Promise<void>(r=>{release=r;});
+  const previous=globalLock.cutEditorEvolutionQueue??Promise.resolve(); let release!:()=>void;
+  globalLock.cutEditorEvolutionQueue=new Promise<void>(r=>{release=r;});
   await previous; try{return await fn();}finally{release();}
 }
 async function json<T>(file:string,fallback:T):Promise<T>{
@@ -68,7 +72,7 @@ export async function status(projectId:string){
   const config=(await rules())[projectId];
   return {installation:pending?"queued":h.state,error:h.state==="failed"?h.error:null,
     connection:h.state==="installed"?await connection(h):"unavailable",
-    enabled:config?.enabled===true,sender:config?.sender??"",items:await items(projectId)};
+    enabled:config?.enabled===true,sender:config?.sender??"",items:await items(projectId),queue:(await listJobs()).filter(j=>j.projectId===projectId).map(j=>({id:j.id,state:j.state,attempts:j.attempts,error:j.error??null}))};
 }
 export async function pair(number:unknown){
   const n=phone(number);if(!n)throw Error("Informe o telefone com DDI e DDD.");
@@ -103,20 +107,47 @@ export async function authorizedWebhook(secret:string){
   const h=await host();const a=Buffer.from(secret),b=Buffer.from(h.webhookSecret??"");
   return h.state==="installed"&&b.length===64&&a.length===b.length&&timingSafeEqual(a,b);
 }
+function jobPath(id:string){if(!/^wa-[a-f0-9]{40}$/.test(id))throw Error("ID inválido.");return path.join(jobsDir,id+".json");}
+async function listJobs(){
+  const names=await readdir(jobsDir).catch((e:NodeJS.ErrnoException)=>{if(e.code==="ENOENT")return [];throw e;});
+  const all:Job[]=[];
+  for(const n of names.filter(n=>/^wa-[a-f0-9]{40}\.json$/.test(n))){
+    const job=await json<Job|null>(path.join(jobsDir,n),null);
+    if(job)all.push(job);
+  }
+  return all;
+}
+function sameRule(a:Rule|undefined,b:Rule){return a?.enabled===true&&a.sender===b.sender&&a.enabledAt===b.enabledAt;}
 export async function receive(payload:unknown){
   const msg=incoming(payload);if(!msg)return {ignored:true};
   return exclusive(async()=>{
     const all=await rules();
     const targets=Object.entries(all).filter(([,rule])=>rule.enabled&&rule.sender===msg.sender&&msg.timestamp>=Math.floor(rule.enabledAt/1000)*1000&&msg.timestamp<=Date.now()+60_000);
     if(targets.length!==1)return {ignored:true};
-    const [projectId]=targets[0];if(!await readProject(projectId))return {ignored:true};
+    const [projectId,rule]=targets[0];if(!await readProject(projectId))return {ignored:true};
     const id="wa-"+createHash("sha256").update(INSTANCE+":"+msg.sender+":"+msg.messageId).digest("hex").slice(0,40);
+    if(await json<Item|null>(path.join(projectDir(projectId),id+".json"),null)||await json<Job|null>(jobPath(id),null))return {duplicate:true};
+    const jobs=await listJobs();
+    if(jobs.length>=200)throw Error("Fila de mídia cheia.");
+    await write(jobPath(id),{id,projectId,rule,msg,attempts:0,nextAt:Date.now(),state:"pending"} satisfies Job);
+    return {queued:true};
+  });
+}
+async function processJob(job:Job){
+    const {id,projectId,msg}=job;
     const file=path.join(projectDir(projectId),id+".json");
-    if(await json<Item|null>(file,null))return {duplicate:true};
+    if(await json<Item|null>(file,null))return;
+    // A crash after finalizing an original but before publishing the inbox
+    // should not require downloading the same WhatsApp message again.
+    const stored=await getAssetRecord(projectId,id);
+    if(stored){
+      await write(file,{id,name:stored.name,mimeType:stored.mimeType,size:stored.size,receivedAt:stored.verifiedAt});
+      return;
+    }
     const existing=await items(projectId);
     if(existing.length>=1000||existing.reduce((sum,x)=>sum+x.size,0)>=MAX_INBOX_BYTES)throw Error("Limite da caixa de entrada.");
     const h=await host();
-    const media=await evo("/chat/getBase64FromMediaMessage/"+INSTANCE,h,{message:{key:msg.key,message:msg.message},convertToMp4:msg.mime==="audio/ogg"},Math.ceil(MAX_MEDIA_BYTES*4/3)+65536);
+    const media=await evo("/chat/getBase64FromMediaMessage/"+INSTANCE,h,{message:{key:msg.key,message:msg.message},convertToMp4:false},Math.ceil(MAX_MEDIA_BYTES*4/3)+65536);
     if(!record(media)||typeof media.base64!=="string"||media.base64.length>Math.ceil(MAX_MEDIA_BYTES*4/3)+4||!/^[A-Za-z0-9+/]+={0,2}$/.test(media.base64))throw Error("Mídia inválida.");
     const mime=typeof media.mimetype==="string"?media.mimetype.split(";")[0].toLowerCase():msg.mime;
     if(!Object.prototype.hasOwnProperty.call(MIME_EXTENSIONS,mime))throw Error("Tipo de mídia não suportado.");
@@ -132,7 +163,36 @@ export async function receive(payload:unknown){
     }
     await finalizeAsset({projectId,assetId:id,name,type,mimeType:mime,size:bytes.length,parts:hashes.length,chunkSha256:hashes});
     await write(file,{id,name,mimeType:mime,size:bytes.length,receivedAt:new Date().toISOString()});
-    return {received:true};
+
+}
+export async function work(){
+  return exclusive(async()=>{
+    const jobs=await listJobs();
+    const job=jobs.filter(j=>j.state==="pending"&&j.nextAt<=Date.now()).sort((a,b)=>a.nextAt-b.nextAt)[0];
+    if(!job)return {processed:false};
+    const file=jobPath(job.id);
+    if(!sameRule((await rules())[job.projectId],job.rule)||!await readProject(job.projectId)){
+      await rm(file,{force:true});return {processed:true,ignored:true};
+    }
+    try{
+      await processJob(job);
+      await rm(file,{force:true});
+      return {processed:true,received:true};
+    }catch{
+      const attempts=job.attempts+1;
+      await write(file,{...job,attempts,nextAt:Date.now()+Math.min(300_000,5000*2**attempts),state:attempts>=5?"failed":"pending",error:"Falha no download ou validação da mídia."});
+      return {processed:true,retry:attempts<5};
+    }
+  });
+}
+export async function retryJob(projectId:string,id:unknown,discard=false){
+  if(typeof id!=="string")throw Error("ID inválido.");
+  return exclusive(async()=>{
+    const file=jobPath(id);const job=await json<Job|null>(file,null);
+    if(!job||job.projectId!==projectId||job.state!=="failed")throw Error("Item não encontrado.");
+    if(discard){await rm(file,{force:true});return;}
+    if(!sameRule((await rules())[projectId],job.rule))throw Error("A regra de recebimento mudou. Solicite o reenvio.");
+    await write(file,{...job,state:"pending",attempts:0,nextAt:Date.now(),error:undefined});
   });
 }
 export async function download(projectId:string,id:string){
