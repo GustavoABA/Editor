@@ -48,6 +48,7 @@ import {
 	updateExistingCaptionPresentation,
 } from "@/subtitles/presets";
 import { toast } from "sonner";
+import { activityLog } from "@/diagnostics/activity-log";
 import { getTextAnimationKeyframes, type TextMotionPreset } from "@/text/motion-presets";
 import { TICKS_PER_SECOND } from "@/wasm";
 import type { TextTrack } from "@/timeline";
@@ -169,7 +170,7 @@ export function Captions() {
 	};
 
 	const handleGenerateTranscript = async () => {
-		dispatch({ type: "start", step: "Extracting audio..." });
+		dispatch({ type: "start", step: "Extraindo áudio da timeline..." });
 		try {
 			const audioBlob = await extractTimelineAudio({
 				tracks: editor.scenes.getActiveScene().tracks,
@@ -177,57 +178,72 @@ export function Captions() {
 				totalDuration: editor.timeline.getTotalDuration(),
 			});
 
-			dispatch({ type: "update_step", step: "Preparing audio..." });
-			const result = transcriptionEngine === "parakeet"
-				? await (async () => {
-					const token = getLanToken();
-					if (!token) throw new Error("Conecte-se ao servidor LAN antes de utilizar Parakeet Redux (CPU).");
-					dispatch({ type: "update_step", step: "Parakeet Redux · CPU no host..." });
-					const response = await fetch("/api/transcription/parakeet", {
-						method: "POST",
-						headers: { "Content-Type": "audio/wav", "x-lan-sync-token": token },
-						body: audioBlob,
-						signal: AbortSignal.timeout(245_000),
-					});
-					const body: unknown = await response.json().catch(() => null);
-					if (!response.ok || !body || typeof body !== "object") {
-						const error = body && typeof body === "object" && "error" in body &&
-							typeof body.error === "string" ? body.error : "Parakeet indisponível.";
-						throw new Error(error + " Se necessário, selecione Whisper (compatibilidade).");
-					}
-					const transcript = body as Record<string, unknown>;
-					if (!Array.isArray(transcript.segments)) throw new Error("Segmentos inválidos do Parakeet.");
-					return {
-						text: typeof transcript.text === "string" ? transcript.text : "",
-						segments: transcript.segments as Array<{ text: string; start: number; end: number }>,
-						language: typeof transcript.language === "string" ? transcript.language : "auto",
-					};
-				})()
-				: await (async () => {
-					const { samples } = await decodeAudioToFloat32({
-						audioBlob,
-						sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE,
-					});
-					return transcriptionService.transcribe({
+			dispatch({ type: "update_step", step: "Preparando áudio..." });
+			const warnings: string[] = [];
+			let result: { text: string; segments: Array<{ text: string; start: number; end: number }>; language: string };
+			const token = getLanToken();
+			try {
+				if (!token) throw new Error("Token LAN não configurado. Conecte-se ao host para usar a CPU do servidor.");
+				dispatch({ type: "update_step", step: "Transcrição CPU no host (carregando modelo, se necessário)..." });
+				const response = await fetch("/api/transcription/parakeet", {
+					method: "POST",
+					headers: {
+						"Content-Type": "audio/wav",
+						"x-lan-sync-token": token,
+						"x-transcription-engine": transcriptionEngine,
+						"x-transcription-language": selectedLanguage,
+					},
+					body: audioBlob,
+					signal: AbortSignal.timeout(610_000),
+				});
+				const body: unknown = await response.json().catch(() => null);
+				if (!response.ok || !body || typeof body !== "object") {
+					const message = body && typeof body === "object" && "error" in body &&
+						typeof body.error === "string" ? body.error : "Resposta inválida do host.";
+					throw new Error("HTTP " + response.status + ": " + message);
+				}
+				const transcript = body as Record<string, unknown>;
+				if (!Array.isArray(transcript.segments)) throw new Error("Segmentos inválidos do host.");
+				const engine = typeof transcript.engine === "string" && transcript.engine.startsWith("faster-whisper/") ? "Whisper CPU" : "Parakeet Redux";
+				activityLog.record({ source: "transcription", message: "Transcrição concluída pelo host: " + engine });
+				if (transcriptionEngine === "parakeet" && engine === "Whisper CPU") warnings.push("Parakeet indisponível nesta CPU; usado Whisper CPU no host.");
+				result = {
+					text: typeof transcript.text === "string" ? transcript.text : "",
+					segments: transcript.segments as Array<{ text: string; start: number; end: number }>,
+					language: typeof transcript.language === "string" ? transcript.language : "auto",
+				};
+			} catch (hostError) {
+				const reason = hostError instanceof Error ? hostError.message : "Host indisponível.";
+				warnings.push(reason);
+				activityLog.record({ source: "transcription", level: "warn", message: reason });
+				dispatch({ type: "update_step", step: "Host indisponível; tentando Whisper no navegador..." });
+				try {
+					const { samples } = await decodeAudioToFloat32({ audioBlob, sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE });
+					result = await transcriptionService.transcribe({
 						audioData: samples,
 						language: selectedLanguage === "auto" ? undefined : selectedLanguage,
 						onProgress: handleProgress,
 					});
-				})();
+					warnings.push("Transcrição gerada pelo Whisper no navegador.");
+				} catch (browserError) {
+					throw new Error(reason + " | Whisper navegador: " + (browserError instanceof Error ? browserError.message : "falha desconhecida"));
+				}
+			}
 
-			dispatch({ type: "update_step", step: "Generating captions..." });
+			dispatch({ type: "update_step", step: "Gerando legendas..." });
 			const captionChunks = buildCaptionChunks({
 				segments: result.segments,
 				wordsPerChunk: wordsPerCaption,
 			});
 
 			if (!insertCaptions({ captions: captionChunks })) {
-				dispatch({ type: "fail", error: "No captions were generated" });
+				dispatch({ type: "fail", error: "Nenhuma legenda gerada. Confira se há fala audível na timeline." });
 				return;
 			}
 
-			dispatch({ type: "succeed", warnings: [] });
+			dispatch({ type: "succeed", warnings });
 		} catch (error) {
+			activityLog.record({ source: "transcription", level: "error", message: error instanceof Error ? error.message : "Falha de transcrição" });
 			console.error("Transcription failed:", error);
 			dispatch({
 				type: "fail",
@@ -337,7 +353,7 @@ export function Captions() {
 	return (
 		<PanelView
 			title="Captions"
-			contentClassName="px-0 flex flex-col h-full"
+			contentClassName="px-0 flex flex-col"
 			actions={
 				<TooltipProvider>
 					<div className="flex items-center gap-1.5">
@@ -384,7 +400,7 @@ export function Captions() {
 				showBottomBorder={false}
 				className="flex-1"
 			>
-				<SectionContent className="flex flex-col gap-4 h-full pt-1">
+				<SectionContent className="flex flex-col gap-4 pt-1 pb-4">
 					<SectionFields>
 						<SectionField label="Motor de transcrição">
 							<Select value={transcriptionEngine}
@@ -392,10 +408,10 @@ export function Captions() {
 								<SelectTrigger><SelectValue /></SelectTrigger>
 								<SelectContent>
 									<SelectItem value="parakeet">Parakeet Redux · CPU no host</SelectItem>
-									<SelectItem value="whisper">Whisper · compatibilidade no navegador</SelectItem>
+									<SelectItem value="whisper">Whisper · CPU no host / navegador</SelectItem>
 								</SelectContent>
 							</Select>
-							<p className="text-muted-foreground text-[11px]">Parakeet requer o serviço opcional Docker e conexão ao host; não usa chave de IA paga.</p>
+							<p className="text-muted-foreground text-[11px]">Parakeet usa a CPU do host quando compatível; Whisper CPU é a alternativa automática. Sem conexão LAN, tenta Whisper no navegador.</p>
 						</SectionField>
 						<SectionField label="Language">
 							<Select
@@ -512,10 +528,10 @@ export function Captions() {
 						type="button"
 						className="mt-auto w-full"
 						onClick={handleGenerateTranscript}
-						disabled={isProcessing || activeDiagnostics.length > 0}
+						disabled={isProcessing || activeDiagnostics.some((diagnostic) => diagnostic.severity === "error")}
 					>
 						{isProcessing && <Spinner className="mr-1" />}
-						{isProcessing ? processing.step : "Generate transcript"}
+						{isProcessing ? processing.step : "Gerar legendas"}
 					</Button>
 					{error && (
 						<div className="bg-destructive/10 border-destructive/20 rounded-md border p-3">
