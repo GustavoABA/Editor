@@ -17,6 +17,7 @@ from urllib.parse import quote
 from urllib.request import Request, build_opener
 
 import release_monitor as monitor
+import status_export
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / ".cut-editor"
@@ -290,7 +291,13 @@ def main():
 
 if __name__=="__main__":
     try:
-        main()
+        try:
+            main()
+        finally:
+            try:
+                status_export.export(STATE)
+            except OSError:
+                print("Status público não pôde ser atualizado.",file=sys.stderr)
     except (RuntimeError,ValueError,OSError,subprocess.SubprocessError) as exc:
         print("Atualizador interrompido:",type(exc).__name__,str(exc),file=sys.stderr)
         sys.exit(1)
