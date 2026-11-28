@@ -215,6 +215,26 @@ def restore(journal):
     write(ACTIVE,{**previous,"overrideHash":digest(STATE/"active-compose.json"),"rolledBackAt":now()})
     JOURNAL.unlink()
 
+def require_no_observed_activity(args):
+    # Defense in depth for MANUAL maintenance, not a distributed lock.
+    # The token is read inside the web container and never printed.
+    script = """
+const token=process.env.OPENCUT_AUTOMATION_TOKEN;
+if(!token) process.exit(1);
+fetch('http://127.0.0.1:3000/api/updates/status',{
+  headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)
+}).then(async r=>{
+  if(!r.ok) process.exit(1);
+  const body=await r.json();console.log(JSON.stringify(body.activity));
+}).catch(()=>process.exit(1));
+"""
+    try:
+        activity=json.loads(run(*args,"exec","-T","web","node","-e",script,capture=True,timeout=20))
+    except (subprocess.SubprocessError,ValueError):
+        raise RuntimeError("Não foi possível observar atividade do Editor. Atualize o baseline e confirme manutenção.") from None
+    if not isinstance(activity,dict) or activity.get("state")!="no-observed-activity" or type(activity.get("recentSessions")) is not int or activity["recentSessions"]!=0 or type(activity.get("activeRenders")) is not int or activity["activeRenders"]!=0:
+        raise RuntimeError("Há atividade recente ou estado desconhecido. Feche clientes, finalize jobs e aguarde.")
+    
 def activate(lite, receipt, baseline_schema):
     if JOURNAL.exists():
         raise RuntimeError("Transação interrompida; execute recover.")
@@ -238,7 +258,9 @@ def activate(lite, receipt, baseline_schema):
     if images != staged["images"] or data["commit"] != staged["commit"] or data["sequence"] != staged["sequence"]:
         raise RuntimeError("Estado de staging divergente.")
     prior_override = active_override(lite)
-    old = snapshot(compose(lite,prior_override),selected(lite))
+    args = compose(lite,prior_override)
+    require_no_observed_activity(args)
+    old = snapshot(args,selected(lite))
     candidate = STATE/"candidate-compose.json"
     rollback = STATE/"rollback-compose.json"
     image_override(candidate,images)
@@ -246,6 +268,7 @@ def activate(lite, receipt, baseline_schema):
     journal = {"commit":data["commit"],"lite":lite,"previous":previous,
                "rollbackHash":digest(rollback),"dataSchema":data["dataSchema"],
                "backupReceiptSha256":digest(receipt),"startedAt":now()}
+    require_no_observed_activity(args)
     write(JOURNAL,journal)
     try:
         up(lite,candidate)
