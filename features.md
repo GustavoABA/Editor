@@ -12,7 +12,23 @@
 
 ## F13 — Servidor Docker Mobile autônomo e atualização automática (PRIORIDADE P0)
 
-**Decisão do proprietário — 27/11/2026:** F13 passa a ser a próxima feature prioritária, imediatamente após corrigir e homologar os bloqueios atuais do PR #4. Antecede novas funcionalidades e a retomada da ordem histórica F01–F12. Não é necessário concluir todo o backlog para iniciar F13; apenas estabilizar o build, os serviços essenciais e os fluxos em correção. Sounds permanece adiado. **Estado: PLANEJADO, não implementado nem homologado.**
+**Decisão do proprietário — 27/11/2026:** F13 passa a ser a próxima feature prioritária, imediatamente após corrigir e homologar os bloqueios atuais do PR #4. Antecede novas funcionalidades e a retomada da ordem histórica F01–F12. Não é necessário concluir todo o backlog para iniciar F13; apenas estabilizar o build, os serviços essenciais e os fluxos em correção. Sounds permanece adiado. **Estado: EM IMPLEMENTAÇÃO na teste/implementacao (primeiro lote F13-A/B/C/D/E/H), não homologado.**
+
+### Progresso da primeira implementação (27/11/2026)
+
+Código experimental registrado no PR #4, exclusivamente na branch de testes. O Fast Build do commit `f879342` foi aprovado; Docker smoke e Bun CI desse commit foram cancelados após novos pushes. Não declarar estabilidade do PR #4 nem liberar imagens estáveis até CI completo e teste do host.
+
+| Etapa | Entrega inicial | Ainda pendente |
+|---|---|---|
+| F13-A | `deploy/mobile/host.py`: preflight Docker Linux/arquitetura, criação exclusiva do .env com segredos aleatórios, start sem rebuild/download por padrão, status; exemplo systemd de boot | Instalação final com imagens aprovadas, boot no dispositivo real, health e recuperação offline |
+| F13-B/C | `.github/workflows/mobile-candidate.yml`: matriz de imagens web/IA/transcrição/MCP para AMD64/ARM64, testes host/Compose, publicação manual de candidatos SHA somente na main, manifesto de digests e hashes | Builds reais, smoke nativo das duas arquiteturas, pin de terceiros, assinatura, publicação estável automática após CI |
+| F13-D | Detecção inicial de IPv4 LAN e exibição HTTP/HTTPS; preservação de .env | DHCP/IP variável, mDNS, TLS, firewall e teste LAN real |
+| F13-E | `release_monitor.py` + unidade/timer systemd de 15 min: consulta release pública, valida estrutura/digests e grava estado; nunca instala | Verificar assinatura/proveniência, comparar versão instalada, download, transação segura, coordenação de sessões e auto-aplicação |
+| F13-F/G | Não implementado | Backup/restauração, rollback, painel autenticado e logs da atualização |
+| F13-H | Override Compose Lite experimental, desabilita dependência obrigatória do web em local-ai e coloca parakeet/local-ai em perfil heavy-ai | Validação Compose e runtime, ativação sob demanda, performance e UX sem motores |
+| F13-I | Testes unitários de bootstrap/monitor incluídos e workflow CI configurado | Execução confirmada, homologação ARM64 real e testes integrados |
+
+**Segurança:** candidatos não são releases estáveis. Monitor somente leitura, sem Docker socket, sem aplicação de updates até gate de CI, assinatura e rollback. Não alterar volumes ou chaves existentes. Guia: `deploy/mobile/README.md`. O código da F13 permanece na branch de testes, enquanto a main contém somente este registro de planejamento. Os critérios de aceite abaixo continuam abertos.
 
 ### Objetivo e experiência esperada
 
@@ -137,7 +153,7 @@ Não executar `git pull` e build de produção diretamente no celular como mecan
 | **F11 Parakeet Redux** | [x] Serviço CPU opcional + rota autenticada + motor padrão na UI | [ ] Build do worker, download pesos, precisão PT-BR, E2E |
 | **F12 C/V/X** | [x] Atalhos padrão e migração preservando customizações | [ ] Teste no navegador, colisões/contextos |
 | **F06 Sounds** | **Adiado** pelo planejamento; não alterado nesta rodada | Aguardar autorização |
-| **F13 Docker Mobile autônomo** | Planejamento P0; reutilizar restart, portas LAN, Caddy e volumes existentes | [ ] Bootstrap, GHCR multiarch, updater seguro, rollback, painel e homologação mobile real |
+| **F13 Docker Mobile autônomo** | P0 em implementação: bootstrap, monitor somente leitura, Lite e CI multiarch experimental | [ ] Bootstrap, GHCR multiarch, updater seguro, rollback, painel e homologação mobile real |
 
 **Critério geral:** até obter CI aprovado e testes reais, `[x]` nesta tabela significa **código existente**, não `CONCLUÍDO`. Não alterar a `main` sem aprovação.
 
