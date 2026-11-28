@@ -1,3 +1,5 @@
+import {createReadStream} from "node:fs";
+import {Readable} from "node:stream";
 import {authorizeSync} from "@/lan-sync/server";
 import {validProject,record} from "@/modules/evolution/policy";
 import {status,install,pair,configure,download,retryJob} from "@/modules/evolution/server";
@@ -13,7 +15,7 @@ export async function GET(request:Request){
     if(id){
       const item=await download(projectId,id);
       if(!item)return Response.json({error:"Mídia não encontrada."},{status:404,headers});
-      return new Response(new Uint8Array(item.bytes),{headers:{...headers,"Content-Type":item.item.mimeType,"X-Content-Type-Options":"nosniff","Content-Disposition":"attachment"}});
+      return new Response(Readable.toWeb(createReadStream(item.filePath)) as unknown as ReadableStream<Uint8Array>,{headers:{...headers,"Content-Length":String(item.item.size),"Content-Type":item.item.mimeType,"X-Content-Type-Options":"nosniff","Content-Disposition":"attachment"}});
     }
     return Response.json(await status(projectId),{headers});
   }catch{return Response.json({error:"Falha ao consultar módulo."},{status:503,headers});}
