@@ -1,8 +1,9 @@
 import {createHash,randomUUID,timingSafeEqual} from "node:crypto";
-import {mkdir,readFile,writeFile,rename,readdir,rm} from "node:fs/promises";
+import {mkdir,readFile,writeFile,rename,readdir,rm,mkdtemp,open,stat} from "node:fs/promises";
 import path from "node:path";
 import {readProject,storeChunk,finalizeAsset,getAssetRecord,assetFilePath} from "@/lan-sync/server";
-import {INSTANCE,MAX_MEDIA_BYTES,MAX_INBOX_BYTES,MIME_EXTENSIONS,incoming,phone,validProject,record} from "./policy";
+import {INSTANCE,MAX_CONFIGURED_MEDIA_BYTES,mediaLimit,MAX_INBOX_BYTES,MIME_EXTENSIONS,incoming,phone,validProject,record} from "./policy";
+import {decodeMediaResponse} from "./media-stream";
 
 const root=path.join(process.env.LAN_SYNC_DIR||"/app/lan-sync","modules","evolution");
 type Host={state:string;requestId?:string;apiKey?:string;webhookSecret?:string;error?:string};
@@ -11,6 +12,7 @@ type Item={id:string;name:string;mimeType:string;size:number;receivedAt:string};
 type Inbound = NonNullable<ReturnType<typeof incoming>>;
 type Job={id:string;projectId:string;rule:Rule;msg:Inbound;attempts:number;nextAt:number;state:"pending"|"failed";error?:string};
 const jobsDir=path.join(root,"queue");
+const maxMediaBytes=()=>mediaLimit(process.env.EVOLUTION_MAX_MEDIA_MIB);
 // Share the lock across Next route bundles in the same Node process.
 const globalLock=globalThis as typeof globalThis & {cutEditorEvolutionQueue?:Promise<void>;cutEditorEvolutionWorking?:boolean};
 async function exclusive<T>(fn:()=>Promise<T>):Promise<T>{
@@ -55,12 +57,13 @@ async function boundedJson(response:Response,limit:number){
     return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
   }finally{await reader.cancel().catch(()=>undefined);}
 }
-async function evo(route:string,h:Host,body?:unknown,limit=1024*1024){
+async function evoResponse(route:string,h:Host,body?:unknown){
   if(h.state!=="installed"||!h.apiKey)throw Error("Módulo não instalado.");
   const res=await fetch("http://evolution:8080"+route,{method:body===undefined?"GET":"POST",headers:{apikey:h.apiKey,"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(route.startsWith("/instance/connectionState/") ? 5000 : 60_000)});
   if(!res.ok){const e=new Error("Evolution API: HTTP "+res.status);e.name=String(res.status);throw e;}
-  return boundedJson(res,limit);
+  return res;
 }
+async function evo(route:string,h:Host,body?:unknown,limit=1024*1024){return boundedJson(await evoResponse(route,h,body),limit);}
 async function connection(h:Host){
   try{const d=await evo("/instance/connectionState/"+INSTANCE,h);return record(d)&&record(d.instance)&&typeof d.instance.state==="string"?d.instance.state:"unknown";}
   catch{return "unavailable";}
@@ -72,7 +75,7 @@ export async function status(projectId:string){
   const config=(await rules())[projectId];
   const heartbeat=await json<{checkedAt?:number}>(path.join(root,"heartbeat.json"),{});
   const supervisorOnline=Date.now()-Number(heartbeat.checkedAt)<180_000;
-  return {supervisorOnline,installation:pending?"queued":h.state,error:h.state==="failed"?h.error:null,
+  return {maxMediaBytes:maxMediaBytes(),supervisorOnline,installation:pending?"queued":h.state,error:h.state==="failed"?h.error:null,
     connection:h.state==="installed"?await connection(h):"unavailable",
     enabled:config?.enabled===true,sender:config?.sender??"",items:await items(projectId),queue:(await listJobs()).filter(j=>j.projectId===projectId).map(j=>({id:j.id,state:j.state,attempts:j.attempts,error:j.error??null}))};
 }
@@ -121,7 +124,7 @@ async function listJobs(){
 }
 function sameRule(a:Rule|undefined,b:Rule){return a?.enabled===true&&a.sender===b.sender&&a.enabledAt===b.enabledAt;}
 export async function receive(payload:unknown){
-  const msg=incoming(payload);if(!msg)return {ignored:true};
+  const msg=incoming(payload,maxMediaBytes());if(!msg)return {ignored:true};
   return exclusive(async()=>{
     const all=await rules();
     const targets=Object.entries(all).filter(([,rule])=>rule.enabled&&rule.sender===msg.sender&&msg.timestamp>=Math.floor(rule.enabledAt/1000)*1000&&msg.timestamp<=Date.now()+60_000);
@@ -152,31 +155,42 @@ async function processJob(job:Job){
     const existing=await items(projectId);
     if(existing.length>=1000||existing.reduce((sum,x)=>sum+x.size,0)>=MAX_INBOX_BYTES)throw Error("Limite da caixa de entrada.");
     const h=await host();
-    const media=await evo("/chat/getBase64FromMediaMessage/"+INSTANCE,h,{message:{key:msg.key,message:msg.message},convertToMp4:false},Math.ceil(MAX_MEDIA_BYTES*4/3)+65536);
-    if(!record(media)||typeof media.base64!=="string"||media.base64.length>Math.ceil(MAX_MEDIA_BYTES*4/3)+4||!/^[A-Za-z0-9+/]+={0,2}$/.test(media.base64))throw Error("Mídia inválida.");
-    const mime=typeof media.mimetype==="string"?media.mimetype.split(";")[0].toLowerCase():msg.mime;
+    const spool=await mkdtemp(path.join(root,"download-"));
+    try{
+    const target=path.join(spool,"media");
+    const res=await evoResponse("/chat/getBase64FromMediaMessage/"+INSTANCE,h,{message:{key:msg.key,message:msg.message},convertToMp4:false});
+    const media=await decodeMediaResponse(res,target,Math.min(maxMediaBytes(),MAX_INBOX_BYTES-existing.reduce((sum,x)=>sum+x.size,0)));
+    const mime=media.mimeType?.split(";")[0].toLowerCase()||msg.mime;
     if(!Object.prototype.hasOwnProperty.call(MIME_EXTENSIONS,mime))throw Error("Tipo de mídia não suportado.");
-    const bytes=Buffer.from(media.base64,"base64");
-    if(!bytes.length||bytes.length>MAX_MEDIA_BYTES||existing.reduce((sum,x)=>sum+x.size,0)+bytes.length>MAX_INBOX_BYTES)throw Error("Limite de mídia.");
+    const size=media.size;
     const type=mime.split("/")[0];
     const name="WhatsApp-"+new Date(msg.timestamp).toISOString().replace(/[:.]/g,"-")+"-"+id.slice(-6)+"."+MIME_EXTENSIONS[mime];
     return exclusive(async()=>{
     if(!sameRule((await rules())[projectId],job.rule)||!await readProject(projectId))return false;
     const hashes:string[]=[];
-    for(let offset=0;offset<bytes.length;offset+=4*1024*1024){
-      const chunk=bytes.subarray(offset,offset+4*1024*1024);
-      const hash=createHash("sha256").update(chunk).digest("hex");hashes.push(hash);
-      await storeChunk(projectId,id,hashes.length-1,new Uint8Array(chunk).buffer,hash);
-    }
-    await finalizeAsset({projectId,assetId:id,name,type,mimeType:mime,size:bytes.length,parts:hashes.length,chunkSha256:hashes});
-    await write(file,{id,name,mimeType:mime,size:bytes.length,receivedAt:new Date().toISOString()});
+    const handle=await open(target,"r");
+    try{
+      for(let offset=0;offset<size;offset+=4*1024*1024){
+        const chunk=new Uint8Array(Math.min(4*1024*1024,size-offset));
+        let n=0;
+        while(n<chunk.length){const result=await handle.read(chunk,n,chunk.length-n,offset+n);if(!result.bytesRead)throw Error("Arquivo temporário incompleto.");n+=result.bytesRead;}
+        const hash=createHash("sha256").update(chunk).digest("hex");hashes.push(hash);
+        await storeChunk(projectId,id,hashes.length-1,chunk.buffer,hash);
+      }
+    }finally{await handle.close();}
+    await finalizeAsset({projectId,assetId:id,name,type,mimeType:mime,size,parts:hashes.length,chunkSha256:hashes});
+    await write(file,{id,name,mimeType:mime,size,receivedAt:new Date().toISOString()});
     return true;
     });
+    }finally{await rm(spool,{recursive:true,force:true});}
 }
 export async function work(){
   if(globalLock.cutEditorEvolutionWorking)return {processed:false,busy:true};
   globalLock.cutEditorEvolutionWorking=true;
   try{
+    // Single host worker: remove incomplete spool directories left by a restart.
+    const names=await readdir(root).catch((e:NodeJS.ErrnoException)=>{if(e.code==="ENOENT")return [];throw e;});
+    for(const name of names.filter(n=>/^download-[a-zA-Z0-9]{6}$/.test(n)))await rm(path.join(root,name),{recursive:true,force:true});
     const job=await exclusive(async()=>{
       const jobs=await listJobs();
       return jobs.filter(j=>j.state==="pending"&&j.nextAt<=Date.now()).sort((a,b)=>a.nextAt-b.nextAt)[0];
@@ -214,6 +228,8 @@ export async function download(projectId:string,id:string){
   if(!/^wa-[a-f0-9]{40}$/.test(id))return null;
   const item=await json<Item|null>(path.join(projectDir(projectId),id+".json"),null);
   const asset=await getAssetRecord(projectId,id);
-  if(!item||!asset||asset.size>MAX_MEDIA_BYTES)return null;
-  return {item,bytes:await readFile(assetFilePath(projectId,id))};
+  if(!item||!asset||asset.size>MAX_CONFIGURED_MEDIA_BYTES)return null;
+  const filePath=assetFilePath(projectId,id);
+  if((await stat(filePath)).size!==asset.size)return null;
+  return {item,filePath};
 }
