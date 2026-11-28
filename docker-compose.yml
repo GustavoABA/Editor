@@ -49,6 +49,7 @@ services:
       start_period: 10s
 
   web:
+    image: cut-editor-web:local
     build:
       context: .
       dockerfile: ./apps/web/Dockerfile
