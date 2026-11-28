@@ -9,7 +9,7 @@ import { createTimelineAudioBuffer } from "@/media/audio";
 import type { SceneTracks } from "@/timeline";
 import type { MediaAsset } from "@/media/types";
 import { TICKS_PER_SECOND } from "@/wasm";
-import { renderThumbnailDataUrl } from "./thumbnail";
+import { renderThumbnailDataUrl, recoverVideoThumbnail } from "./thumbnail";
 
 export type VideoFileData = {
 	duration: number;
@@ -46,8 +46,9 @@ export async function readVideoFile({
 
 		let thumbnailUrl: string | null = null;
 		if (canDecode) {
+			try {
 			const sink = new VideoSampleSink(videoTrack);
-			const frame = await sink.getSample(1);
+			const frame = await sink.getSample(0);
 			if (frame) {
 				try {
 					thumbnailUrl = renderThumbnailDataUrl({
@@ -61,7 +62,9 @@ export async function readVideoFile({
 					frame.close();
 				}
 			}
+			} catch { /* Native video fallback below. */ }
 		}
+		if (!thumbnailUrl) thumbnailUrl = (await recoverVideoThumbnail({ file })) ?? null;
 
 		return {
 			duration,
