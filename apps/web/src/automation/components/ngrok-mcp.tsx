@@ -13,11 +13,11 @@ type TunnelStatus = {
   error?: string;
 };
 
-async function requestTunnel(method: "GET" | "POST" | "DELETE" | "PUT", data?: { token: string }): Promise<TunnelStatus> {
+async function requestTunnel(method: "GET" | "POST" | "DELETE" | "PUT", payload?: { token: string }): Promise<TunnelStatus> {
   const token = getLanToken();
   if (!token) throw new Error("Conecte a LAN com o token do host antes de administrar o ngrok.");
   const response = await fetch("/api/integrations/ngrok", {
-    method, cache: "no-store", headers: { "x-lan-sync-token": token, ...(data ? {"Content-Type":"application/json"} : {}) }, ...(data ? {body:JSON.stringify(data)} : {}),
+    method, cache: "no-store", headers: { "x-lan-sync-token": token, ...(payload ? {"Content-Type":"application/json"} : {}) }, ...(payload ? {body:JSON.stringify(payload)} : {}),
   });
   const raw: unknown = await response.json();
   const data = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
