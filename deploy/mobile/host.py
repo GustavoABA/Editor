@@ -12,6 +12,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import updater
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -122,9 +123,18 @@ def main():
     print("LAN HTTP:", "http://" + host + ":3100")
     print("LAN HTTPS:", "https://" + host, "(CA local precisa ser confiável)")
     if args.action == "start":
-        options = ["--build"] if args.build else ["--no-build", "--pull", "never"]
-        docker(*compose, "up", "-d", *options)
-        docker(*compose, "ps")
+        with updater.lock():
+            override = updater.active_override(args.lite)
+            if override:
+                if args.build:
+                    raise RuntimeError("Instalação gerenciada: use updater.py, não --build.")
+                compose = ["compose", "--project-directory", str(ROOT), "-f", str(ROOT / "docker-compose.yml")]
+                if args.lite:
+                    compose += ["-f", str(ROOT / "deploy/mobile/compose.lite.yml")]
+                compose += ["-f", str(override)]
+            options = ["--build"] if args.build else ["--no-build", "--pull", "never"]
+            docker(*compose, "up", "-d", *options)
+            docker(*compose, "ps")
 
 if __name__ == "__main__":
     try:
