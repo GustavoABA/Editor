@@ -93,6 +93,14 @@ jobs:
           done
           exit 1
 
+      - name: Verify HyperFrames composition and fallback diagnostics
+        run: |
+          curl --fail --silent --show-error --max-time 260 \
+            -H "x-lan-sync-token: $OPENCUT_LAN_SYNC_TOKEN" -H "Content-Type: application/json" \
+            --data '{"instruction":"Crie um título animado simples","transcript":"Olá mundo","duration":3,"width":720,"height":1280,"allowTemplate":true}' \
+            http://127.0.0.1:3100/api/hyperframes/compose > /tmp/editor-composition.json
+          python3 -c 'import json; d=json.load(open("/tmp/editor-composition.json")); assert d["html"].strip() and isinstance(d["css"],str) and isinstance(d["attempts"],list); assert d["provider"] != "local-template" or d["fallback"] is True'
+
       - name: Verify MCP scoped authentication and initialize
         run: |
           for attempt in $(seq 1 30); do
