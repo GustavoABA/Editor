@@ -30,7 +30,7 @@ export function ModulesView(){
 export function WhatsAppView(){
   const projectId=useEditor(e=>e.project.getActiveOrNull()?.metadata.id??"");
   const {status,error,busy,action}=useEvolution(projectId);
-  const [number,setNumber]=useState(""),[sender,setSender]=useState(""),[code,setCode]=useState("");
+  const [number,setNumber]=useState(""),[sender,setSender]=useState<string|null>(null),[code,setCode]=useState("");
   const connected=status?.connection==="open";
   const active=status?.enabled===true;
   return <PanelView title="WhatsApp" contentClassName="p-3">
@@ -47,9 +47,9 @@ export function WhatsAppView(){
       </>:<>
         <p className="font-medium text-sm">WhatsApp conectado</p>
         <label className="block">Número autorizado a enviar mídia
-          <input className="mt-1 w-full rounded border bg-background p-2" type="tel" value={sender||status?.sender||""} disabled={active||busy} onChange={e=>setSender(e.target.value)} placeholder="+55 11 99999-9999"/>
+          <input className="mt-1 w-full rounded border bg-background p-2" type="tel" value={sender===null?status?.sender??"":sender} disabled={active||busy} onChange={e=>setSender(e.target.value)} placeholder="+55 11 99999-9999"/>
         </label>
-        <label className="flex items-center gap-2"><input type="checkbox" role="switch" checked={active} disabled={busy||(!active&&!(sender||status?.sender))} onChange={e=>void action({action:"configure",enabled:e.target.checked,sender:sender||status?.sender})}/>Ativar nesta edição</label>
+        <label className="flex items-center gap-2"><input type="checkbox" role="switch" checked={active} disabled={busy||(!active&&!(sender??status?.sender))} onChange={e=>void action({action:"configure",enabled:e.target.checked,sender:sender??status?.sender})}/>Ativar nesta edição</label>
         <p className="text-muted-foreground">{active?"Recebendo novas mídias somente deste número.":"Desativado: nenhum novo arquivo será recebido neste projeto."}</p>
         <p>Salve o projeto no host antes de ativar. Arquivos são adicionados à biblioteca de mídia, sem alterar a timeline.</p>
       </>}
