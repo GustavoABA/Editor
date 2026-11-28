@@ -1,4 +1,4 @@
-# Experimental Mobile Lite override; requires Compose >= 2.24.4 for !reset.
+# Experimental Mobile Lite override; requires Compose >= 2.24.4 for !override.
 # Keep the same project name and volumes. Do not use --remove-orphans.
 services:
   web:
