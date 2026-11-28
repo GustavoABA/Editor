@@ -79,7 +79,7 @@ services:
       - LAN_SYNC_MAX_PROJECT_BYTES=${LAN_SYNC_MAX_PROJECT_BYTES:-68719476736}
       - LAN_SYNC_MAX_CHECKPOINTS=${LAN_SYNC_MAX_CHECKPOINTS:-120}
       - PARAKEET_SERVICE_URL=http://parakeet:8707
-      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
+      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-${BETTER_AUTH_SECRET}}
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
       - CHROMIUM_PATH=/usr/bin/chromium-browser
       - FFMPEG_PATH=/usr/bin/ffmpeg
@@ -178,15 +178,20 @@ services:
       web:
         condition: service_healthy
 
-  # Optional CPU-only Parakeet Redux service; not exposed on the public host.
+  # CPU transcription service, starts with the default stack; internal only.
   parakeet:
-    profiles: ["transcription"]
     build:
       context: ./services/parakeet
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-}
+      - PARAKEET_INTERNAL_TOKEN=${PARAKEET_INTERNAL_TOKEN:-${BETTER_AUTH_SECRET}}
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8707/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     expose:
       - "8707"
     volumes:
