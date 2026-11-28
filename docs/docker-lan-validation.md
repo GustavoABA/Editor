@@ -40,3 +40,18 @@ A imagem web passa a se chamar `cut-editor-web:local`. O nome do projeto Compose
 A foto provisória de Gustavo fica em `apps/web/public/maintainer.svg`. Para usar uma foto JPG/PNG, adicione o arquivo em public e atualize as referências na página inicial e Contributors; reconstrua a imagem web.
 
 Verificação manual de UI: abrir /, /contributors, /sponsors, /roadmap, /projects; confirmar que /blog retorna 404; importar um vídeo curto, reabrir um projeto com thumbnails ausentes, salvar PNG/JPEG/WebP como sticker, reabrir Stickers → Salvos e conferir os logs no cabeçalho. Stickers são locais ao navegador e continuam sujeitos à cota já existente; codecs não suportados podem continuar sem thumbnail.
+
+
+## Legendas automáticas / F11
+
+Após atualizar a branch, rode na raiz:
+
+```sh
+docker compose config --quiet
+docker compose up -d --build web parakeet
+docker compose ps web parakeet
+docker compose logs --tail=100 parakeet web
+docker compose exec parakeet python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8707/health').read().decode())"
+```
+
+Parakeet starts by default now; `PARAKEET_INTERNAL_TOKEN` can be omitted if the root .env has a valid BETTER_AUTH_SECRET. Connect the editor to LAN using the existing OPENCUT_LAN_SYNC_TOKEN (never expose the internal secret). Import a video with audible speech and place it on the timeline. Choose Parakeet or Whisper and generate captions. On older x86 CPUs lacking AVX-512 VNNI, the conservative fallback is Faster Whisper CPU INT8; the model downloads on first use and is cached in the existing parakeet_models volume. If the host request fails, the browser attempts Whisper and reports both errors if necessary. No paid AI key is needed. Health confirms HTTP readiness, not a loaded model; check modelLoaded and actual timestamped speech output. CI now attempts the full host Whisper route using synthetic Portuguese speech. Physical host and UI tests remain necessary.
