@@ -1025,3 +1025,18 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 - **2026-11-12:** adicionado **F09** (MCP externo por **ngrok exclusivamente**, com ativação/desativação pela aba MCP, URLs LAN/remota, gestão de Authtoken/API Key, segurança e testes); detalhados F03/F04 para configuração de IA por interface e fallback de HyperFrames NVIDIA -> OpenAI -> Claude -> Ollama. **Somente documentação; código não alterado.**
 - **2026-11-10:** criada primeira especificação consolidada a partir dos requisitos do proprietário e inspeção dos arquivos da branch main. **Somente documentação planejada; nenhum recurso implementado, instalação iniciada ou teste executado nesta etapa.**
 - Os próximos PRs devem atualizar este arquivo com status de cada Fxx: Planejado / Em andamento / Testado / Concluído / Bloqueado, link para PR/commit, data e evidência de teste.
+
+
+## Atualização de interface — 27/11/2026
+
+Solicitação do mantenedor Gustavo. Implementação registrada em teste/implementacao, aguardando CI e validação visual; não altera a ordem histórica das fases F01–F12.
+
+- Página inicial: identidade Cut Editor, foto substituível do mantenedor, GitHub próprio, créditos MIT preservados.
+- Contributors: Gustavo em destaque; Sponsors: reconhecimento dos patrocinadores originais; Blog desativado.
+- Roadmap: conteúdo integral deste arquivo durante o build, sem lista paralela.
+- Projetos: marca Cut Editor; imagem Docker web `cut-editor-web:local`; manter namespace/volumes da instalação existente.
+- Mídias: primeiro quadro na importação e recuperação de thumbnails ausentes usando o decodificador nativo do navegador.
+- Stickers: menu contextual para salvar imagens na categoria Salvos, mantendo a biblioteca PNG existente.
+- Logs: acesso direto no cabeçalho, cópia/download e limpeza local.
+- [ ] Validar build/CI, rotas, PNG/JPEG/WebP, vídeos curtos e já importados, logs e persistência após atualização. Não marcar como homologado até testar.
+
