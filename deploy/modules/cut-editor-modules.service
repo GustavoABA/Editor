@@ -1,0 +1,9 @@
+[Unit]
+Description=Cut Editor fixed-catalog module installer
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/cut-editor
+ExecStart=/usr/bin/python3 /opt/cut-editor/deploy/modules/supervisor.py
+TimeoutStartSec=3600
