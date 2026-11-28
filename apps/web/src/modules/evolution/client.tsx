@@ -6,7 +6,7 @@ import {processMediaAssets} from "@/media/processing";
 import {toast} from "sonner";
 import {create} from "zustand";
 type Item={id:string;name:string;mimeType:string;size:number;receivedAt:string};
-type Status={installation:string;connection:string;enabled:boolean;sender:string;error:string|null;items:Item[]};
+type Status={supervisorOnline:boolean;queue:{id:string;state:string;attempts:number;error:string|null}[];installation:string;connection:string;enabled:boolean;sender:string;error:string|null;items:Item[]};
 type ModuleStore={projectId:string;status:Status|null;error:string;set:(projectId:string,status:Status|null,error?:string)=>void};
 export const useEvolutionStore=create<ModuleStore>(set=>({projectId:"",status:null,error:"",set:(projectId,status,error="")=>set({projectId,status,error})}));
 export async function moduleRequest(projectId:string,body?:Record<string,unknown>,asset?:string){
@@ -32,7 +32,7 @@ export function EvolutionBridge(){
         useEvolutionStore.getState().set(projectId,s);
         // The inbox is persisted on the host even while the editor is closed.
         // Import as ordinary media, with a stable ID and existing thumbnail pipeline.
-        if(!s.enabled||editor.media.isLoadingMedia())return;
+        if(editor.media.isLoadingMedia())return;
         for(const item of s.items){
           if(stopped||editor.project.getActiveOrNull()?.metadata.id!==projectId)break;
           if(editor.media.getAssets().some(a=>a.id===item.id))continue;
@@ -44,7 +44,7 @@ export function EvolutionBridge(){
             if(blob.size!==item.size)throw Error("Tamanho divergente.");
             const assets=await processMediaAssets({files:[new File([blob],item.name,{type:item.mimeType})]});
             if(!assets.length)throw Error("Formato incompatível com este navegador.");
-            if(stopped||editor.project.getActiveOrNull()?.metadata.id!==projectId||!useEvolutionStore.getState().status?.enabled)break;
+            if(stopped||editor.project.getActiveOrNull()?.metadata.id!==projectId)break;
             const added=await editor.media.addMediaAsset({projectId,asset:assets[0],assetId:item.id});
             if(!added)throw Error("Não foi possível salvar a mídia.");
             localStorage.setItem(key,"1");
