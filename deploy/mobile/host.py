@@ -100,8 +100,14 @@ def main():
         return
     path = ROOT / ".env"
     if args.action == "init":
-        host = lan_host(args.lan_host)
-        print("Configuração criada." if create_env(host, path) else "Configuração existente preservada.")
+        if path.exists():
+            print("Configuração existente preservada.")
+        else:
+            host = lan_host(args.lan_host)
+            print("Configuração criada." if create_env(host, path) else "Configuração existente preservada.")
+    if args.action == "check" and not path.exists():
+        print("Preflight do daemon concluído; execute init para criar .env.")
+        return
     if not path.is_file():
         raise RuntimeError("Execute init primeiro; .env não encontrado.")
     host = configured_host(path)
