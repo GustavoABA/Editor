@@ -13,6 +13,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from urllib.parse import quote
+from urllib.request import Request, build_opener
 
 import release_monitor as monitor
 
@@ -146,6 +148,28 @@ def stage(manifest, signature, lite):
                    "images":images,"stagedAt":now()})
     print("Imagens verificadas e baixadas. Instalação ainda não executada.")
 
+def stage_latest(lite):
+    release = monitor.read_json(monitor.API)
+    if not isinstance(release,dict) or release.get("draft") or release.get("prerelease"):
+        raise ValueError("Nenhuma release pública estável disponível.")
+    tag = release.get("tag_name","")
+    if not isinstance(tag,str) or not re.fullmatch(monitor.TAG,tag):
+        raise ValueError("Tag inválida.")
+    names = {a.get("name") for a in release.get("assets",[]) if isinstance(a,dict)}
+    required = {monitor.ASSET, "cut-editor-stable.sig"}
+    if not required.issubset(names):
+        raise ValueError("Release sem manifesto e assinatura.")
+    opener = build_opener(monitor.SafeRedirect())
+    with tempfile.TemporaryDirectory() as d:
+        for name,limit in ((monitor.ASSET,256*1024),("cut-editor-stable.sig",8192)):
+            url = f"https://github.com/{monitor.REPO}/releases/download/{quote(tag,safe='')}/{name}"
+            with opener.open(Request(url,headers={"User-Agent":"CutEditor-F13/0.2"}),timeout=20) as response:
+                payload = response.read(limit+1)
+            if len(payload)>limit:
+                raise ValueError("Artefato de release acima do limite.")
+            (Path(d)/name).write_bytes(payload)
+        stage(Path(d)/monitor.ASSET,Path(d)/"cut-editor-stable.sig",lite)
+
 def snapshot(args, services):
     images = {}
     for service in services:
@@ -231,7 +255,7 @@ def activate(lite, receipt, baseline_schema):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("action",choices=("stage","activate","recover","status"))
+    p.add_argument("action",choices=("stage","stage-latest","activate","recover","status"))
     p.add_argument("--lite",action="store_true")
     p.add_argument("--manifest",type=Path)
     p.add_argument("--signature",type=Path)
@@ -247,6 +271,8 @@ def main():
         elif a.action=="stage":
             if not a.manifest or not a.signature: p.error("stage exige --manifest e --signature")
             stage(a.manifest,a.signature,a.lite)
+        elif a.action=="stage-latest":
+            stage_latest(a.lite)
         elif a.action=="activate":
             if not a.maintenance_confirmed or not a.backup_receipt:
                 p.error("activate exige manutenção confirmada (todos os clientes fechados e jobs encerrados) e backup completo externo")
