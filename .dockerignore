@@ -6,6 +6,7 @@ target
 .git
 .gitignore
 *.md
+!features.md
 .env*
 !.env.example
 .cursor
