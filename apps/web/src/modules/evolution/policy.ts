@@ -1,4 +1,10 @@
 export const MAX_MEDIA_BYTES = 32 * 1024 * 1024;
+export const MAX_CONFIGURED_MEDIA_BYTES = 128 * 1024 * 1024;
+export function mediaLimit(value:unknown){
+  const mib=Number(value);
+  return Number.isInteger(mib)&&mib>=1&&mib<=128?mib*1024*1024:MAX_MEDIA_BYTES;
+}
+export function needsEditingProxy(mime:string,size:number){return mime==="audio/ogg"||mime==="audio/webm"||size>24*1024*1024&&mime!=="image/gif";}
 export const MAX_INBOX_BYTES = 1024 * 1024 * 1024;
 export const INSTANCE = "cut-editor";
 export const MIME_EXTENSIONS: Record<string,string> = {
@@ -17,7 +23,7 @@ export function validProject(value: unknown): value is string {
 export function record(value: unknown): value is Record<string,unknown> {
   return !!value && typeof value==="object" && !Array.isArray(value);
 }
-export function incoming(payload: unknown) {
+export function incoming(payload: unknown, maxBytes=MAX_MEDIA_BYTES) {
   if (!record(payload) || payload.instance!==INSTANCE || typeof payload.event!=="string" ||
       payload.event.toLowerCase().replace(/_/g,".")!=="messages.upsert" || !record(payload.data)) return null;
   const d=payload.data;
@@ -37,7 +43,7 @@ export function incoming(payload: unknown) {
   const mime=typeof media.mimetype==="string"?media.mimetype.split(";")[0].toLowerCase():kind==="stickerMessage"?"image/webp":"";
   if (!Object.prototype.hasOwnProperty.call(MIME_EXTENSIONS,mime)) return null;
   const length=Number(media.fileLength);
-  if (Number.isFinite(length) && length>MAX_MEDIA_BYTES) return null;
+  if (Number.isFinite(length) && length>maxBytes) return null;
   const timestamp=Number(d.messageTimestamp);
   if (!Number.isFinite(timestamp) || timestamp<=0) return null;
   return {sender:match[1],messageId:key.id,key,message,mime,timestamp:timestamp*1000};
