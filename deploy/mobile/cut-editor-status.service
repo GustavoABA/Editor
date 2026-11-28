@@ -1,0 +1,15 @@
+# Example systemd service. Reads status files, has no Docker or network access.
+[Unit]
+Description=Export sanitized Cut Editor update status
+ConditionPathIsDirectory=/opt/cut-editor/.cut-editor-status
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/cut-editor/deploy/mobile/status_export.py
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ReadWritePaths=/opt/cut-editor/.cut-editor-status
+TimeoutStartSec=30
