@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "modules": [
+    {
+      "id": "evolution",
+      "label": "WhatsApp",
+      "version": "v2.3.7",
+      "images": {
+        "EVOLUTION_IMAGE": "evoapicloud/evolution-api:v2.3.7",
+        "EVOLUTION_DB_IMAGE": "postgres:15",
+        "EVOLUTION_REDIS_IMAGE": "redis:7-alpine"
+      },
+      "integration": {
+        "tab": "whatsapp",
+        "scope": "project"
+      },
+      "experimental": true
+    }
+  ]
+}
