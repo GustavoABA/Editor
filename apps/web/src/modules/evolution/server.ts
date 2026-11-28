@@ -53,7 +53,7 @@ async function boundedJson(response:Response,limit:number){
 }
 async function evo(route:string,h:Host,body?:unknown,limit=1024*1024){
   if(h.state!=="installed"||!h.apiKey)throw Error("Módulo não instalado.");
-  const res=await fetch("http://evolution:8080"+route,{method:body===undefined?"GET":"POST",headers:{apikey:h.apiKey,"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(60_000)});
+  const res=await fetch("http://evolution:8080"+route,{method:body===undefined?"GET":"POST",headers:{apikey:h.apiKey,"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(route.startsWith("/instance/connectionState/") ? 5000 : 60_000)});
   if(!res.ok){const e=new Error("Evolution API: HTTP "+res.status);e.name=String(res.status);throw e;}
   return boundedJson(res,limit);
 }
@@ -119,7 +119,7 @@ export async function receive(payload:unknown){
     const media=await evo("/chat/getBase64FromMediaMessage/"+INSTANCE,h,{message:{key:msg.key,message:msg.message},convertToMp4:msg.mime==="audio/ogg"},Math.ceil(MAX_MEDIA_BYTES*4/3)+65536);
     if(!record(media)||typeof media.base64!=="string"||media.base64.length>Math.ceil(MAX_MEDIA_BYTES*4/3)+4||!/^[A-Za-z0-9+/]+={0,2}$/.test(media.base64))throw Error("Mídia inválida.");
     const mime=typeof media.mimetype==="string"?media.mimetype.split(";")[0].toLowerCase():msg.mime;
-    if(!Object.hasOwn(MIME_EXTENSIONS,mime))throw Error("Tipo de mídia não suportado.");
+    if(!Object.prototype.hasOwnProperty.call(MIME_EXTENSIONS,mime))throw Error("Tipo de mídia não suportado.");
     const bytes=Buffer.from(media.base64,"base64");
     if(!bytes.length||bytes.length>MAX_MEDIA_BYTES||existing.reduce((sum,x)=>sum+x.size,0)+bytes.length>MAX_INBOX_BYTES)throw Error("Limite de mídia.");
     const type=mime.split("/")[0];
