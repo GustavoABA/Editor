@@ -1040,3 +1040,11 @@ Solicitação do mantenedor Gustavo. Implementação registrada em teste/impleme
 - Logs: acesso direto no cabeçalho, cópia/download e limpeza local.
 - [ ] Validar build/CI, rotas, PNG/JPEG/WebP, vídeos curtos e já importados, logs e persistência após atualização. Não marcar como homologado até testar.
 
+
+
+## Correção F11 — transcrição CPU (27/11/2026)
+
+- Serviço parakeet inicializado no Compose padrão; token interno herda BETTER_AUTH_SECRET se não definido.
+- Parakeet Redux/Photon preferencial quando o caminho CPU é compatível; fallback Faster Whisper CPU INT8 no host e Whisper navegador se host indisponível. Preserva autenticação LAN.
+- Interface exibe motor, mensagens específicas, logs e agrupamento de palavras por timestamp.
+- [ ] Validar CI com fala sintetizada em português, primeira descarga de pesos e CPU real do servidor. Não homologado até teste real.
