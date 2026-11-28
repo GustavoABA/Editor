@@ -176,6 +176,8 @@ export function Captions() {
 			const mediaAssets = editor.media.getAssets();
 			const audioEnd = audibleTimelineEnd({ tracks, mediaAssets });
 			if (audioEnd <= 0) throw new Error("Coloque um vídeo ou áudio com som na timeline.");
+			const projectId = editor.project.getActive().metadata.id;
+			const sceneId = editor.scenes.getActiveScene().id;
 			const audioBlob = await extractTimelineAudio({ tracks, mediaAssets, totalDuration: audioEnd });
 
 			dispatch({ type: "update_step", step: "Preparando áudio..." });
@@ -215,9 +217,11 @@ export function Captions() {
 				};
 			} catch (hostError) {
 				const reason = hostError instanceof Error ? hostError.message : "Host indisponível.";
-				warnings.push(reason);
-				activityLog.record({ source: "transcription", level: "warn", message: reason });
-				dispatch({ type: "update_step", step: "Host indisponível; tentando Whisper no navegador..." });
+				if (transcriptionEngine !== "browser") {
+					warnings.push(reason);
+					activityLog.record({ source: "transcription", level: "warn", message: reason });
+				}
+				dispatch({ type: "update_step", step: transcriptionEngine === "browser" ? "Whisper no navegador..." : "Host indisponível; tentando Whisper no navegador..." });
 				try {
 					const { samples } = await decodeAudioToFloat32({ audioBlob, sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE });
 					let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -236,10 +240,11 @@ export function Captions() {
 					} finally { clearTimeout(timeout); }
 					warnings.push("Transcrição gerada pelo Whisper no navegador." + (selectedLanguage === "auto" ? " Auto no navegador utiliza português; selecione outro idioma quando necessário." : ""));
 				} catch (browserError) {
-					throw new Error(reason + " | Whisper navegador: " + (browserError instanceof Error ? browserError.message : "falha desconhecida"));
+					throw new Error((transcriptionEngine === "browser" ? "" : reason + " | ") + "Whisper navegador: " + (browserError instanceof Error ? browserError.message : "falha desconhecida"));
 				}
 			}
 
+			if (editor.project.getActiveOrNull()?.metadata.id !== projectId || editor.scenes.getActiveSceneOrNull()?.id !== sceneId) throw new Error("O projeto ou a cena mudou durante a transcrição. Gere novamente.");
 			dispatch({ type: "update_step", step: "Gerando legendas..." });
 			const captionChunks = buildCaptionChunks({
 				segments: groupTimedWords({ segments: result.segments, wordsPerChunk: wordsPerCaption }),
