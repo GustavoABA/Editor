@@ -354,7 +354,6 @@ export function HyperFramesStudio() {
         className="w-full rounded border px-3 py-2 text-xs font-medium disabled:opacity-50">
         {stage === "rendering" ? "Processando a composição no Editor…" : "Aplicar composição à timeline (renderização automática)"}
       </button>
-}
     </section>
   );
 }
