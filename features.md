@@ -20,6 +20,14 @@
 - F30/F31 pendências críticas: provisionamento inicial supervisor host (exemplo systemd timer, não universal Docker Mobile), autorização administrativa individual, testes reais Evolution API, política de pins, retenção e recuperação de filas, áudio OGG/iOS, persistência e backup dos volumes do módulo, integração com F13 e segurança de webhook, troca/logout da conta, UI switch/aba por projeto e testes E2E. A conexão Baileys não é oficial; risco de desconexão/restrição. Não declarar funcional em produção antes de homologação.
 - Guia: `deploy/modules/README.md`. Testes unitários da política em `apps/web/src/modules/evolution/policy.test.ts`, adicionados ao Fast Build; execução ainda não confirmada. Preservar F13 P0, F06 adiado e demais features. Código somente na branch de testes.
 
+### Segundo lote F30/F31 — fila durável, switch e supervisor (27/11/2026)
+
+- PR #5, commit `63a5072`: Next Fast Build, Bun CI e Docker Production Smoke aprovados; multiarch ainda em execução quando consultado. Não confundir aprovação do Editor base com teste de WhatsApp.
+- Webhook passa a enfileirar recebimentos persistentes no volume LAN; worker autenticado acionado pelo supervisor a cada ciclo, independente do navegador. Até cinco tentativas com backoff, recuperação de arquivo já finalizado, rechecagem da regra de projeto antes de gravar, fila limitada a 200. Desativar cancela itens pendentes daquela ativação; mídias já gravadas permanecem disponíveis. Um worker em uma instância web, sem suporte distribuído.
+- UI de Extensões com switch por projeto, aviso de supervisor offline, reset de campos ao mudar de projeto, lista de fila e retry/descarte de falhas. Código de pareamento real sem QR permanece dependente de teste com telefone.
+- Host: canonicalização dos nomes Docker Hub, validação de repositório dos pins, heartbeat e execução periódica da fila. `provision.py` provisiona timer systemd uma vez, explicitamente autorizado em checkout confiável; integração universal F13/Android pendente. Limite inicial 32 MiB mantido (base64), áudio original preservado.
+- Novos testes: Python supervisor e smoke de inbox com HTTP Evolution simulado, validação Compose opcional em CI. Não declarar aprovados sem logs. Próximos: homologar supervisor e pareamento real, áudio OGG/iOS, expansão de limite com transferência streaming, segurança granular, backup Evolution e boot mobile. Main não alterada.
+
 ## F13 — Servidor Docker Mobile autônomo e atualização automática (PRIORIDADE P0)
 
 **Decisão do proprietário — 27/11/2026:** F13 passa a ser a próxima feature prioritária, imediatamente após corrigir e homologar os bloqueios atuais do PR #4. Antecede novas funcionalidades e a retomada da ordem histórica F01–F12. Não é necessário concluir todo o backlog para iniciar F13; apenas estabilizar o build, os serviços essenciais e os fluxos em correção. Sounds permanece adiado. **Estado: EM IMPLEMENTAÇÃO na teste/implementacao (F13-A/B/C/D/E/F/G/H), não homologado.**
