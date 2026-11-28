@@ -1,12 +1,13 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {useEditor} from "@/editor/use-editor";
-import {getLanToken} from "@/lan-sync/client";
+import {getLanToken,downloadRemotePreviewAsset,type RemoteAsset} from "@/lan-sync/client";
+import {needsEditingProxy} from "./policy";
 import {processMediaAssets} from "@/media/processing";
 import {toast} from "sonner";
 import {create} from "zustand";
 type Item={id:string;name:string;mimeType:string;size:number;receivedAt:string};
-type Status={supervisorOnline:boolean;queue:{id:string;state:string;attempts:number;error:string|null}[];installation:string;connection:string;enabled:boolean;sender:string;error:string|null;items:Item[]};
+type Status={maxMediaBytes:number;supervisorOnline:boolean;queue:{id:string;state:string;attempts:number;error:string|null}[];installation:string;connection:string;enabled:boolean;sender:string;error:string|null;items:Item[]};
 type ModuleStore={projectId:string;status:Status|null;error:string;set:(projectId:string,status:Status|null,error?:string)=>void};
 export const useEvolutionStore=create<ModuleStore>(set=>({projectId:"",status:null,error:"",set:(projectId,status,error="")=>set({projectId,status,error})}));
 export async function moduleRequest(projectId:string,body?:Record<string,unknown>,asset?:string){
@@ -40,12 +41,22 @@ export function EvolutionBridge(){
           try{
             if(localStorage.getItem(key)==="1")continue;
             if((retry.current.get(key)??0)>Date.now())continue;
-            const blob=await (await moduleRequest(projectId,undefined,item.id)).blob();
-            if(blob.size!==item.size)throw Error("Tamanho divergente.");
-            const assets=await processMediaAssets({files:[new File([blob],item.name,{type:item.mimeType})]});
+            const proxy=needsEditingProxy(item.mimeType,item.size);
+            let file:File;
+            if(proxy){
+              const remote:RemoteAsset={id:item.id,name:item.name,type:item.mimeType.split("/")[0],size:item.size,mimeType:item.mimeType,uploaded:true};
+              file=await downloadRemotePreviewAsset(projectId,remote);
+              if(!file.size)throw Error("Prévia vazia.");
+            }else{
+              const blob=await (await moduleRequest(projectId,undefined,item.id)).blob();
+              if(blob.size!==item.size)throw Error("Tamanho divergente.");
+              file=new File([blob],item.name,{type:item.mimeType});
+            }
+            const assets=await processMediaAssets({files:[file]});
             if(!assets.length)throw Error("Formato incompatível com este navegador.");
             if(stopped||editor.project.getActiveOrNull()?.metadata.id!==projectId)break;
-            const added=await editor.media.addMediaAsset({projectId,asset:assets[0],assetId:item.id});
+            const asset=proxy?{...assets[0],name:item.name,remoteProxy:true,originalSize:item.size,originalMimeType:item.mimeType}:assets[0];
+            const added=await editor.media.addMediaAsset({projectId,asset,assetId:item.id});
             if(!added)throw Error("Não foi possível salvar a mídia.");
             localStorage.setItem(key,"1");
             toast.success("WhatsApp: "+item.name+" adicionado às mídias.");
