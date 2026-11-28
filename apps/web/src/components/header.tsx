@@ -42,10 +42,7 @@ export function Header() {
 			label: "Sponsors",
 			href: "/sponsors",
 		},
-		{
-			label: "Blog",
-			href: "/blog",
-		},
+		{ label: "Projects", href: "/projects" },
 	];
 
 	return (
@@ -57,7 +54,7 @@ export function Header() {
 							<Link href="/" className="flex items-center gap-3">
 								<Image
 									src={DEFAULT_LOGO_URL}
-									alt="OpenCut Logo"
+									alt="Cut Editor"
 									className="invert dark:invert-0"
 									width={32}
 									height={32}
@@ -79,7 +76,7 @@ export function Header() {
 								onClick={() => {
 									const a = document.createElement("a");
 									a.href = DEFAULT_LOGO_URL;
-									a.download = "opencut-logo.svg";
+									a.download = "cut-editor-logo.svg";
 									a.click();
 								}}
 							>
@@ -121,7 +118,7 @@ export function Header() {
 						<Link href={SOCIAL_LINKS.github}>
 							<Button className="bg-background text-sm" variant="outline">
 								<HugeiconsIcon icon={GithubIcon} className="size-4" />
-								40k+
+								GitHub
 							</Button>
 						</Link>
 						<Link href="/projects">
