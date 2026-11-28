@@ -47,3 +47,27 @@ export function buildCaptionChunks({
 
 	return captions;
 }
+
+
+/** Join adjacent word timestamps returned by the host before creating captions. */
+export function groupTimedWords({ segments, wordsPerChunk }: { segments: TranscriptionSegment[]; wordsPerChunk: number }): TranscriptionSegment[] {
+	const groups: TranscriptionSegment[] = [];
+	const limit = Math.max(1, Math.floor(wordsPerChunk));
+	let current: TranscriptionSegment | null = null;
+	let count = 0;
+	for (const segment of segments) {
+		const text = segment.text.trim();
+		if (!text || !Number.isFinite(segment.start) || !Number.isFinite(segment.end) || segment.end < segment.start) continue;
+		const words = text.split(/\s+/).length;
+		if (!current || count + words > limit || segment.start - current.end > 0.8) {
+			if (current) groups.push(current);
+			current = { ...segment, text };
+			count = words;
+		} else {
+			current = { text: current.text + " " + text, start: current.start, end: Math.max(current.end, segment.end) };
+			count += words;
+		}
+	}
+	if (current) groups.push(current);
+	return groups;
+}
