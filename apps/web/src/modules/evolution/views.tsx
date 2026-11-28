@@ -1,5 +1,5 @@
 "use client";
-import {useState} from "react";
+import {useEffect,useState} from "react";
 import {Button} from "@/components/ui/button";
 import {PanelView} from "@/components/editor/panels/assets/views/base-panel";
 import {useEditor} from "@/editor/use-editor";
@@ -15,10 +15,11 @@ export function ModulesView(){
       <h3 className="font-medium text-sm">Evolution API · WhatsApp</h3>
       <p className="text-xs text-muted-foreground">Receba fotos, vídeos e áudios de um número autorizado. Instalação global, ativação por projeto.</p>
       {error&&<p className="text-xs text-destructive" role="alert">{error}</p>}
+      {status&&!status.supervisorOnline&&<p className="text-xs text-amber-500">Supervisor offline ou iniciando. A instalação e a fila dependem do serviço do host.</p>}
       {state==="installed"?<>
         <p className="text-xs">Instalado · {status?.enabled?"Ativo neste projeto":"Desativado neste projeto"}</p>
         <Button size="sm" variant="outline" onClick={()=>setTab("whatsapp")}>Configurar WhatsApp</Button>
-        {status?.enabled&&<label className="flex gap-2 text-xs items-center"><input type="checkbox" role="switch" checked={true} disabled={busy} onChange={()=>void action({action:"configure",enabled:false})}/>Ativo nesta edição</label>}
+        <label className="flex gap-2 text-xs items-center"><input type="checkbox" role="switch" checked={status?.enabled===true} disabled={busy} onChange={e=>{if(e.target.checked&&(!status?.sender||status.connection!=="open"))setTab("whatsapp");else void action({action:"configure",enabled:e.target.checked,sender:status?.sender});}}/>Ativar nesta edição</label>
       </>:<>
         <Button size="sm" disabled={busy||!status||state==="queued"||state==="installing"} onClick={()=>void action({action:"install"})}>{state==="queued"?"Aguardando supervisor…":state==="installing"?"Instalando…":state==="failed"?"Tentar novamente":"Instalar"}</Button>
         {state==="failed"&&<p className="text-xs text-destructive">Instalação falhou: {status?.error??"consulte logs do host"}</p>}
@@ -31,6 +32,7 @@ export function WhatsAppView(){
   const projectId=useEditor(e=>e.project.getActiveOrNull()?.metadata.id??"");
   const {status,error,busy,action}=useEvolution(projectId);
   const [number,setNumber]=useState(""),[sender,setSender]=useState<string|null>(null),[code,setCode]=useState("");
+  useEffect(()=>{setSender(null);setCode("");setNumber("");},[projectId]);
   const connected=status?.connection==="open";
   const active=status?.enabled===true;
   return <PanelView title="WhatsApp" contentClassName="p-3">
@@ -53,6 +55,9 @@ export function WhatsAppView(){
         <p className="text-muted-foreground">{active?"Recebendo novas mídias somente deste número.":"Desativado: nenhum novo arquivo será recebido neste projeto."}</p>
         <p>Salve o projeto no host antes de ativar. Arquivos são adicionados à biblioteca de mídia, sem alterar a timeline.</p>
       </>}
+      {status&&!status.supervisorOnline&&<p className="text-amber-500">Supervisor offline ou iniciando. Mídias pendentes permanecem na fila.</p>}
+      <h3 className="font-medium text-sm">Fila de recebimento ({status?.queue.length??0})</h3>
+      {status?.queue.map(job=><div key={job.id} className="rounded border p-2 space-y-2"><p>{job.state==="failed"?"Falha após tentativas":"Aguardando processamento"} · Tentativas: {job.attempts}</p>{job.error&&<p className="text-muted-foreground">{job.error}</p>}{job.state==="failed"&&<div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={()=>void action({action:"retry",id:job.id})}>Tentar novamente</Button><Button size="sm" variant="outline" disabled={busy} onClick={()=>{if(window.confirm("Descartar somente este recebimento pendente?"))void action({action:"discard",id:job.id});}}>Descartar</Button></div>}</div>)}
       <h3 className="font-medium text-sm">Mídias recebidas ({status?.items.length??0})</h3>
       {status?.items.map(item=><div key={item.id} className="rounded border p-2 break-all">{item.name}<span className="block text-muted-foreground">{(item.size/1024/1024).toFixed(1)} MB</span></div>)}
       <p className="text-muted-foreground">Limite inicial: 32 MiB por arquivo; textos, grupos e formatos não editáveis são ignorados.</p>
