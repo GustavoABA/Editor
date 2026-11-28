@@ -7,6 +7,11 @@ on:
         description: "Publish SHA-tagged candidates to GHCR (main only; never stable)"
         type: boolean
         default: false
+  push:
+    branches: [teste/implementacao]
+    paths:
+      - "deploy/mobile/**"
+      - ".github/workflows/mobile-candidate.yml"
   pull_request:
     branches: [main]
     paths:
@@ -41,7 +46,7 @@ jobs:
       FREESOUND_API_KEY: placeholder
     steps:
       - uses: actions/checkout@v4
-      - name: Bootstrap and release monitor unit tests
+      - name: Bootstrap, monitor and updater unit tests
         run: python3 -m unittest discover -s deploy/mobile -p 'test_*.py' -v
       - name: Validate full and Lite Compose configuration
         run: |
@@ -52,6 +57,7 @@ jobs:
 
   build:
     needs: host-tests
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
