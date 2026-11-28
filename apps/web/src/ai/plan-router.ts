@@ -162,6 +162,7 @@ export async function createRoutedPlan(params: {
   validate?: (content: string) => boolean;
   signal?: AbortSignal;
   budgetMs?: number;
+  localMessages?: PlanMessage[];
 }): Promise<PlanCompletion> {
   const order = await providerOrder(params.preferred);
   const attempts: PlanAttempt[] = [];
@@ -173,8 +174,8 @@ export async function createRoutedPlan(params: {
     const started = Date.now();
     const timer = AbortSignal.timeout(remaining);
     try {
-      const result = await callProvider(provider, params.messages, params.format,
-        Math.min(provider.provider === "local" ? 2048 : 8192, Math.max(1024, params.maxTokens ?? 1024)),
+      const result = await callProvider(provider, provider.provider === "local" && params.localMessages ? params.localMessages : params.messages, params.format,
+        provider.provider === "local" ? 768 : Math.min(8192, Math.max(1024, params.maxTokens ?? 1024)),
         params.signal ? AbortSignal.any([params.signal, timer]) : timer);
       if (params.validate && !params.validate(result.content)) throw Error("HTML/CSS ou estrutura inválida para este recurso");
       attempts.push({provider: provider.provider, model: provider.model, status:"success", elapsedMs:Date.now()-started});
@@ -182,7 +183,7 @@ export async function createRoutedPlan(params: {
     } catch (error) {
       if (params.signal?.aborted) throw new Error("Geração cancelada.");
       const reason = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError") ? "Tempo limite excedido" :
-        error instanceof TypeError ? "Falha de conexão com o provedor" : error instanceof Error ? error.message.slice(0,180) : "Erro desconhecido";
+        error instanceof TypeError ? "Falha de conexão com o provedor" : error instanceof SyntaxError ? "Resposta HTTP não contém JSON válido" : error instanceof Error ? error.message.slice(0,180) : "Erro desconhecido";
       attempts.push({provider:provider.provider, model:provider.model, status:"failed", reason, elapsedMs:Date.now()-started});
       console.warn("[ai-router] provider failed:", provider.provider, provider.model, reason);
     }
