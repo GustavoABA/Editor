@@ -21,12 +21,18 @@ export function resolveMediaLink(value: string, parentHost?: string): ResolvedLi
   }
   if (host === "twitch.tv" || host === "www.twitch.tv" || host === "m.twitch.tv") {
     const paths = parsed.pathname.split("/").filter(Boolean);
+    if (paths[0] === "videos" && /^\d+$/.test(paths[1] || "")) {
+      return { kind: "twitch", url: parsed.toString(), embed: "https://player.twitch.tv/?video=v" + paths[1] + "&parent=" + encodeURIComponent(parent) + "&autoplay=false" };
+    }
     const channel = paths[0] || "";
     if (!/^[A-Za-z0-9_]{3,25}$/.test(channel)) throw new Error("Canal da Twitch inválido.");
     if (paths.length >= 3 && paths[1] === "clip" && /^[A-Za-z0-9_-]+$/.test(paths[2])) {
       return { kind: "twitch", url: parsed.toString(), embed: "https://clips.twitch.tv/embed?clip=" + encodeURIComponent(paths[2]) + "&parent=" + encodeURIComponent(parent) };
     }
     return { kind: "twitch", url: parsed.toString(), embed: "https://player.twitch.tv/?channel=" + encodeURIComponent(channel) + "&parent=" + encodeURIComponent(parent) + "&muted=true" };
+  }
+  if (host === "clips.twitch.tv" && /^[A-Za-z0-9_-]+$/.test(parsed.pathname.slice(1))) {
+    return { kind: "twitch", url: parsed.toString(), embed: "https://clips.twitch.tv/embed?clip=" + encodeURIComponent(parsed.pathname.slice(1)) + "&parent=" + encodeURIComponent(parent) };
   }
   if (MEDIA_EXT.test(parsed.pathname) && !["localhost", "127.0.0.1", "::1"].includes(host)) {
     return { kind: "direct", url: parsed.toString() };
@@ -71,6 +77,7 @@ async function fetchAuthorizedMedia(url: string): Promise<File> {
 export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promise<void> }) {
   const [url, setUrl] = useState("");
   const [permission, setPermission] = useState(false);
+  const [openedUrl, setOpenedUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const originalFileInputRef = useRef<HTMLInputElement>(null);
   const importOriginalFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,9 +93,9 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
     } finally { setBusy(false); }
   };
   const preview = useMemo(() => {
-    try { return url.trim() ? resolveMediaLink(url.trim(), typeof window !== "undefined" ? window.location.hostname : "") : null; }
+    try { return openedUrl.trim() ? resolveMediaLink(openedUrl.trim(), typeof window !== "undefined" ? window.location.hostname : "") : null; }
     catch { return null; }
-  }, [url]);
+  }, [openedUrl]);
 
   const importMedia = async () => {
     if (!permission || !preview || preview.kind !== "direct" || busy) return;
@@ -106,8 +113,9 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
       <strong className="text-xs">Links · prévia e importação autorizada</strong>
       <input type="url" aria-label="URL da mídia" placeholder="https://... (YouTube, Twitch ou arquivo direto)"
         className="bg-background w-full rounded border px-2 py-1 text-xs"
-        value={url} onChange={(e) => setUrl(e.target.value)} maxLength={2048} />
-      {url.trim() && !preview && <p className="text-xs text-amber-500">URL HTTPS inválida ou não suportada.</p>}
+        value={url} onChange={(e) => { setUrl(e.target.value); setPermission(false); }} maxLength={2048} onKeyDown={e => { if (e.key === "Enter") { setPermission(false); setOpenedUrl(url.trim()); } }} />
+      <div className="flex gap-2"><button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => { setPermission(false); setOpenedUrl(url.trim()); }}>Abrir link</button><button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => { setOpenedUrl(""); setUrl(""); setPermission(false); }}>Fechar</button></div>
+      {openedUrl.trim() && !preview && <p className="text-xs text-amber-500">URL HTTPS inválida ou não suportada.</p>}
       {preview?.embed && (
         <>
           <div className="aspect-video overflow-hidden rounded bg-black">
@@ -135,10 +143,15 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
         </>
       )}
       {preview?.kind === "external" && (
-        <p className="text-muted-foreground text-[11px]">Página externa: sem importação ou captura automática. Use um arquivo original autorizado.</p>
+        <div className="space-y-2">
+          <iframe title="Página externa" src={preview.url} className="h-80 w-full rounded border" sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" />
+          <p className="text-muted-foreground text-[11px]">Alguns sites bloqueiam incorporação. A página é isolada, não é uma mídia exportável.</p>
+          <a href={preview.url} target="_blank" rel="noopener noreferrer" className="text-xs underline">Abrir original</a>
+        </div>
       )}
       {preview?.kind === "direct" && (
         <>
+          {/\.(png|jpe?g|gif|webp)$/i.test(new URL(preview.url).pathname) ? <img src={preview.url} alt="Prévia da imagem" className="max-h-72 w-full object-contain" referrerPolicy="no-referrer" /> : /\.(mp3|ogg|wav|m4a)$/i.test(new URL(preview.url).pathname) ? <audio controls src={preview.url} className="w-full" preload="metadata" /> : <video controls playsInline src={preview.url} className="max-h-72 w-full bg-black" preload="metadata" />}
           <label className="flex gap-2 text-[11px]">
             <input type="checkbox" checked={permission} onChange={(e) => setPermission(e.target.checked)} />
             Confirmo que tenho autorização para importar e utilizar essa mídia.
