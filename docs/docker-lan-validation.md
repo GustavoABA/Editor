@@ -31,3 +31,12 @@ Acceptance:
 - Check HyperFrames rendering and the optional importer separately.
 
 The CI smoke test validates Docker and HTTPS on the runner, not the physical Wi-Fi, firewall, mobile certificate trust or full editor workflow. Do not run docker compose down --volumes on a real installation: this deletes stored projects and other persisted data.
+
+
+## Identidade Cut Editor e atualização sem perda de dados
+
+A imagem web passa a se chamar `cut-editor-web:local`. O nome do projeto Compose existente, os volumes, credenciais internas e rede permanecem intactos para não criar uma instalação vazia. Em instalações novas, use `COMPOSE_PROJECT_NAME=cut-editor` no .env da raiz se desejar o nome Cut Editor também no agrupamento do Docker Desktop. Não altere esse valor em uma instalação existente sem migrar os volumes e verificar backups.
+
+A foto provisória de Gustavo fica em `apps/web/public/maintainer.svg`. Para usar uma foto JPG/PNG, adicione o arquivo em public e atualize as referências na página inicial e Contributors; reconstrua a imagem web.
+
+Verificação manual de UI: abrir /, /contributors, /sponsors, /roadmap, /projects; confirmar que /blog retorna 404; importar um vídeo curto, reabrir um projeto com thumbnails ausentes, salvar PNG/JPEG/WebP como sticker, reabrir Stickers → Salvos e conferir os logs no cabeçalho. Stickers são locais ao navegador e continuam sujeitos à cota já existente; codecs não suportados podem continuar sem thumbnail.
