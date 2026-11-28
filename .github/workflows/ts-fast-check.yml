@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - teste/implementacao
+      - main
   pull_request:
     branches:
       - main
@@ -38,7 +39,7 @@ jobs:
         run: node --check services/hyperframes/server.mjs
       - name: Test provider vault and timeline duration
         working-directory: apps/web
-        run: bun test src/ai/config-store.test.ts src/hyperframes/intervals.test.ts
+        run: bun test src/ai/config-store.test.ts src/hyperframes/intervals.test.ts src/transcription/caption.test.ts
       - name: Next.js production compile and typecheck
         working-directory: apps/web
         run: bun run build

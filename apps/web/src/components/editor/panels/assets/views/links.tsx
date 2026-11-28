@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
@@ -21,12 +21,18 @@ export function resolveMediaLink(value: string, parentHost?: string): ResolvedLi
   }
   if (host === "twitch.tv" || host === "www.twitch.tv" || host === "m.twitch.tv") {
     const paths = parsed.pathname.split("/").filter(Boolean);
+    if (paths[0] === "videos" && /^\d+$/.test(paths[1] || "")) {
+      return { kind: "twitch", url: parsed.toString(), embed: "https://player.twitch.tv/?video=v" + paths[1] + "&parent=" + encodeURIComponent(parent) + "&autoplay=false" };
+    }
     const channel = paths[0] || "";
     if (!/^[A-Za-z0-9_]{3,25}$/.test(channel)) throw new Error("Canal da Twitch inválido.");
     if (paths.length >= 3 && paths[1] === "clip" && /^[A-Za-z0-9_-]+$/.test(paths[2])) {
       return { kind: "twitch", url: parsed.toString(), embed: "https://clips.twitch.tv/embed?clip=" + encodeURIComponent(paths[2]) + "&parent=" + encodeURIComponent(parent) };
     }
     return { kind: "twitch", url: parsed.toString(), embed: "https://player.twitch.tv/?channel=" + encodeURIComponent(channel) + "&parent=" + encodeURIComponent(parent) + "&muted=true" };
+  }
+  if (host === "clips.twitch.tv" && /^[A-Za-z0-9_-]+$/.test(parsed.pathname.slice(1))) {
+    return { kind: "twitch", url: parsed.toString(), embed: "https://clips.twitch.tv/embed?clip=" + encodeURIComponent(parsed.pathname.slice(1)) + "&parent=" + encodeURIComponent(parent) };
   }
   if (MEDIA_EXT.test(parsed.pathname) && !["localhost", "127.0.0.1", "::1"].includes(host)) {
     return { kind: "direct", url: parsed.toString() };
@@ -71,7 +77,21 @@ async function fetchAuthorizedMedia(url: string): Promise<File> {
 export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promise<void> }) {
   const [url, setUrl] = useState("");
   const [permission, setPermission] = useState(false);
+  const [openedUrl, setOpenedUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [captureSeconds, setCaptureSeconds] = useState(120);
+  const [captureAllowed, setCaptureAllowed] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const captureRef = useRef<MediaStream | null>(null);
+  const captureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const captureDiscard = useRef(false);
+  useEffect(() => () => {
+    captureDiscard.current = true;
+    if (captureTimer.current) clearTimeout(captureTimer.current);
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    captureRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
   const originalFileInputRef = useRef<HTMLInputElement>(null);
   const importOriginalFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -86,9 +106,66 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
     } finally { setBusy(false); }
   };
   const preview = useMemo(() => {
-    try { return url.trim() ? resolveMediaLink(url.trim(), typeof window !== "undefined" ? window.location.hostname : "") : null; }
+    try { return openedUrl.trim() ? resolveMediaLink(openedUrl.trim(), typeof window !== "undefined" ? window.location.hostname : "") : null; }
     catch { return null; }
-  }, [url]);
+  }, [openedUrl]);
+
+  const stopCapture = () => {
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+  };
+
+  const recordSource = async () => {
+    if (!preview || !captureAllowed || busy || recording) return;
+    if (!navigator.mediaDevices?.getDisplayMedia || typeof MediaRecorder === "undefined") {
+      toast.error("Captura de aba exige navegador compatível e HTTPS ou localhost.");
+      return;
+    }
+    setBusy(true);
+    captureDiscard.current = false;
+    let stream: MediaStream | null = null;
+    try {
+      // Browser-owned chooser: cannot silently select a tab or bypass protected content.
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      captureRef.current = stream;
+      const mimeType = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find(type => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw Error("O navegador não oferece gravação WebM compatível.");
+      const recorder = new MediaRecorder(stream, {mimeType, videoBitsPerSecond: 4_000_000});
+      recorderRef.current = recorder;
+      const chunks: Blob[] = [];
+      let bytes = 0;
+      recorder.ondataavailable = e => {
+        if (e.data.size && bytes + e.data.size <= MAX_FILE_BYTES) {chunks.push(e.data); bytes += e.data.size;}
+        else if (e.data.size) { captureDiscard.current = true; stopCapture(); toast.error("Captura ultrapassou 200 MB; reduza a duração."); }
+      };
+      recorder.onerror = () => { captureDiscard.current = true; stopCapture(); toast.error("Falha durante a captura."); };
+      recorder.onstop = async () => {
+        if (captureTimer.current) clearTimeout(captureTimer.current);
+        captureTimer.current = null;
+        stream?.getTracks().forEach(track => track.stop());
+        captureRef.current = null; recorderRef.current = null;
+        setRecording(false);
+        try {
+          if (!captureDiscard.current && chunks.length) {
+            const blob = new Blob(chunks, {type: mimeType});
+            await onImport(new File([blob], "link-capturado-" + Date.now() + ".webm", {type:"video/webm"}));
+            toast.success("Captura adicionada à biblioteca. Arraste e corte na timeline.");
+          }
+        } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao importar captura."); }
+        finally { setBusy(false); }
+      };
+      stream.getVideoTracks()[0]?.addEventListener("ended", stopCapture, {once:true});
+      recorder.start(1000);
+      setRecording(true);
+      captureTimer.current = setTimeout(stopCapture, Math.min(300, Math.max(1, captureSeconds || 120))*1000);
+      if (!stream.getAudioTracks().length) toast.warning("A aba não compartilhou áudio. A gravação será apenas visual.");
+      else toast.info("Captura iniciada. Reproduza a fonte desde o ponto inicial desejado.");
+    } catch (error) {
+      stream?.getTracks().forEach(track => track.stop());
+      captureRef.current = null; recorderRef.current = null;
+      setBusy(false); setRecording(false);
+      toast.error(error instanceof Error ? error.message : "Captura cancelada ou indisponível.");
+    }
+  };
 
   const importMedia = async () => {
     if (!permission || !preview || preview.kind !== "direct" || busy) return;
@@ -106,8 +183,9 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
       <strong className="text-xs">Links · prévia e importação autorizada</strong>
       <input type="url" aria-label="URL da mídia" placeholder="https://... (YouTube, Twitch ou arquivo direto)"
         className="bg-background w-full rounded border px-2 py-1 text-xs"
-        value={url} onChange={(e) => setUrl(e.target.value)} maxLength={2048} />
-      {url.trim() && !preview && <p className="text-xs text-amber-500">URL HTTPS inválida ou não suportada.</p>}
+        disabled={busy} value={url} onChange={(e) => { setUrl(e.target.value); setPermission(false); setCaptureAllowed(false); }} maxLength={2048} onKeyDown={e => { if (e.key === "Enter") { setPermission(false); setCaptureAllowed(false); setOpenedUrl(url.trim()); } }} />
+      <div className="flex gap-2"><button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => { setPermission(false); setOpenedUrl(url.trim()); }}>Abrir link</button><button type="button" className="rounded border px-2 py-1 text-xs" disabled={busy} onClick={() => { setOpenedUrl(""); setUrl(""); setPermission(false); setCaptureAllowed(false); }}>Fechar</button></div>
+      {openedUrl.trim() && !preview && <p className="text-xs text-amber-500">URL HTTPS inválida ou não suportada.</p>}
       {preview?.embed && (
         <>
           <div className="aspect-video overflow-hidden rounded bg-black">
@@ -135,10 +213,15 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
         </>
       )}
       {preview?.kind === "external" && (
-        <p className="text-muted-foreground text-[11px]">Página externa: sem importação ou captura automática. Use um arquivo original autorizado.</p>
+        <div className="space-y-2">
+          <iframe title="Página externa" src={preview.url} className="h-80 w-full rounded border" sandbox="allow-scripts allow-forms" referrerPolicy="no-referrer" />
+          <p className="text-muted-foreground text-[11px]">Alguns sites bloqueiam incorporação. A página é isolada, não é uma mídia exportável.</p>
+          <a href={preview.url} target="_blank" rel="noopener noreferrer" className="text-xs underline">Abrir original</a>
+        </div>
       )}
       {preview?.kind === "direct" && (
         <>
+          {/\.(png|jpe?g|gif|webp)$/i.test(new URL(preview.url).pathname) ? <img src={preview.url} alt="Prévia da imagem" className="max-h-72 w-full object-contain" referrerPolicy="no-referrer" /> : /\.(mp3|ogg|wav|m4a)$/i.test(new URL(preview.url).pathname) ? <audio controls src={preview.url} className="w-full" preload="metadata" /> : <video controls playsInline src={preview.url} className="max-h-72 w-full bg-black" preload="metadata" />}
           <label className="flex gap-2 text-[11px]">
             <input type="checkbox" checked={permission} onChange={(e) => setPermission(e.target.checked)} />
             Confirmo que tenho autorização para importar e utilizar essa mídia.
@@ -150,6 +233,15 @@ export function LinksImportPanel({ onImport }: { onImport: (file: File) => Promi
           <p className="text-muted-foreground text-[11px]">Importável/exportável somente se o servidor permitir CORS e o arquivo for compatível; limite de 200 MB.</p>
         </>
       )}
+      {preview && preview.kind !== "direct" && <div className="space-y-2 rounded border p-2 text-xs">
+        <strong>Transformar prévia em mídia editável</strong>
+        <p className="text-muted-foreground">Abra a fonte em uma aba separada, posicione no início e pause. Inicie a captura, selecione essa aba e compartilhe áudio se disponível; depois reproduza a fonte. A captura acontece em tempo real. Corte o WebM na timeline e exporte normalmente.</p>
+        <a href={preview.url} target="_blank" rel="noopener noreferrer" className="underline">Abrir fonte em outra aba</a>
+        <label className="flex gap-2"><input type="checkbox" checked={captureAllowed} disabled={busy} onChange={e=>setCaptureAllowed(e.target.checked)} />Tenho autorização para gravar e editar essa fonte. Não capture conteúdo protegido ou dados privados.</label>
+        <label className="block">Limite de captura (segundos, até 300)<input type="number" min={1} max={300} value={captureSeconds} disabled={busy} onChange={e=>setCaptureSeconds(Number(e.target.value))} className="ml-2 w-20 rounded border bg-background p-1" /></label>
+        {recording ? <button type="button" className="rounded border px-2 py-2" onClick={stopCapture}>Parar e importar captura</button> : <button type="button" disabled={busy || !captureAllowed} className="rounded border px-2 py-2 disabled:opacity-40" onClick={()=>void recordSource()}>Capturar aba autorizada</button>}
+        <p className="text-muted-foreground">O arquivo gravado é independente da conexão durante a exportação. Lives não têm necessariamente um ponto zero; sites ou conteúdo protegido podem impedir captura. O navegador pede sua autorização.</p>
+      </div>}
     </section>
   );
 }

@@ -1,10 +1,10 @@
-# OpenCut (Legacy)
+# Cut Editor
 
-This is the original OpenCut codebase. It's archived and no longer maintained.
+Editor de vídeo independente, auto-hospedado, baseado no OpenCut Classic (MIT). Mantido por Gustavo. Consulte [features.md](features.md) para o roadmap e [validação Docker/LAN](docs/docker-lan-validation.md) para instalação e testes.
 
-The rewrite is happening at [opencut-app/opencut](https://github.com/opencut-app/opencut).
+Os créditos, licença e agradecimentos ao projeto original permanecem preservados.
 
-## Sponsors
+## Sponsors do projeto original
 
 Thanks to [Vercel](https://vercel.com?utm_source=github-opencut&utm_campaign=oss) and [fal.ai](https://fal.ai?utm_source=github-opencut&utm_campaign=oss) for their support of open-source software.
 

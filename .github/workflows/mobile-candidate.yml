@@ -1,0 +1,165 @@
+name: F13 Docker multiarch candidates
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_candidate:
+        description: "Publish SHA-tagged candidates to GHCR (main only; never stable)"
+        type: boolean
+        default: false
+  push:
+    branches: [main, teste/implementacao]
+    paths:
+      - "deploy/mobile/**"
+      - "apps/web/**"
+      - "apps/mcp/**"
+      - "services/**"
+      - "rust/crates/autocut/**"
+      - "docker-compose.yml"
+      - "Caddyfile"
+      - ".dockerignore"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/mobile-candidate.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "deploy/mobile/**"
+      - "apps/web/**"
+      - "apps/mcp/**"
+      - "services/local-ai/**"
+      - "services/parakeet/**"
+      - "services/hyperframes/**"
+      - "rust/crates/autocut/**"
+      - "docker-compose.yml"
+      - "Caddyfile"
+      - "bun.lock"
+      - ".github/workflows/mobile-candidate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f13-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    env:
+      BETTER_AUTH_SECRET: ci-placeholder-not-for-deployment
+      UPSTASH_REDIS_REST_TOKEN: ci-placeholder
+      OPENCUT_LAN_SYNC_TOKEN: ci-placeholder-not-for-deployment
+      NEXT_PUBLIC_SITE_URL: https://192.168.1.10
+      FREESOUND_CLIENT_ID: placeholder
+      FREESOUND_API_KEY: placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap, monitor and updater unit tests
+        run: python3 -m unittest discover -s deploy/mobile -p 'test_*.py' -v
+      - name: Validate full and Lite Compose configuration
+        run: |
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f deploy/mobile/compose.lite.yml config --quiet
+          docker compose -f docker-compose.yml -f deploy/mobile/compose.lite.yml config --format json > /tmp/lite.json
+          python3 -c 'import json; s=json.load(open("/tmp/lite.json"))["services"]; assert "web" in s and "local-ai" not in s and "parakeet" not in s'
+
+  build:
+    needs: host-tests
+    if: github.event_name != 'push' || (github.ref == 'refs/heads/main' && vars.F13_AUTO_CANDIDATES == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: web
+            context: .
+            file: apps/web/Dockerfile
+          - service: local-ai
+            context: services/local-ai
+            file: services/local-ai/Dockerfile
+          - service: parakeet
+            context: services/parakeet
+            file: services/parakeet/Dockerfile
+          - service: mcp
+            context: apps/mcp
+            file: apps/mcp/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Determine immutable candidate name
+        id: names
+        shell: bash
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+      - name: Registry login (opt-in candidate publication from main only)
+        if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.publish_candidate) || (github.event_name == 'push' && vars.F13_AUTO_CANDIDATES == 'true'))
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build both architectures
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.publish_candidate) || (github.event_name == 'push' && vars.F13_AUTO_CANDIDATES == 'true')) }}
+          tags: ${{ steps.names.outputs.image }}:candidate-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          build-args: |
+            FREESOUND_CLIENT_ID=placeholder
+            FREESOUND_API_KEY=placeholder
+          cache-from: type=gha,scope=f13-${{ matrix.service }}
+          cache-to: type=gha,scope=f13-${{ matrix.service }},mode=min
+      - name: Record candidate digest
+        if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.publish_candidate) || (github.event_name == 'push' && vars.F13_AUTO_CANDIDATES == 'true'))
+        env:
+          IMAGE: ${{ steps.names.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          mkdir -p candidate
+          python3 -c 'import os,json,re,pathlib; d=os.environ["DIGEST"]; assert re.fullmatch(r"sha256:[0-9a-f]{64}",d); pathlib.Path("candidate",os.environ["SERVICE"]+".json").write_text(json.dumps({"service":os.environ["SERVICE"],"image":os.environ["IMAGE"]+"@"+d}))'
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.publish_candidate) || (github.event_name == 'push' && vars.F13_AUTO_CANDIDATES == 'true'))
+        with:
+          name: candidate-${{ matrix.service }}
+          path: candidate/
+          if-no-files-found: error
+
+  manifest:
+    needs: build
+    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.publish_candidate) || (github.event_name == 'push' && vars.F13_AUTO_CANDIDATES == 'true'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: candidate-*
+          path: candidate
+          merge-multiple: true
+      - name: Assemble candidate manifest (NOT eligible for auto-install)
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          paths = ["docker-compose.yml","Caddyfile","deploy/mobile/compose.lite.yml"]
+          services = {d["service"]:d["image"] for p in pathlib.Path("candidate").glob("*.json") for d in [json.loads(p.read_text())]}
+          assert set(services)=={"web","local-ai","parakeet","mcp"}
+          manifest={"schema":1,"channel":"candidate","commit":os.environ["GITHUB_SHA"],"platforms":["linux/amd64","linux/arm64"],"images":services,"files":{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in paths}}
+          pathlib.Path("candidate.json").write_text(json.dumps(manifest,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f13-candidate-manifest
+          path: candidate.json
+          if-no-files-found: error

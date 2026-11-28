@@ -9,13 +9,13 @@ import { LinkSquare02Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/utils/ui";
 
 export const metadata: Metadata = {
-	title: "Sponsors - OpenCut",
+	title: "Sponsors - Cut Editor",
 	description:
-		"Support OpenCut and help us build the future of free and open-source video editing.",
+		"Agradecimentos aos patrocinadores do projeto original OpenCut.",
 	openGraph: {
-		title: "Sponsors - OpenCut",
+		title: "Sponsors - Cut Editor",
 		description:
-			"Support OpenCut and help us build the future of free and open-source video editing.",
+			"Agradecimentos aos patrocinadores do projeto original OpenCut.",
 		type: "website",
 	},
 };
@@ -28,8 +28,7 @@ export default function SponsorsPage() {
 					Sponsors
 				</h1>
 				<p className="text-muted-foreground mx-auto max-w-2xl text-xl leading-relaxed text-pretty">
-					Support OpenCut and help us build the future of privacy-first video
-					editing.
+					Patrocinadores do projeto original OpenCut, preservados como reconhecimento histórico. Não implica patrocínio direto ao Cut Editor.
 				</p>
 			</div>
 			<SponsorsGrid />

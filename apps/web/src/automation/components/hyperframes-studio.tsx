@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { planHyperFramesIntervals, formatTimelineDuration } from "@/hyperframes/intervals";
 import { configuredRequest, type PublicConfiguration } from "./providers";
 import { toast } from "sonner";
+import { activityLog } from "@/diagnostics/activity-log";
 import { useEditor } from "@/editor/use-editor";
 import { useElementSelection } from "@/timeline/hooks/element/use-element-selection";
 import { buildElementFromMedia } from "@/timeline/element-utils";
@@ -60,6 +61,9 @@ export function HyperFramesStudio() {
   const [start, setStart] = useState(0);
   const [stage, setStage] = useState<Stage>("idle");
   const [details, setDetails] = useState("");
+  const [attempts, setAttempts] = useState<string[]>([]);
+  const [allowTemplate, setAllowTemplate] = useState(true);
+  const generation = useRef<AbortController | null>(null);
   const [parts, setParts] = useState<CompositionPart[]>([]);
   const [partIndex, setPartIndex] = useState(0);
   const [routing, setRouting] = useState<PublicConfiguration | null>(null);
@@ -117,8 +121,8 @@ export function HyperFramesStudio() {
         if (!token) throw Error("Configure a conexão LAN e inicie o serviço Parakeet, ou selecione Whisper no navegador.");
         const response = await fetch("/api/transcription/parakeet", {
           method: "POST", body: audioBlob,
-          headers: { "Content-Type": "audio/wav", "x-lan-sync-token": token },
-          signal: AbortSignal.timeout(245_000),
+          headers: { "Content-Type": "audio/wav", "x-lan-sync-token": token, "x-transcription-language": "pt" },
+          signal: AbortSignal.timeout(610_000),
         });
         parsed = await response.json();
         if (!response.ok) {
@@ -127,7 +131,7 @@ export function HyperFramesStudio() {
         }
       } else {
         const audio = await decodeAudioToFloat32({ audioBlob, sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE });
-        parsed = await transcriptionService.transcribe({ audioData: audio.samples, language: "auto" });
+        parsed = await transcriptionService.transcribe({ audioData: audio.samples, language: "pt" });
       }
       if (!isRecord(parsed) || !Array.isArray(parsed.segments)) throw Error("O motor não retornou segmentos com timestamps.");
       const nextSegments = parsed.segments.filter((s): s is Segment =>
@@ -150,6 +154,8 @@ export function HyperFramesStudio() {
     if (!intervals.length) return toast.error("Escolha um intervalo válido dentro da timeline.");
     if (intervals.length > 1 && !window.confirm(`Gerar ${intervals.length} composições para ${formatTimelineDuration(effectiveDuration)}? Cada trecho pode consumir uma chamada de IA.`)) return;
     setStage("designing"); setDetails("Carregando configuração global de IA...");
+    setAttempts([]); setParts([]); setPartIndex(0);
+    const controller = new AbortController(); generation.current = controller;
     try {
       const scene = editor.scenes.getActiveScene().tracks;
       const timeline = [scene.main, ...scene.overlay, ...scene.audio].flatMap(track =>
@@ -159,13 +165,12 @@ export function HyperFramesStudio() {
           duration: Number(mediaTimeToSeconds({ time: element.duration }).toFixed(2)),
         })).slice(0, 40),
       );
-      const config = await configuredRequest("GET");
-      setRouting(config);
+      try { const config = await configuredRequest("GET"); setRouting(config); } catch { setAttempts(previous=>[...previous,"Não foi possível consultar a configuração. Tentando composição pelo roteador do host."]); }
       const next: CompositionPart[] = [];
       for (const [index, interval] of intervals.entries()) {
         setDetails(`Gerando trecho ${index+1}/${intervals.length} · ${formatTimelineDuration(interval.start)}...`);
         const relevant = segments.filter(s => s.end > interval.start && s.start < interval.start + interval.duration).slice(0,100);
-        const contextualText = relevant.length ? relevant.map(s=>s.text).join(" ") : transcript;
+        const contextualText = relevant.length ? relevant.map(s=>s.text).join(" ") : segments.length ? "" : transcript;
         const response = await fetch("/api/hyperframes/compose", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-lan-sync-token": getLanToken() },
@@ -173,24 +178,33 @@ export function HyperFramesStudio() {
             transcriptSegments: relevant.map(s=>({...s,text:s.text.slice(0,100)})),
             peaks: peaks.filter(p => p >= interval.start && p < interval.start + interval.duration).slice(0,32),
             timeline: timeline.filter(e => e.start < interval.start+interval.duration && e.start+e.duration > interval.start).slice(0,20),
-            start: interval.start, duration: interval.duration, width: resolution.width, height: resolution.height }),
-          signal: AbortSignal.timeout(310_000),
+            start: interval.start, duration: interval.duration, width: resolution.width, height: resolution.height, allowTemplate }),
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(260_000)]),
         });
         const result: unknown = await response.json().catch(() => null);
+        if (isRecord(result) && Array.isArray(result.attempts)) {
+          const rows = result.attempts.filter(isRecord).map(a => `Trecho ${index+1} · ${String(a.provider)} / ${String(a.model)} · ${a.status === "success" ? "OK" : String(a.reason || "falha")} (${Math.round(Number(a.elapsedMs || 0)/1000)}s)`);
+          setAttempts(previous => [...previous, ...rows]);
+          for (const row of rows) activityLog.record({source:"hyperframes", message:row});
+        }
         if (!response.ok || !isRecord(result) || typeof result.html !== "string" || typeof result.css !== "string") {
-          throw Error(`Trecho ${index+1}: ${isRecord(result) && typeof result.error === "string" ? result.error : "IA não retornou composição válida."}`);
+          throw Error(`Trecho ${index+1}: ${isRecord(result) && typeof result.error === "string" ? result.error : `HTTP ${response.status}: IA não retornou composição válida.`}`);
         }
         next.push({ ...interval, html: result.html, css: result.css,
           summary: typeof result.summary === "string" ? result.summary : undefined,
           provider: typeof result.provider === "string" ? result.provider : undefined,
           model: typeof result.model === "string" ? result.model : undefined });
+        setParts([...next]);
+        if (index === 0) setDraft(next[0]);
+        if (result.fallback === true) setAttempts(previous => [...previous, `Trecho ${index+1} · template local (sem IA)`]);
       }
       setParts(next); setPartIndex(0); setDraft(next[0]);
       setDetails(`${next.length} composições geradas. Revise os trechos antes de aplicar.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha na IA.";
+      const message = controller.signal.aborted ? "Geração cancelada. Trechos concluídos preservados." : error instanceof Error ? error.message : "Falha na IA.";
+      activityLog.record({source:"hyperframes", level:"error", message});
       setDetails(message); toast.error(message);
-    } finally { setStage("idle"); }
+    } finally { generation.current = null; setStage("idle"); }
   };
 
   const renderToTimeline = async () => {
@@ -200,7 +214,8 @@ export function HyperFramesStudio() {
     if (!intervals.length) return toast.error("Escolha um intervalo válido dentro da timeline.");
     const existing = selectedSource();
     const planned: CompositionPart[] = parts.length ? parts.map((p,i)=>i===partIndex?{...p,...draft}:p) : intervals.map(interval=>({...draft,...interval}));
-    if (parts.length && (Math.abs(planned[0].start-start)>0.001 || Math.abs(planned.reduce((sum,p)=>sum+p.duration,0)-effectiveDuration)>0.001)) return toast.error("O intervalo mudou. Gere novamente a composição antes de aplicar.");
+    if (parts.length && (planned.length > intervals.length || planned.some((p,i)=>!intervals[i] || Math.abs(p.start-intervals[i].start)>0.001 || Math.abs(p.duration-intervals[i].duration)>0.001))) return toast.error("O intervalo mudou. Gere novamente a composição antes de aplicar.");
+    if (parts.length && parts.length < intervals.length && !window.confirm(`Aplicar apenas ${parts.length} de ${intervals.length} trechos concluídos?`)) return;
     setStage("rendering");
     try {
       const rendered: Array<{ part: CompositionPart; mediaId: string }> = [];
@@ -287,7 +302,7 @@ export function HyperFramesStudio() {
           </button>
         </div>
         <textarea aria-label="Transcrição semântica editável" value={transcript}
-          onChange={e=>setTranscript(e.target.value)} maxLength={7000}
+          onChange={e=>{setTranscript(e.target.value);setSegments([]);}} maxLength={7000}
           placeholder="Transcrição editável. Você também pode colar o roteiro aqui."
           className="bg-background w-full min-h-20 rounded border p-2 text-xs" />
         <p className="text-muted-foreground text-[11px]">
@@ -297,10 +312,14 @@ export function HyperFramesStudio() {
       </div>
       <p className="text-muted-foreground text-xs">IA principal: {routing?.preferred || "definida em Conexões"} · fallback conforme prioridades de Provedores. Não é necessário selecionar novamente.</p>
 
+      <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowTemplate} disabled={stage !== "idle"} onChange={e=>setAllowTemplate(e.target.checked)} /> Usar template local se todas as IAs falharem (identificado no resultado)</label>
       <button type="button" className="w-full rounded border px-3 py-2 text-xs font-medium disabled:opacity-50"
         disabled={stage !== "idle"} onClick={() => void generate()}>
         {stage === "designing" ? "Criando composição…" : "Gerar HTML/CSS com IA e contexto do áudio"}
       </button>
+      {stage === "designing" && <button type="button" className="rounded border px-2 py-1 text-xs" onClick={()=>generation.current?.abort()}>Cancelar geração</button>}
+      {!!details && <p role="status" className="break-words text-xs">{details}</p>}
+      {attempts.length > 0 && <details open className="rounded border p-2 text-xs"><summary>Tentativas dos provedores ({attempts.length})</summary><div className="max-h-48 overflow-auto">{attempts.map((item,i)=><p key={i} className="break-words py-1">{item}</p>)}</div></details>}
       {parts.length > 1 && <label className="block text-xs">Revisar trecho
         <select className="bg-background w-full rounded border p-1" disabled={stage!=="idle"} value={partIndex} onChange={e=>{const index=Number(e.target.value);setParts(prev=>prev.map((p,i)=>i===partIndex?{...p,...draft}:p));setPartIndex(index);setDraft(parts[index]);}}>
           {parts.map((p,i)=><option key={i} value={i}>{i+1} · {formatTimelineDuration(p.start)}–{formatTimelineDuration(p.start+p.duration)}</option>)}
@@ -335,7 +354,6 @@ export function HyperFramesStudio() {
         className="w-full rounded border px-3 py-2 text-xs font-medium disabled:opacity-50">
         {stage === "rendering" ? "Processando a composição no Editor…" : "Aplicar composição à timeline (renderização automática)"}
       </button>
-      {!!details && <p role="status" className="text-xs">{details}</p>}
     </section>
   );
 }

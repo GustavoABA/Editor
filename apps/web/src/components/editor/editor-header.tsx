@@ -13,10 +13,11 @@ import Link from "next/link";
 import { RenameProjectDialog } from "@/project/components/rename-project-dialog";
 import { DeleteProjectDialog } from "@/project/components/delete-project-dialog";
 import { useRouter } from "next/navigation";
-import { FaDiscord } from "react-icons/fa6";
+import { Github } from "lucide-react";
 import { ExportButton } from "./export-button";
 import { LanSyncControls } from "@/lan-sync/controls";
-import { FeedbackPopover } from "@/feedback/components/feedback-popover";
+import { LogsSettings } from "@/components/editor/panels/assets/views/settings/logs";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ThemeToggle } from "../theme-toggle";
 import { DEFAULT_LOGO_URL } from "@/site/brand";
 import { SOCIAL_LINKS } from "@/site/social";
@@ -36,7 +37,10 @@ export function EditorHeader() {
 				<EditableProjectName />
 			</div>
 			<nav className="flex items-center gap-2">
-				<FeedbackPopover />
+				<Dialog>
+					<DialogTrigger asChild><Button variant="outline" size="sm">Logs</Button></DialogTrigger>
+					<DialogContent className="max-h-[85vh] overflow-auto"><DialogTitle>Logs do Cut Editor</DialogTitle><LogsSettings /></DialogContent>
+				</Dialog>
 				<LanSyncControls />
 					<ExportButton />
 				<ThemeToggle />
@@ -141,13 +145,13 @@ function ProjectDropdown() {
 
 					<DropdownMenuSeparator />
 
-					<DropdownMenuItem asChild icon={<FaDiscord className="size-4!" />}>
+					<DropdownMenuItem asChild icon={<Github className="size-4!" />}>
 						<Link
-							href={SOCIAL_LINKS.discord}
+							href={SOCIAL_LINKS.github}
 							target="_blank"
 							rel="noopener noreferrer"
 						>
-							Discord
+							GitHub
 						</Link>
 					</DropdownMenuItem>
 				</DropdownMenuContent>

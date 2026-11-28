@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Cut Editor status for the web UI
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=1min
+Unit=cut-editor-status.service
+
+[Install]
+WantedBy=timers.target

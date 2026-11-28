@@ -35,6 +35,7 @@ COPY apps/web/package.json apps/web/package.json
 RUN bun install
 
 COPY apps/web/ apps/web/
+COPY features.md /app/features.md
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -61,6 +62,7 @@ RUN cp -L "$(command -v ngrok)" /tmp/ngrok-native && chmod 755 /tmp/ngrok-native
 
 FROM base AS runner
 WORKDIR /app
+LABEL org.opencontainers.image.title="Cut Editor" org.opencontainers.image.source="https://github.com/GustavoABA/Editor"
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -80,6 +82,7 @@ RUN /usr/local/bin/ngrok version
 COPY --from=autocut-builder /src/rust/crates/autocut/target/release/opencut-autocut /usr/local/bin/opencut-autocut
 COPY --from=hyperframes-cli-builder --chown=nextjs:nodejs /opt/opencut-hyperframes /opt/opencut-hyperframes
 
+COPY --from=builder /app/features.md /app/features.md
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static

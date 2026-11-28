@@ -1,7 +1,7 @@
 import { authorizeSync } from "@/lan-sync/server";
 import { spawn, type ChildProcess } from "node:child_process";
 import { access, mkdir, readFile, rename, writeFile, rm } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import path from "node:path";
 
 export const runtime = "nodejs";
@@ -75,7 +75,16 @@ async function status() {
 }
 export async function GET(request: Request) {
   const denied=authorizeSync(request);if(denied)return denied;
-  try{return Response.json(await status(),{headers:{"Cache-Control":"no-store"}});}
+  try {
+    const info = await status();
+    if (new URL(request.url).searchParams.get("connection") === "1") {
+      const secret = process.env.OPENCUT_AUTOMATION_TOKEN || "";
+      if (!info.active || !info.url || secret.length < 16) return Response.json({error:"Ative o túnel e configure a autenticação do MCP."},{status:409,headers:{"Cache-Control":"no-store"}});
+      const accessToken = createHmac("sha256", secret).update("cut-editor:mcp-external:v1").digest("hex");
+      return Response.json({...info, endpoint: info.url.replace(/\/$/, "") + "/mcp", accessToken},{headers:{"Cache-Control":"no-store"}});
+    }
+    return Response.json(info,{headers:{"Cache-Control":"no-store"}});
+  }
   catch{return Response.json({error:"Não foi possível consultar o agente."},{status:500});}
 }
 export async function PUT(request: Request) {

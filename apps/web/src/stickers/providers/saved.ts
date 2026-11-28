@@ -34,3 +34,26 @@ export const savedProvider:StickerProvider={
   async browse(){return {sections:[{id:"saved-png",title:"Figurinhas PNG salvas neste navegador",items:load().map(toItem),layout:"grid"}]};},
   resolveUrl({stickerId}){const found=load().find(v=>v.id===stickerId);if(!found)throw Error("Figurinha PNG não está disponível neste navegador.");return found.url;},
 };
+
+/** Keep the existing PNG library format and alpha channel for other image formats. */
+export async function saveImageSticker({ file }: { file: File }) {
+	if (file.type === "image/png" || /\.png$/i.test(file.name)) {
+		return savePngSticker(file);
+	}
+	const image = await createImageBitmap(file);
+	try {
+		const scale = Math.min(1, 1024 / Math.max(image.width, image.height));
+		const canvas = document.createElement("canvas");
+		canvas.width = Math.max(1, Math.round(image.width * scale));
+		canvas.height = Math.max(1, Math.round(image.height * scale));
+		const context = canvas.getContext("2d");
+		if (!context) throw Error("Não foi possível converter a imagem.");
+		context.drawImage(image, 0, 0, canvas.width, canvas.height);
+		const blob = await new Promise<Blob>((resolve, reject) => {
+			canvas.toBlob((value) => value ? resolve(value) : reject(Error("Falha ao converter para PNG.")), "image/png");
+		});
+		await savePngSticker(new File([blob], file.name.replace(/\.[^.]+$/, "") + ".png", { type: "image/png" }));
+	} finally {
+		image.close();
+	}
+}

@@ -3,7 +3,11 @@ import { readProviderConfiguration, type ManagedProviderId } from "./config-stor
 /** Provider tokens are decrypted on host only; never accept runtime URLs from browsers. */
 export type PlanProvider = ManagedProviderId | "ollama" | "local";
 export type PlanMessage = { role: "system" | "user"; content: string };
-export type PlanCompletion = { provider: PlanProvider; model: string; content: string };
+export type PlanAttempt = { provider: PlanProvider; model: string; status: "success" | "failed"; reason?: string; elapsedMs: number };
+export type PlanCompletion = { provider: PlanProvider; model: string; content: string; attempts?: PlanAttempt[] };
+export class PlanRoutingError extends Error {
+  constructor(public attempts: PlanAttempt[]) { super("Nenhum provedor retornou uma composição válida."); this.name = "PlanRoutingError"; }
+}
 type Config = { provider: PlanProvider; url: string; model: string; token?: string; priority: number };
 const FIXED_URLS: Record<ManagedProviderId, string> = {
   nvidia: "https://integrate.api.nvidia.com/v1/chat/completions",
@@ -79,7 +83,7 @@ function responseContent(raw: unknown, provider: PlanProvider): string | null {
   return typeof content === "string" && content.length ? content : null;
 }
 
-async function callProvider(config: Config, messages: PlanMessage[], format: unknown, maxTokens = 1024): Promise<PlanCompletion> {
+async function callProvider(config: Config, messages: PlanMessage[], format: unknown, maxTokens = 1024, signal?: AbortSignal): Promise<PlanCompletion> {
   const { provider, model, url, token } = config;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   let body: unknown;
@@ -107,19 +111,22 @@ async function callProvider(config: Config, messages: PlanMessage[], format: unk
   }
   const response = await fetch(url, {
     method: "POST", headers, body: JSON.stringify(body),
-    signal: AbortSignal.timeout(50_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(provider === "ollama" || provider === "local" ? 75_000 : 50_000)]) : AbortSignal.timeout(50_000),
   });
-  if (!response.ok) throw new Error(provider + " HTTP " + response.status);
+  if (!response.ok) {
+    const explanation: Record<number,string> = {400:"pedido ou parâmetros não aceitos",401:"credencial recusada",403:"acesso ao modelo negado",404:"modelo ou endpoint inexistente",429:"limite de requisições ou cota",500:"erro interno",502:"gateway indisponível",503:"serviço indisponível"};
+    throw new Error("HTTP " + response.status + " — " + (explanation[response.status] || "falha do provedor"));
+  }
   const raw: unknown = await response.json();
   const content = responseContent(raw, provider);
-  if (!content) throw new Error(provider + " returned no text");
+  if (!content) throw new Error("Resposta sem texto final (modelo pode ter consumido a saída em raciocínio)");
   let parsed: unknown;
   try { parsed = JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as unknown; }
-  catch { throw new Error(provider + " returned malformed JSON"); }
+  catch { throw new Error("JSON inválido ou incompleto"); }
   if (!parsed || typeof parsed !== "object" ||
       typeof (parsed as Record<string, unknown>).summary !== "string" ||
       !Array.isArray((parsed as Record<string, unknown>).commands)) {
-    throw new Error(provider + " returned invalid editing plan schema");
+    throw new Error("JSON sem a estrutura esperada");
   }
   return { provider, model, content: JSON.stringify(parsed) };
 }
@@ -153,19 +160,33 @@ export async function createRoutedPlan(params: {
   preferred?: unknown;
   maxTokens?: number;
   validate?: (content: string) => boolean;
+  signal?: AbortSignal;
+  budgetMs?: number;
+  localMessages?: PlanMessage[];
 }): Promise<PlanCompletion> {
   const order = await providerOrder(params.preferred);
+  const attempts: PlanAttempt[] = [];
+  const deadline = Date.now() + (params.budgetMs ?? 240_000);
   for (const provider of order) {
+    if (params.signal?.aborted) throw new Error("Geração cancelada.");
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const started = Date.now();
+    const timer = AbortSignal.timeout(remaining);
     try {
-      const result = await callProvider(provider, params.messages, params.format,
-        Math.min(8192, Math.max(1024, params.maxTokens ?? 1024)));
-      if (params.validate && !params.validate(result.content)) throw Error("Invalid feature-specific output");
-      return result;
-    }
-    catch (error) {
-      console.warn("[ai-router] provider failed:", provider.provider,
-        error instanceof Error ? error.message : "unknown error");
+      const result = await callProvider(provider, provider.provider === "local" && params.localMessages ? params.localMessages : params.messages, params.format,
+        provider.provider === "local" ? 768 : Math.min(8192, Math.max(1024, params.maxTokens ?? 1024)),
+        params.signal ? AbortSignal.any([params.signal, timer]) : timer);
+      if (params.validate && !params.validate(result.content)) throw Error("HTML/CSS ou estrutura inválida para este recurso");
+      attempts.push({provider: provider.provider, model: provider.model, status:"success", elapsedMs:Date.now()-started});
+      return {...result, attempts};
+    } catch (error) {
+      if (params.signal?.aborted) throw new Error("Geração cancelada.");
+      const reason = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError") ? "Tempo limite excedido" :
+        error instanceof TypeError ? "Falha de conexão com o provedor" : error instanceof SyntaxError ? "Resposta HTTP não contém JSON válido" : error instanceof Error ? error.message.slice(0,180) : "Erro desconhecido";
+      attempts.push({provider:provider.provider, model:provider.model, status:"failed", reason, elapsedMs:Date.now()-started});
+      console.warn("[ai-router] provider failed:", provider.provider, provider.model, reason);
     }
   }
-  throw new Error("Nenhum provedor de IA configurado respondeu com um plano JSON válido.");
+  throw new PlanRoutingError(attempts);
 }

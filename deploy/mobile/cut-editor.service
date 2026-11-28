@@ -1,0 +1,18 @@
+# Example for a systemd Linux host. Edit paths and service account before enabling.
+# The account needs Docker access; Docker access is privileged.
+[Unit]
+Description=Cut Editor Docker host (offline restart)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/cut-editor/.env
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/cut-editor
+ExecStart=/usr/bin/python3 /opt/cut-editor/deploy/mobile/host.py start
+RemainAfterExit=yes
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

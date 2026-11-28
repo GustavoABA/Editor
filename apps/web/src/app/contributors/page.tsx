@@ -7,11 +7,11 @@ import { EXTERNAL_TOOLS } from "@/site/external-tools";
 import { BasePage } from "../base-page";
 
 export const metadata: Metadata = {
-	title: "Contributors - OpenCut",
+	title: "Contributors - Cut Editor",
 	description:
 		"Meet the amazing people who contribute to OpenCut, the free and open-source video editor.",
 	openGraph: {
-		title: "Contributors - OpenCut",
+		title: "Contributors - Cut Editor",
 		description:
 			"Meet the amazing people who contribute to OpenCut, the free and open-source video editor.",
 		type: "website",
@@ -70,7 +70,7 @@ export default async function ContributorsPage() {
 	return (
 		<BasePage
 			title="Contributors"
-			description="Meet the amazing people who contribute to OpenCut, the free and open-source video editor."
+			description="Conheça o responsável pelo Cut Editor e os contribuidores do projeto original OpenCut."
 		>
 			<div className="-mt-4 flex items-center justify-center gap-8 text-sm">
 				<StatItem value={contributors.length} label="contributors" />
@@ -78,6 +78,13 @@ export default async function ContributorsPage() {
 			</div>
 
 			<div className="mx-auto flex max-w-6xl flex-col gap-20">
+				<section className="mx-auto flex flex-col items-center gap-3 rounded-xl border p-8 text-center">
+					<Avatar className="size-28"><AvatarImage src="/maintainer.svg" alt="Gustavo" /><AvatarFallback>G</AvatarFallback></Avatar>
+					<h2 className="text-2xl font-semibold">Gustavo</h2>
+					<p className="text-muted-foreground">Responsável pelo Cut Editor</p>
+					<Link href="https://github.com/GustavoABA" target="_blank" rel="noopener noreferrer" className="underline">GitHub</Link>
+				</section>
+				<h2 className="text-center text-2xl font-semibold">Contribuidores do OpenCut original</h2>
 				{topContributors.length > 0 && (
 					<TopContributorsSection contributors={topContributors} />
 				)}
@@ -87,7 +94,7 @@ export default async function ContributorsPage() {
 				<ExternalToolsSection />
 				<GitHubContributeSection
 					title="Join the community"
-					description="OpenCut is built by developers like you. Every contribution, no matter how small, helps make video editing more accessible for everyone."
+					description="Contribua com a evolução independente do Cut Editor. Os créditos originais são preservados."
 				/>
 			</div>
 		</BasePage>

@@ -121,6 +121,12 @@ export function collectAudibleCandidates({
 	return candidates;
 }
 
+/** Last audible clip boundary in timeline ticks, independent of text tracks. */
+export function audibleTimelineEnd({ tracks, mediaAssets }: { tracks: SceneTracks; mediaAssets: MediaAsset[] }): number {
+	return collectAudibleCandidates({ tracks, mediaAssets }).reduce((end, { element }) =>
+		isElementMuted({ element }) ? end : Math.max(end, element.startTime + element.duration), 0);
+}
+
 export function timelineHasAudio({
 	tracks,
 	mediaAssets,

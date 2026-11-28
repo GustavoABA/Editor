@@ -137,8 +137,9 @@ async function handleTranscribe({
 		const rawResult = await transcriber(audio, {
 			chunk_length_s: DEFAULT_CHUNK_LENGTH_SECONDS,
 			stride_length_s: DEFAULT_STRIDE_SECONDS,
-			language: language === "auto" ? undefined : language,
-			return_timestamps: true,
+			language: language === "auto" ? "pt" : language,
+			task: "transcribe",
+			return_timestamps: "word",
 		});
 
 		if (cancelled) return;
@@ -155,7 +156,7 @@ async function handleTranscribe({
 					segments.push({
 						text: chunk.text,
 						start: chunk.timestamp[0] ?? 0,
-						end: chunk.timestamp[1] ?? chunk.timestamp[0] ?? 0,
+						end: Math.min(audio.length / 16000, chunk.timestamp[1] ?? audio.length / 16000),
 					});
 				}
 			}
