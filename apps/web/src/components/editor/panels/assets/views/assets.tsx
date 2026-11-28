@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PanelView } from "@/components/editor/panels/assets/views/base-panel";
 import { MediaDragOverlay } from "@/components/editor/panels/assets/drag-overlay";
 import { DraggableItem } from "@/components/editor/panels/assets/draggable-item";
@@ -33,7 +33,8 @@ import { invokeAction } from "@/actions";
 import { processMediaAssets } from "@/media/processing";
 import { showMediaUploadToast } from "@/media/upload-toast";
 import { LinksImportPanel } from "./links";
-import { savePngSticker } from "@/stickers/providers/saved";
+import { saveImageSticker } from "@/stickers/providers/saved";
+import { recoverVideoThumbnail } from "@/media/thumbnail";
 import { useStickersStore } from "@/stickers/stickers-store";
 import {
 	SelectableItem,
@@ -331,7 +332,14 @@ function MediaItemWithContextMenu({
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent>
 				<ContextMenuItem>Export clips</ContextMenuItem>
-                {item.type === "image" && (item.file.type === "image/png" || /\.png$/i.test(item.name)) && <ContextMenuItem onSelect={()=>{void savePngSticker(item.file).then(()=>{toast.success("PNG salvo em Stickers → Salvos");void useStickersStore.getState().browseStickers();}).catch(e=>toast.error(e instanceof Error?e.message:"Falha ao salvar figurinha"));}}>Salvar PNG como sticker</ContextMenuItem>}
+				{item.type === "image" && (
+					<ContextMenuItem onSelect={() => {
+						void saveImageSticker({ file: item.file }).then(() => {
+							toast.success("Imagem salva em Stickers → Salvos");
+							useStickersStore.getState().setSelectedCategory({ category: "saved" });
+						}).catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Falha ao salvar sticker"));
+					}}>Salvar como sticker</ContextMenuItem>
+				)}
 				<ContextMenuItem
 					variant="destructive"
 					onClick={(event: React.MouseEvent<HTMLDivElement>) =>
@@ -449,6 +457,17 @@ function MediaPreview({
 	variant?: "grid" | "compact";
 }) {
 	const shouldShowDurationBadge = variant === "grid";
+	const [recovered, setRecovered] = useState<{ file: File; url: string } | null>(null);
+	useEffect(() => {
+		if (item.type !== "video" || item.thumbnailUrl) return;
+		let active = true;
+		const file = item.file;
+		void recoverVideoThumbnail({ file }).then((url) => {
+			if (active && url) setRecovered({ file, url });
+		}).catch(() => undefined);
+		return () => { active = false; };
+	}, [item.type, item.thumbnailUrl, item.file]);
+	const thumbnail = item.thumbnailUrl ?? (recovered?.file === item.file ? recovered.url : undefined);
 
 	if (item.type === "image") {
 		return (
@@ -467,11 +486,11 @@ function MediaPreview({
 	}
 
 	if (item.type === "video") {
-		if (item.thumbnailUrl) {
+		if (thumbnail) {
 			return (
 				<div className="relative size-full">
 					<Image
-						src={item.thumbnailUrl}
+						src={thumbnail}
 						alt={item.name}
 						fill
 						sizes="100vw"
