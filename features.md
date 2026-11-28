@@ -10,9 +10,88 @@
 >
 > **PR oficial de validação atual:** [#4 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/4). PR #2 é referência histórica. **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
 
+## F13 — Servidor Docker Mobile autônomo e atualização automática (PRIORIDADE P0)
+
+**Decisão do proprietário — 27/11/2026:** F13 passa a ser a próxima feature prioritária, imediatamente após corrigir e homologar os bloqueios atuais do PR #4. Antecede novas funcionalidades e a retomada da ordem histórica F01–F12. Não é necessário concluir todo o backlog para iniciar F13; apenas estabilizar o build, os serviços essenciais e os fluxos em correção. Sounds permanece adiado. **Estado: PLANEJADO, não implementado nem homologado.**
+
+### Objetivo e experiência esperada
+
+Instalar o Cut Editor uma única vez em um host Docker compatível (especialmente um celular Android ARM64 usado como servidor). Ao iniciar o Docker ou reiniciar o dispositivo, iniciar automaticamente o stack e disponibilizar o Editor na rede local, sem precisar executar comandos Git, reconstruir imagens ou abrir a aplicação manualmente. O servidor verifica continuamente as versões aprovadas originadas da branch `main` e aplica atualizações seguras de modo autônomo. Computador, telefone e tablet podem acessar o mesmo servidor via navegador. Não depender da internet para utilizar funcionalidades locais já instaladas; usar internet para atualizações e serviços externos opcionais.
+
+### Arquitetura obrigatória
+
+```text
+GitHub main -> CI + testes -> build multiarch -> GHCR + manifesto de release aprovado
+                                                      |
+Host Docker -> supervisor/updater -> download -> checkpoint -> Compose -> health -> commit/rollback
+                                                      |
+                         web + banco + Redis + Caddy + MCP + serviços IA/transcrição
+                                                      |
+                    volumes persistentes + acesso LAN por navegador
+```
+
+Não executar `git pull` e build de produção diretamente no celular como mecanismo padrão. GitHub Actions deve construir imagens OCI pré-compiladas em `linux/amd64` e `linux/arm64` e publicá-las no GitHub Container Registry (GHCR). O canal estável acompanha a main, mas somente versões com CI aprovado e manifesto completo são elegíveis; merge sozinho não significa atualização liberada. Fixar imagens e versões por digest, vincular manifesto ao SHA de origem, incluir plataforma, versão de schema, hash do Compose e lista de serviços. Publicar manifesto/tag estável somente ao final da validação de todas as imagens necessárias; não promover build parcial, branch de testes ou imagem incompatível. Validar autenticidade e integridade do manifesto/imagens, preferencialmente com assinatura e verificação de proveniência. Mudanças apenas documentais sem impacto no runtime não devem gerar download/restart do stack; se features.md for incluído no roadmap exibido pela aplicação, prever atualização isolada do conteúdo ou classificar a mudança como artefato web, sem reconstruir todos os serviços.
+
+### F13-A — Bootstrap e inicialização automática
+- [ ] Criar fluxo de instalação único, idempotente, documentado em PT-BR: verificar Docker Engine/Compose, arquitetura, espaço disponível, portas, permissões, rede e recursos; preparar configuração privada e volumes estáveis; iniciar stack.
+- [ ] Configurar política de reinício para serviços essenciais e supervisor de atualização; definir dependências e healthchecks, distinguir readiness de liveness. Garantir inicialização do daemon/VM no boot pelo mecanismo suportado pelo sistema escolhido; Docker restart policy não inicia o daemon por si só.
+- [ ] Não depender de um terminal aberto ou sessão de navegador. Recuperar após queda de energia e reinício, com versão instalada funcional mesmo offline. Não sobrescrever .env existente, tokens ou volumes.
+- [ ] Iniciar web, PostgreSQL, Redis, proxy Redis se necessário, Caddy e MCP conforme configuração local. IA local/transcrição devem estar disponíveis por perfil; falha de motor opcional não pode impedir a interface ou a LAN de subir. Ngrok continua opcional e desativado por padrão, nunca publicar automaticamente na internet.
+
+### F13-B — Compatibilidade e distribuição multiarch
+- [ ] Auditar todos os Dockerfiles e dependências: Bun/Next.js, Rust/WASM, Chromium, FFmpeg, HyperFrames CLI, ngrok, MCP, llama.cpp/Qwen, Parakeet/Photon, Faster Whisper, PostgreSQL, Redis e Caddy.
+- [ ] Garantir imagens ou substitutos compatíveis com AMD64 e ARM64; não executar binário de outra arquitetura silenciosamente. Testar em runners nativos quando possível; QEMU é apenas verificação auxiliar, não homologação de desempenho mobile.
+- [ ] Criar matriz de suporte de CPU (incluindo instruções necessárias), memória e armazenamento, com fallback CPU e avisos claros quando um motor não for compatível. Não presumir que Android padrão/Termux PRoot/iOS suporta Docker Engine; validar kernel, namespaces, cgroups, rede e possibilidade de iniciar a VM/daemon automaticamente. Acesso à LAN a partir de VM precisa de bridge/encaminhamento de portas testado.
+
+### F13-C — Pipeline GitHub Actions / GHCR
+- [ ] Separar CI de branch/PR de publicação estável pós-merge. Rodar lint, typecheck, testes, build e smoke de serviços antes de promover release. Build e teste de imagem por arquitetura; validar manifesto integrado.
+- [ ] Publicar imagens versionadas por SHA e digest, manter tag/canal estável apenas para release aprovada; permitir download autenticado se registry privado com credencial mínima de leitura, nunca token de escrita no host. Não publicar .env, segredos, projetos ou mídias em imagens/artefatos.
+- [ ] Definir pacote de deployment/Compose versionado para atualizar também mudanças de topologia, configuração e serviços, não só a imagem web. Pin de dependências; release incompleta ou falha deixa estável anterior intacta. Reutilizar camadas e baixar apenas imagens alteradas.
+
+### F13-D — LAN automática
+- [ ] Detectar IP da interface LAN pelo host (não confundir IP interno do container), divulgar URL HTTP na porta 3100 e HTTPS Caddy na porta 443 ou portas configuradas; lidar com mudança de IP/DHCP, múltiplas interfaces, firewall e portas ocupadas.
+- [ ] Oferecer nome cuteditor.local via mDNS quando suportado; fallback IP/hostname configurável e mostrar URL real no painel. Atualizar OPENCUT_LAN_HOST e certificados de forma consistente; preservar autoridade certificadora Caddy e orientar confiança nos clientes. Não desabilitar verificação TLS.
+- [ ] Restringir rede e firewall à LAN confiável; banco/Redis/serviços internos não devem ficar publicados desnecessariamente. Manter autenticação LAN/MCP e credenciais individuais conforme F10; ngrok separado e opt-in.
+
+### F13-E — Updater autônomo
+- [ ] Implementar supervisor separado da aplicação, preferencialmente serviço do host com permissões mínimas viáveis para operar o projeto Compose. NÃO montar Docker socket no web, em endpoints públicos, IA ou MCP; se um agente dedicado tiver acesso ao Docker, tratar como privilégio equivalente a root e isolar/restringir interface, comandos, projetos, imagens e manifestos aceitos. Não executar scripts arbitrários baixados da main.
+- [ ] Verificar release estável no startup e a cada intervalo configurável (proposta padrão: 15 min; 5/15/30/60 min), comparar versão/digests com a instalada; backoff em falhas e trava de exclusão para evitar atualizações simultâneas. Se não houver rede, continuar versão atual.
+- [ ] Baixar imagens em segundo plano e verificar integridade, arquitetura, espaço para versão anterior + nova + backup; não bloquear edição durante download. Opção Wi-Fi apenas quando o host conseguir determinar tipo de conexão; em ambiente sem essa informação, explicar indisponibilidade em vez de prometer detecção.
+- [ ] Antes de aplicar, verificar sessões ativas, render/export, uploads, sincronização e saves pendentes. Adiar até ociosidade; usar modo manutenção/lock com checkpoint confirmado e impedir início de novas operações durante troca. Não destruir trabalho que esteja apenas no navegador; notificar clientes e aguardar confirmação ou adiar. Aplicar somente serviços necessários com Compose versionado, sem `down -v`.
+- [ ] Persistir estado da transação, versão atual/anterior e progresso para recuperar atualizações interrompidas; validar healthchecks, schema e smoke funcional pós-upgrade; registrar resultado e não entrar em loop tentando uma release que falhou. Implementar atualização manual, pausar automáticas e escolher janela de manutenção. Supervisor deve sobreviver à recriação do web e ter estratégia de atualização própria.
+
+### F13-F — Dados, backups e rollback
+- [ ] Preservar namespace Compose existente, volumes e configuração: PostgreSQL, originais de mídia, projetos, revisões/checkpoints, jobs de render, modelos IA, tokens/chaves, Caddy CA e configurações do updater. Inventariar dados locais de navegador (ex.: stickers) e não prometer backup no host de dados não sincronizados.
+- [ ] Antes de migração, backup consistente de banco e volumes críticos com manifesto/checksums, espaço e retenção configuráveis; proteger segredos e verificar restauração. Não usar limpeza global de imagens/volumes.
+- [ ] Manter última versão saudável e Compose correspondente. Em falha de health/migração, rollback automático de imagens/configuração somente se schema compatível; caso contrário restaurar backup consistente com aprovação quando houver risco de perda de dados, ou manter modo recuperação seguro. Documentar migrações irreversíveis, RPO/RTO e recuperação manual. Não apresentar rollback como garantia incondicional.
+- [ ] Testar perda de energia/rede em cada etapa, download incompleto, imagem inválida, falta de espaço, falha de health, migração incompatível e retorno à versão anterior. A atualização não deve apagar projetos ou originais.
+
+### F13-G — Painel Configurações > Atualizações
+- [ ] Exibir versão instalada (SHA/digest), versão estável disponível, arquitetura, última/próxima verificação, progresso por serviço, estado (ocioso/baixando/aguardando edição/instalando/verificando/revertendo/falhou), espaço e motivo de bloqueio.
+- [ ] Controles: atualização automática (padrão ligada), verificar agora, instalar quando ocioso (padrão ligado), intervalo, Wi-Fi quando suportado, pausa, janela de manutenção, rollback quando seguro e histórico. Controle administrativo autenticado por interface restrita; não expor comandos Docker ou credenciais ao frontend.
+- [ ] Logs persistentes e exportáveis, sem segredos; separar erros de download/registry, compatibilidade, espaço, migração, saúde e rede. Mostrar URLs LAN e status dos serviços. Não declarar sucesso antes dos checks.
+
+### F13-H — Perfil Mobile Lite
+- [ ] Definir perfil padrão mobile com web e serviços fundamentais imediatamente disponíveis, motores pesados sob demanda ou explicitamente selecionáveis, limites de CPU/RAM/concorrência/armazenamento e proteção térmica quando disponível no host. Modelos cacheados persistentemente; sem download repetido a cada boot.
+- [ ] Medir boot frio, RAM ociosa, render, transcrição, tamanho de imagens e atualizações; testar multitarefa real sem matar o host. Não degradar preview ou thumbnails aprovadas. Perfil completo PC preservado.
+
+### F13-I — Homologação e critérios de aceite
+- [ ] Instalação limpa em AMD64 e dispositivo ARM64 real com Docker funcional; reboot sem terminal e acesso PC/celular pela LAN, inclusive sem internet após instalação.
+- [ ] Publicar duas releases de teste aprovadas, demonstrar detecção, download, aplicação ociosa e versão exibida; alterar main com CI falho e confirmar que não há atualização. Testar alterações apenas documentais e de Compose.
+- [ ] Durante edição, uploads e render ativos, updater adia troca; após save/checkpoint e ociosidade, atualiza. Projetos/mídias/modelos/tokens/certificados sobrevivem. Testar restauração e rollback, interrupções, arquitetura incorreta, atualização concorrente e autenticação do supervisor.
+- [ ] Confirmar rede DHCP/IP variável, firewall, HTTPS confiável, mDNS quando disponível e ngrok desligado por padrão. Testar compatibilidade de Parakeet/Whisper, HyperFrames e IA conforme perfil, com degradação explícita.
+- [ ] Aprovar CI e smoke multiarch; registrar no features.md commit, digest, dispositivo/OS, resultados, limitações e documentação de instalação/recuperação. Só marcar F13 concluída após evidência real. Até lá, manter status PLANEJADO/EM IMPLEMENTAÇÃO.
+
+**Áreas propostas (nomes não existentes garantidos):** workflows CI/release GHCR, docker-compose.yml e manifesto de deployment, scripts de bootstrap/supervisor de host, documentação Docker Mobile, API administrativa de status e painel Configurações > Atualizações. Reaproveitar a infraestrutura existente; não reescrever serviços estáveis.
+
+**Ordem de execução vinculante:** (0) estabilizar PR #4, corrigir build e validar base; (1) F13-A/B/C/D para instalação e distribuição; (2) F13-E/F para atualização segura; (3) F13-G/H/I para UX e homologação. Só então retomar o restante da fila de novas features. Nenhuma mudança de prioridade elimina bugs pendentes do ciclo atual.
+
+
+---
+
 ## Estado atual e próxima fila de correções — 27/11/2026 (horário de Brasília)
 
-> **Fonte de verdade para a próxima sessão do Codex e demais IAs.** A `main` recebeu o merge do [PR #3](https://github.com/GustavoABA/Editor/pull/3), commit `71624d5`. As novas implementações continuam no [PR #4](https://github.com/GustavoABA/Editor/pull/4), branch `teste/implementacao`, ainda aberto. Esta atualização documental na main NÃO equivale à publicação do código do PR #4. Não reimplementar recursos já aprovados; não marcar entrega como homologada sem CI e teste real. Priorizar os bugs abaixo antes de novas features; preservar as prioridades históricas F01–F12 e Sounds adiado.
+> **Fonte de verdade para a próxima sessão do Codex e demais IAs.** A `main` recebeu o merge do [PR #3](https://github.com/GustavoABA/Editor/pull/3), commit `71624d5`. As novas implementações continuam no [PR #4](https://github.com/GustavoABA/Editor/pull/4), branch `teste/implementacao`, ainda aberto. Esta atualização documental na main NÃO equivale à publicação do código do PR #4. Não reimplementar recursos já aprovados; não marcar entrega como homologada sem CI e teste real. Priorizar os bugs abaixo; após estabilizar o PR #4, executar F13 (P0) antes das novas features. Preservar as prioridades relativas históricas F01–F12 e Sounds adiado.
 
 ### Evidência do proprietário (versão anterior ao PR #4)
 - **Aprovado pelo usuário:** thumbnails na importação de vídeos; posição superior, preset Limpa, cor e animação das legendas. Preservar esses comportamentos. Demais presets de legenda ainda precisam de teste.
@@ -58,6 +137,7 @@
 | **F11 Parakeet Redux** | [x] Serviço CPU opcional + rota autenticada + motor padrão na UI | [ ] Build do worker, download pesos, precisão PT-BR, E2E |
 | **F12 C/V/X** | [x] Atalhos padrão e migração preservando customizações | [ ] Teste no navegador, colisões/contextos |
 | **F06 Sounds** | **Adiado** pelo planejamento; não alterado nesta rodada | Aguardar autorização |
+| **F13 Docker Mobile autônomo** | Planejamento P0; reutilizar restart, portas LAN, Caddy e volumes existentes | [ ] Bootstrap, GHCR multiarch, updater seguro, rollback, painel e homologação mobile real |
 
 **Critério geral:** até obter CI aprovado e testes reais, `[x]` nesta tabela significa **código existente**, não `CONCLUÍDO`. Não alterar a `main` sem aprovação.
 
@@ -930,10 +1010,12 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 
 ## 10. Roadmap de implementação e dependências — ORDEM OBRIGATÓRIA
 
-**Esta tabela substitui as prioridades P0/P1/P2 antigas. F01 não é fundação; Sounds está congelado.**
+**Ordem atualizada em 27/11/2026: estabilização PR #4 > F13 (P0) > sequência histórica abaixo.** F01 não é fundação; Sounds está congelado. A F13 tem precedência sobre novas funcionalidades, sem exigir conclusão integral de F10.
 
 | Fase | ID | Entrega | Dependências obrigatórias |
 |---|---|---|---|
+| **0** | PR #4 | Estabilizar build e correções atuais | CI e testes de aceite da fila prioritária |
+| **0.5 (P0)** | F13 | Host Docker Mobile autônomo, LAN, GHCR multiarch, updater, rollback e Mobile Lite | Base estável do PR #4; homologação em host compatível |
 | **1** | F02 | Normalização LUFS uniforme de clipes, faixas e mix; preview A/B e exportação | Áudio/render existentes; **sem F01** |
 | **2** | F03 | **Presets NVIDIA obrigatórios Nemotron 3 Nano Omni, Kimi K3 e Gemma 4 31B**, com API key, teste real, **gerador de chamadas Node.js copiáveis**; Moonshot/Kimi K3.1 Pro independente, outros provedores e fallback | Backend de credenciais/roteador; **sem F01** |
 | **3** | F04 | HyperFrames: edição assistida por Kimi com análise de vídeo, contexto de áudio/transcrição, clipes e render sincronizado horizontal/vertical | F03 para IA; pipeline de composição; **sem F01** |
@@ -948,6 +1030,8 @@ Em falha: registrar etapa idempotente concluída -> escolher outro modelo compat
 | **Adiado** | F06 | Sounds: não alterar nada neste ciclo | Nenhuma |
 
 ### Lotes de trabalho sugeridos, na mesma ordem
+
+**Antes dos lotes históricos:** estabilizar PR #4 e executar F13-A a F13-I conforme seção prioritária no início deste arquivo.
 
 1. **F02:** medidor LUFS e true peak, operação global/por clipe, seleção manual, preview, ajustes reversíveis e export.
 2. **F03:** Settings IA, três presets NVIDIA (Nemotron 3 Nano Omni, Kimi K3 e Gemma 4 31B), chave NVIDIA compartilhada, gerador Node para copiar **E opção Personalizada com editor livre de código Node completo e EXECUÇÃO real isolada**, suporte a `axios`/`import`, output JSON/stream, armazenamento de scripts e integração como provedor no HyperFrames, Moonshot/Kimi K3.1 Pro por rota própria, outros provedores e fallback. Verificar disponibilidade de cada endpoint, sem prometer Kimi K3 descontinuado ou Kimi K3.1 Pro por NVIDIA.
