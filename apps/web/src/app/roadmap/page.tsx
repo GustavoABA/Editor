@@ -17,7 +17,7 @@ function readRoadmap(): string {
 export default function RoadmapPage() {
 	const roadmap = readRoadmap();
 	return (
-		<BasePage title="Roadmap" description="Conteúdo oficial de features.md, atualizado a cada build. Implementação não significa homologação.">
+		<BasePage maxWidth="6xl" title="Roadmap" description="Conteúdo oficial de features.md, atualizado a cada build. Implementação não significa homologação.">
 			<div className="mx-auto flex max-w-5xl flex-col gap-4">
 				<a className="underline" href={SOCIAL_LINKS.github + "/blob/main/features.md"}>Arquivo oficial no GitHub</a>
 				<pre className="whitespace-pre-wrap break-words rounded-lg border p-4 text-sm leading-relaxed">{roadmap}</pre>
