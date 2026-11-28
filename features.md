@@ -12,7 +12,7 @@
 
 ## F13 — Servidor Docker Mobile autônomo e atualização automática (PRIORIDADE P0)
 
-**Decisão do proprietário — 27/11/2026:** F13 passa a ser a próxima feature prioritária, imediatamente após corrigir e homologar os bloqueios atuais do PR #4. Antecede novas funcionalidades e a retomada da ordem histórica F01–F12. Não é necessário concluir todo o backlog para iniciar F13; apenas estabilizar o build, os serviços essenciais e os fluxos em correção. Sounds permanece adiado. **Estado: EM IMPLEMENTAÇÃO na teste/implementacao (primeiro lote F13-A/B/C/D/E/H), não homologado.**
+**Decisão do proprietário — 27/11/2026:** F13 passa a ser a próxima feature prioritária, imediatamente após corrigir e homologar os bloqueios atuais do PR #4. Antecede novas funcionalidades e a retomada da ordem histórica F01–F12. Não é necessário concluir todo o backlog para iniciar F13; apenas estabilizar o build, os serviços essenciais e os fluxos em correção. Sounds permanece adiado. **Estado: EM IMPLEMENTAÇÃO na teste/implementacao (F13-A/B/C/D/E/F/H), não homologado.**
 
 ### Progresso da primeira implementação (27/11/2026)
 
@@ -29,6 +29,15 @@ Código experimental registrado no PR #4, exclusivamente na branch de testes. O 
 | F13-I | Testes unitários de bootstrap/monitor incluídos e workflow CI configurado | Execução confirmada, homologação ARM64 real e testes integrados |
 
 **Segurança:** candidatos não são releases estáveis. Monitor somente leitura, sem Docker socket, sem aplicação de updates até gate de CI, assinatura e rollback. Não alterar volumes ou chaves existentes. Guia: `deploy/mobile/README.md`. O código da F13 permanece na branch de testes, enquanto a main contém somente este registro de planejamento. Os critérios de aceite abaixo continuam abertos.
+
+### Segundo lote — atualizador e backups (27/11/2026, horário de Brasília)
+
+- F13-E: `deploy/mobile/updater.py` implementa staging de manifesto local ou release pública estável (manifesto + assinatura), verificação RSA/SHA-256 com chave pública instalada localmente, digests/arquitetura, sequência crescente, trava de concorrência, hashes Compose e schema compatível. Não executa conteúdo remoto arbitrário. Instalação experimental manual com manutenção confirmada; mantém estado e override ativo para reinicialização.
+- F13-F: `backup.py` arquiva volumes Compose e configurações com containers parados, montagem somente leitura, tar e recibo SHA-256; ativação exige recibo íntegro do mesmo projeto e configurações. Rollback experimental por imagens locais anteriores, healthcheck web/MCP/IA/transcrição, journal e comando recover. Não restaura banco ou volumes automaticamente; exige compatibilidade de schema declarada e ensaio real de restauração.
+- F13-A: host.py usa override ativo e recusa boot gerenciado se journal de transação pendente; ainda há risco de reinício autônomo pelo daemon e necessidade de validação de queda de energia.
+- F13-B/C/H: CI testa também host e configuração Full/Lite. **Evidência:** job [host-tests](https://github.com/GustavoABA/Editor/actions/runs/46093189690/job/140818594293) do commit `37381a0` aprovado, 15 testes Python e validação Compose Full/Lite. Esses testes são unitários (incluindo OpenSSL real) e configuração, não execução do Docker updater/backup/rollback em host real.
+- Próximas prioridades: release estável automatizada com gate CI, smoke nativo multiarch por digest, assinatura e gestão de chave, publicação atômica e dependências fixadas; instalar a chave pública por canal confiável. Depois, coordenação autenticada de manutenção/sessões/uploads/jobs e checkpoint confirmado, testes reais de restauração, painel de status, staging automático e aplicação ociosa. **Auto-instalação continua desabilitada**, timer somente leitura. Não publicar candidato como estável.
+- Guia atualizado em `deploy/mobile/README.md`. Não executar manutenção em produção sem backup real e aprovação. PR #4 permanece aberto; não promover código enquanto CI completo e homologação estiverem pendentes.
 
 ### Objetivo e experiência esperada
 
