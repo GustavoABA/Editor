@@ -1,7 +1,21 @@
 import {describe,expect,test} from "bun:test";
-import {incoming,phone,validProject,MAX_MEDIA_BYTES} from "./policy";
+import {incoming,phone,validProject,MAX_MEDIA_BYTES,mediaLimit,needsEditingProxy} from "./policy";
 const example=()=>({instance:"cut-editor",event:"messages.upsert",data:{key:{remoteJid:"5511999999999@s.whatsapp.net",fromMe:false,id:"ABC123"},messageTimestamp:1700000000,message:{audioMessage:{mimetype:"audio/ogg; codecs=opus",fileLength:123}}}});
 describe("Evolution inbound policy",()=>{
+  test("bounds configurable media limits and selects editing proxies",()=>{
+    expect(mediaLimit(undefined)).toBe(MAX_MEDIA_BYTES);
+    expect(mediaLimit("128")).toBe(128*1024*1024);
+    expect(mediaLimit("129")).toBe(MAX_MEDIA_BYTES);
+    expect(mediaLimit("0")).toBe(MAX_MEDIA_BYTES);
+    expect(needsEditingProxy("audio/ogg",123)).toBe(true);
+    expect(needsEditingProxy("video/mp4",32*1024*1024)).toBe(true);
+    expect(needsEditingProxy("image/png",123)).toBe(false);
+    expect(needsEditingProxy("image/gif",32*1024*1024)).toBe(false);
+    const p=example();
+    const big={...p,data:{...p.data,message:{videoMessage:{mimetype:"video/mp4",fileLength:64*1024*1024}}}};
+    expect(incoming(big)).toBeNull();
+    expect(incoming(big,mediaLimit("128"))?.mime).toBe("video/mp4");
+  });
   test("normalizes international numbers",()=>{
     expect(phone("+55 (11) 99999-9999")).toBe("5511999999999");
     expect(phone("invalid")).toBeNull();
