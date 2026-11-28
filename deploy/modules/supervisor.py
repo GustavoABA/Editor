@@ -78,6 +78,7 @@ def tick():
     with updater.lock():
         if updater.JOURNAL.exists(): return
         request=json.loads(web(READ_SCRIPT,capture=True,timeout=20))
+        if not isinstance(request,dict): return
         rid=request.get("id")
         if request.get("action")!="install" or not isinstance(rid,str) or not re.fullmatch(r"[a-f0-9-]{36}",rid): return
         STATE.mkdir(mode=0o700,parents=True,exist_ok=True)
