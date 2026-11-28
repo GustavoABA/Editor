@@ -1,0 +1,16 @@
+# Example systemd unit. This monitor has no Docker access and never installs.
+[Unit]
+Description=Cut Editor read-only stable release check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=cut-editor-monitor
+ExecStart=/usr/bin/python3 /opt/cut-editor/deploy/mobile/release_monitor.py --state /var/lib/cut-editor-monitor/monitor.json
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+TimeoutStartSec=60
