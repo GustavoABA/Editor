@@ -17,13 +17,20 @@ export class MediaManager {
 	async addMediaAsset({
 		projectId,
 		asset,
+		assetId,
 	}: {
 		projectId: string;
 		asset: Omit<MediaAsset, "id">;
+		assetId?: string;
 	}): Promise<MediaAsset | null> {
+		if (assetId) {
+			if (!/^wa-[a-f0-9]{40}$/.test(assetId) || this.editor.project.getActiveOrNull()?.metadata.id !== projectId) return null;
+			const existing = this.assets.find(item => item.id === assetId);
+			if (existing) return existing;
+		}
 		const newAsset: MediaAsset = {
 			...asset,
-			id: generateUUID(),
+			id: assetId ?? generateUUID(),
 		};
 
 		this.assets = [...this.assets, newAsset];
@@ -31,9 +38,9 @@ export class MediaManager {
 
 		try {
 			await storageService.saveMediaAsset({ projectId, mediaAsset: newAsset });
-			this.editor.project.ratchetFpsForImportedMedia({
-				importedAssets: [newAsset],
-			});
+			if (this.editor.project.getActiveOrNull()?.metadata.id === projectId) {
+				this.editor.project.ratchetFpsForImportedMedia({ importedAssets: [newAsset] });
+			}
 			return newAsset;
 		} catch (error) {
 			console.error("Failed to save media asset:", error);
