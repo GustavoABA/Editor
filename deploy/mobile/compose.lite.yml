@@ -1,0 +1,13 @@
+# Experimental Mobile Lite override; requires Compose >= 2.24.4 for !reset.
+# Keep the same project name and volumes. Do not use --remove-orphans.
+services:
+  web:
+    depends_on: !override
+      db:
+        condition: service_healthy
+      serverless-redis-http:
+        condition: service_healthy
+  local-ai:
+    profiles: ["heavy-ai"]
+  parakeet:
+    profiles: ["heavy-ai"]
