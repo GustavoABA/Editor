@@ -36,7 +36,9 @@ try{
   assert.equal((await api.work()).received,true);
   const received=(await api.status("project-a")).items[0];
   assert.equal(received.mimeType,"image/png");
-  assert.deepEqual((await api.download("project-a",received.id))?.bytes,png);
+  const download=await api.download("project-a",received.id);
+  assert.ok(download);
+  assert.deepEqual(await readFile(download.filePath),png);
   assert.equal((await api.status("project-b")).items.length,0);
   assert.deepEqual(await api.receive(payload("first")),{duplicate:true});
   await api.receive(payload("cancelled"));
