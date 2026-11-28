@@ -1,6 +1,6 @@
 import {authorizeSync} from "@/lan-sync/server";
 import {validProject,record} from "@/modules/evolution/policy";
-import {status,install,pair,configure,download} from "@/modules/evolution/server";
+import {status,install,pair,configure,download,retryJob} from "@/modules/evolution/server";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const headers={"Cache-Control":"no-store"};
@@ -26,6 +26,7 @@ export async function POST(request:Request){
     if(body.action==="install")await install();
     else if(body.action==="pair")return Response.json(await pair(body.number),{headers});
     else if(body.action==="configure"&&typeof body.enabled==="boolean")await configure(body.projectId,body.enabled,body.sender);
+    else if(body.action==="retry"||body.action==="discard")await retryJob(body.projectId,body.id,body.action==="discard");
     else return Response.json({error:"Ação inválida."},{status:400,headers});
     return Response.json({ok:true},{headers});
   }catch(e){return Response.json({error:e instanceof Error?e.message:"Falha no módulo."},{status:409,headers});}
