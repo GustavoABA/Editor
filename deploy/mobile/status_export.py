@@ -49,3 +49,11 @@ def export(state_dir, monitor=None, directory=PUBLIC):
         if os.path.exists(tmp):
             os.unlink(tmp)
     return payload
+
+
+if __name__ == "__main__":
+    import argparse
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--monitor",type=Path,default=Path("/var/lib/cut-editor-monitor/monitor.json"))
+    args=parser.parse_args()
+    export(ROOT/".cut-editor",load(args.monitor))
