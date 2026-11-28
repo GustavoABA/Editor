@@ -39,3 +39,14 @@ A instalação inicial em Linux systemd pode ser provisionada com `sudo python3 
 Correção do digest: nomes abreviados Docker Hub e nomes canônicos docker.io/library são tratados igualmente; pins existentes precisam pertencer aos repositórios do catálogo. v2.3.7 possui imagens AMD64/ARM64 publicadas, mas o stack não foi executado em dispositivo real. Não converter áudio em MP4 via Evolution automaticamente; preservar o MIME original. Compatibilidade OGG/iOS ainda pendente. Mantido limite inicial de 32 MiB para evitar pressão de memória de base64.
 
 Testes: `python3 -m unittest discover -s deploy/modules -p 'test_*.py' -v`; smoke isolado com Evolution simulada: `cd apps/web && bun run src/modules/evolution/inbox-smoke.ts`. Valida roteamento de dois projetos, filtro, deduplicação, gravação/download do original, desativação e retry; não equivale a WhatsApp real. CI também valida Compose opcional. Pendente integrar provisionamento ao instalador final F13 e backup dos volumes Evolution, recuperação de falhas de disco/instalação e autorização granular.
+
+
+## Terceiro lote — transferência em partes e compatibilidade de áudio
+
+O endpoint de mídia da Evolution retorna JSON com base64. O Editor agora decodifica incrementalmente esse campo em arquivo temporário privado no volume LAN, com limite de tamanho, metadados limitados a 64 KiB, validação de JSON/padding e limpeza de downloads interrompidos. Depois reutiliza chunks de 4 MiB, checksums SHA-256 e validação do original. O download do original pela API do módulo é servido como stream. A Evolution API em si ainda pode montar toda a resposta em memória; não confundir com transferência binária ponta a ponta. O worker continua único e com timeout; medir RAM e espaço (temporário + chunks + original) antes de aumentar o limite.
+
+`EVOLUTION_MAX_MEDIA_MIB` é configuração do host no .env (1 a 128, padrão 32, inválido retorna 32). A UI mostra o limite efetivo. Exemplo 64 para host com recursos suficientes; recriar web pelo procedimento normal para aplicar. Não é garantia de que o WhatsApp/Evolution aceite todos os arquivos desse tamanho. O limite por inbox continua 1 GiB/1000 itens.
+
+O cliente usa o proxy LAN já existente para áudio OGG/WebM e mídias acima de 24 MiB (exceto GIF). O FFmpeg produz M4A/AAC para áudio; a referência mantém remoteProxy, originalSize e originalMimeType para não substituir o original sincronizado. A compatibilidade de reprodução/exportação em Safari iOS requer teste real. Os testes incluem streaming de 33 MiB sintéticos, JSON/padding inválidos e smoke com Evolution simulada e FFmpeg real OGG→AAC, preservando o original. Não representam pareamento real.
+
+Pendente: validar CI do terceiro lote, testar arquivo grande real no dispositivo, Safari/iOS e render final com proxy, parear telefone de teste, integrar backup e provisionamento definitivo F13. Main permanece inalterada.
