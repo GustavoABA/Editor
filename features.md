@@ -8,7 +8,37 @@
 >
 > **Implementação inicial já existente na branch de teste:** F10 (arquitetura híbrida LAN: interação e preview imediatos no navegador, upload de mídia em segundo plano ao host, projetos com revisões e checkpoints de 3 min, Ctrl+S, aviso ⚠️ para mídias faltantes, abertura de projetos do host e exportação que tenta reutilizar originais sincronizados). **Ainda experimental, não 100% concluída**; não refazer o que já existe sem auditoria.
 >
-> **PR oficial de validação:** [#2 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/2). **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
+> **PR oficial de validação atual:** [#4 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/4). PR #2 é referência histórica. **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
+
+## Estado atual e próxima fila de correções — 27/11/2026 (horário de Brasília)
+
+> **Fonte de verdade para a próxima sessão do Codex e demais IAs.** A `main` recebeu o merge do [PR #3](https://github.com/GustavoABA/Editor/pull/3), commit `71624d5`. As novas implementações continuam no [PR #4](https://github.com/GustavoABA/Editor/pull/4), branch `teste/implementacao`, ainda aberto. Esta atualização documental na main NÃO equivale à publicação do código do PR #4. Não reimplementar recursos já aprovados; não marcar entrega como homologada sem CI e teste real. Priorizar os bugs abaixo antes de novas features; preservar as prioridades históricas F01–F12 e Sounds adiado.
+
+### Evidência do proprietário (versão anterior ao PR #4)
+- **Aprovado pelo usuário:** thumbnails na importação de vídeos; posição superior, preset Limpa, cor e animação das legendas. Preservar esses comportamentos. Demais presets de legenda ainda precisam de teste.
+- **Funcionou parcialmente:** Whisper navegador gerou texto, mas Auto detect assumiu inglês; legendas ultrapassaram o áudio (~52 s de mídia e ~59 s de timeline). HyperFrames conseguiu analisar fala e música, mas geração HTML/CSS não concluiu. Ngrok exibiu túnel ativo e URL; conexão por cliente MCP ainda não homologada.
+- **Falhou/ausente na instalação testada:** Parakeet Redux CPU, menu de salvar imagem como sticker, substituição Send feedback por Logs, importador dependente de profile Docker. A instalação ainda mostrava UI anterior ao PR #4.
+
+### Fila de correção e aceite (ordem proposta para estabilização)
+
+| Prioridade | Área | Código registrado na branch de teste | Falta corrigir ou validar |
+|---|---|---|---|
+| P0 | Build / Docker | Correção de variável duplicada no ngrok; smoke tests de HTTP/HTTPS, IA, transcrição, MCP | Último CI do commit `af3ece8` falhou nos três workflows. O Fast Build apontou chave JSX solta em `hyperframes-studio.tsx:357` (Unexpected token). Corrigir sintaxe na branch de testes, executar build/typecheck e Docker smoke completos e investigar erros subsequentes. Não mesclar enquanto falhar. |
+| P0 | F11 Captions | Português padrão, timestamps por palavra, remoção do mínimo artificial de 0,8 s, limite pelo último clipe audível, grupos de palavras, fallback Whisper CPU host/navegador | Homologar PT-BR e detecção real de idioma (auto no navegador atualmente usa PT, não é detecção genuína); verificar fala rápida <1s, pausas, cortes, offsets, retiming, 3/5/7 palavras, duração do último cue <= áudio e preview/export. Validar Parakeet em CPU real, pesos e fallback; não exigir API paga. Regenerar legendas antigas após remover a trilha incorreta. |
+| P0 | F03/F04 IA e HyperFrames | Diagnóstico por provedor/modelo/HTTP/tempo, fallback template opcional explícito, cancelamento, composições parciais; prompt local reduzido para contexto 2048 tokens; análise PT | Testar credenciais/modelo NVIDIA configurado e demais provedores reais, 401/403/404/429/timeout/JSON inválido; garantir fallback sem travar, progresso visível, erro legível e Logs sem chaves. Testar múltiplos trechos, retry sem repetir os concluídos, uso do roteiro editado, preview, transparência e render final sincronizado. Template não conta como sucesso de IA. |
+| P1 | F07 Links / iframe na timeline | Prévia embutida e importação direta autorizada; captura consentida de aba para WebM, até 300 s/200 MB; sem dependência do profile importer na UI | **Requisito ainda aberto:** clipe de fonte externa com início, duração, reprodução sincronizada com playhead, pausa/seek/corte e export do intervalo. Exemplo: começar em 0 e cortar em 120 s deve produzir exatamente 120 s. Imagem/página estática permanece visualmente fixa; live usa o início da captura e não presume seek. Prototipar com fontes controladas e autorizadas; preferir cache/captura materializada para export reprodutível, com áudio, sem interface do navegador. Captura atual exige escolha manual de aba, não é reprodução automática durante render; não declarar requisito concluído. Respeitar políticas do provedor, CORS, DRM, X-Frame-Options/CSP e permissões; bloquear export com mensagem explícita se mídia não puder ser materializada. |
+| P1 | F09 MCP externo / ngrok | Botão Copiar configuração MCP para IA, URL /mcp, Streamable HTTP, JSON e instruções; Bearer derivado específico sem expor authtoken ou segredo principal | Validar initialize/tools/list, leitura e edição autorizadas em cliente remoto compatível, token inválido rejeitado, desativação do túnel sem afetar LAN; documentar clientes que aceitam cabeçalhos. Verificar escopo, revogação/rotação da credencial e segurança do túnel. Não prometer conexão universal só colando texto em um chat. |
+| P1 | F05 Stickers / identidade / Logs | Menu + Sticker, conversão PNG e biblioteca Salvos; página inicial, Gustavo, foto provisória, créditos e Sponsors, Blog desativado, roadmap lendo features.md, imagem Docker cut-editor-web:local, Logs no cabeçalho | Validar menu contextual PNG/JPEG/WebP, persistência entre projetos/reload (atualmente local ao navegador), scroll, remover Send feedback na instalação atualizada, copiar/baixar logs, rotas públicas e nome Docker sem perder volumes. Foto real a fornecer pelo mantenedor. |
+| P1 | Automação/LAN | Backoff após 401/403, prevenção de save sem projeto ativo, remoção de telemetria herdada; LAN já incorporada parcialmente na main | Corrigir causa dos 401 de sessions/commands/n8n media (backoff não resolve autorização), manter autenticação, validar HTTPS, PC↔celular, originais, retomada de upload, persistência e render. |
+
+### Portão de liberação
+- [ ] Corrigir bloqueio JSX e quaisquer novos erros de build. Conferir [Fast Build](https://github.com/GustavoABA/Editor/actions/runs/46089726725), [Docker smoke](https://github.com/GustavoABA/Editor/actions/runs/46089726709) e [Bun CI](https://github.com/GustavoABA/Editor/actions/runs/46089726698) do último commit funcional verificado.
+- [ ] CI verde para o HEAD funcional do PR #4; validar imagem Docker, saúde dos serviços e LAN no host sem apagar volumes.
+- [ ] Homologar os fluxos acima com projeto descartável, registrar versão, testes e evidências no features.md; atualizar status em ambas as branches sem confundir implementação com implantação.
+- [ ] Só depois promover o código à main conforme autorização do mantenedor. Não alterar thumbnails aprovadas nem Sounds neste ciclo.
+
+
+---
 
 ## Situação da implementação — branch de teste (19/11/2026)
 
@@ -1025,3 +1055,38 @@ Essas decisões **não impedem o planejamento**, mas precisam ser documentadas e
 - **2026-11-12:** adicionado **F09** (MCP externo por **ngrok exclusivamente**, com ativação/desativação pela aba MCP, URLs LAN/remota, gestão de Authtoken/API Key, segurança e testes); detalhados F03/F04 para configuração de IA por interface e fallback de HyperFrames NVIDIA -> OpenAI -> Claude -> Ollama. **Somente documentação; código não alterado.**
 - **2026-11-10:** criada primeira especificação consolidada a partir dos requisitos do proprietário e inspeção dos arquivos da branch main. **Somente documentação planejada; nenhum recurso implementado, instalação iniciada ou teste executado nesta etapa.**
 - Os próximos PRs devem atualizar este arquivo com status de cada Fxx: Planejado / Em andamento / Testado / Concluído / Bloqueado, link para PR/commit, data e evidência de teste.
+
+
+## Atualização de interface — 27/11/2026
+
+Solicitação do mantenedor Gustavo. Implementação registrada em teste/implementacao, aguardando CI e validação visual; não altera a ordem histórica das fases F01–F12.
+
+- Página inicial: identidade Cut Editor, foto substituível do mantenedor, GitHub próprio, créditos MIT preservados.
+- Contributors: Gustavo em destaque; Sponsors: reconhecimento dos patrocinadores originais; Blog desativado.
+- Roadmap: conteúdo integral deste arquivo durante o build, sem lista paralela.
+- Projetos: marca Cut Editor; imagem Docker web `cut-editor-web:local`; manter namespace/volumes da instalação existente.
+- Mídias: primeiro quadro na importação e recuperação de thumbnails ausentes usando o decodificador nativo do navegador.
+- Stickers: menu contextual para salvar imagens na categoria Salvos, mantendo a biblioteca PNG existente.
+- Logs: acesso direto no cabeçalho, cópia/download e limpeza local.
+- [ ] Validar build/CI, rotas, PNG/JPEG/WebP, vídeos curtos e já importados, logs e persistência após atualização. Não marcar como homologado até testar.
+
+
+
+## Correção F11 — transcrição CPU (27/11/2026)
+
+- Serviço parakeet inicializado no Compose padrão; token interno herda BETTER_AUTH_SECRET se não definido.
+- Parakeet Redux/Photon preferencial quando o caminho CPU é compatível; fallback Faster Whisper CPU INT8 no host e Whisper navegador se host indisponível. Preserva autenticação LAN.
+- Interface exibe motor, mensagens específicas, logs e agrupamento de palavras por timestamp.
+- [ ] Validar CI com fala sintetizada em português, primeira descarga de pesos e CPU real do servidor. Não homologado até teste real.
+
+## Ajustes de homologação — Captions, links e diagnósticos (27/11/2026)
+- Captions: português explícito como padrão, Whisper navegador selecionável sem host, timestamps por palavra, grupos de 3/5/7 sem duração mínima artificial e limite no último clipe audível (exclui legendas anteriores).
+- Links: a aba Importar link exibe o player/iframe dentro do editor, sem exigir downloader ou profile Docker; arquivos diretos autorizados podem ser importados; embeds externos são somente referência/preview, sem exportação automática.
+- Stickers: menu de imagem + Sticker; Logs substitui Send feedback (alterações no PR #4, ainda não implantadas na main). Não alterar thumbnails aprovadas.
+- Diagnósticos: salvar sem projeto ativo não deve lançar exceção; reduzir polling de automação após 401/403, sem desativar autenticação; remover telemetria herdada.
+- [ ] Validar transcrição PT-BR e sincronismo com fala rápida, 3/5/7 palavras, arquivos diretos e embeds, menu Sticker, logs, CI e Docker no host.
+
+## HyperFrames, MCP e mídia externa — revisão de homologação
+- HyperFrames: histórico de tentativas por provedor/modelo, motivo HTTP/JSON/timeout, limite por requisição, cancelar, preservar trechos concluídos, fallback de template explícito e identificável. Português explícito na análise de fala. Validar com provedor real e render WebM.
+- MCP ngrok: botão de copiar instruções e JSON de conexão Streamable HTTP com Authorization Bearer específico para MCP, derivado do segredo do host (não envia o segredo principal nem o authtoken). Validar initialize/tools/list a partir de cliente compatível e autenticação negativa.
+- Links: prévia iframe e captura de aba com consentimento em HTTPS/localhost, limite de duração (até 300s) e tamanho (200 MB), importação WebM editável. Reprodução/corte/exportação usam arquivo gravado, sem depender de live ou iframe durante render. Não contornar DRM, restrições de incorporação ou permissão de captura. Reprodução automática de iframe diretamente no render não homologada.
