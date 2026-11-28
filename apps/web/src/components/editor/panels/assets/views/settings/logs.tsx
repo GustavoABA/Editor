@@ -2,17 +2,25 @@
 
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { activityLog } from "@/diagnostics/activity-log";
+import { toast } from "sonner";
+import { activityLog, type ActivityLogEntry } from "@/diagnostics/activity-log";
+
+const EMPTY_LOG: ActivityLogEntry[] = [];
 
 export function LogsSettings() {
 	const entries = useSyncExternalStore(
 		(listener) => activityLog.subscribe(listener),
 		() => activityLog.getEntries(),
-		() => [],
+		() => EMPTY_LOG,
 	);
 
 	const copy = async () => {
-		await navigator.clipboard.writeText(activityLog.toText());
+		try {
+			await navigator.clipboard.writeText(activityLog.toText());
+			toast.success("Logs copiados");
+		} catch {
+			toast.error("Não foi possível copiar. Use Baixar para exportar os logs.");
+		}
 	};
 	const download = () => {
 		const blob = new Blob([activityLog.toText()], { type: "text/plain;charset=utf-8" });
