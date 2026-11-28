@@ -1,5 +1,5 @@
 import { authorizeSync } from "@/lan-sync/server";
-import { createRoutedPlan } from "@/ai/plan-router";
+import { createRoutedPlan, PlanRoutingError } from "@/ai/plan-router";
 import { createLocalHyperFramesFallback } from "@/hyperframes/local-fallback";
 
 export const runtime = "nodejs";
@@ -60,6 +60,8 @@ export async function POST(request: Request) {
     const ai = await createRoutedPlan({
       // Global routing preference is loaded on the server for every request.
       maxTokens: 8192,
+      signal: request.signal,
+      budgetMs: 240_000,
       validate: (content) => { try { const p = JSON.parse(content); return Array.isArray(p.commands) && p.commands.some((c: { type?: string; payload?: { html?: unknown; css?: unknown } }) => c.type === "html_css" && typeof c.payload?.html === "string" && c.payload.html.trim().length > 0 && c.payload.html.length <= 26000 && typeof c.payload.css === "string" && c.payload.css.length <= 26000); } catch { return false; } },
       format,
       messages: [{
@@ -96,15 +98,17 @@ e o ritmo musical sem afirmar que houve compreensão de conteúdo verbal.`,
         typeof css !== "string" || css.length > 26_000)
       throw Error("Composição vazia ou acima do limite.");
     return Response.json({
-      html, css, provider: ai.provider, model: ai.model,
+      html, css, provider: ai.provider, model: ai.model, attempts: ai.attempts || [],
       summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 900) : "",
     });
   } catch (error) {
+    const attempts = error instanceof PlanRoutingError ? error.attempts : [];
+    if (request.signal.aborted) return Response.json({ error: "Geração cancelada.", attempts }, { status: 499 });
     // Do not disguise an AI failure as a successful AI-generated template.
     if (raw.allowTemplate === true) {
       const fallback = createLocalHyperFramesFallback({ instruction: raw.instruction, transcript: raw.transcript });
-      return Response.json({ html: fallback.html, css: fallback.css, provider: "local-template", model: "embedded-deterministic-fallback", summary: fallback.summary });
+      return Response.json({ html: fallback.html, css: fallback.css, provider: "local-template", model: "embedded-deterministic-fallback", summary: fallback.summary, attempts, fallback: true });
     }
-    return Response.json({ error: error instanceof Error ? error.message : "Nenhum provedor respondeu. Confira Provedores e Conexões." }, { status: 502 });
+    return Response.json({ error: error instanceof PlanRoutingError ? error.message : "Falha na configuração ou geração da IA. Confira Provedores e os logs do host.", attempts }, { status: 502 });
   }
 }
