@@ -5,7 +5,7 @@ import { storageService } from "@/services/storage/service";
 import type { MediaAsset } from "@/media/types";
 import { readVideoFile } from "./mediabunny";
 import type { VideoFileData } from "./mediabunny";
-import { renderThumbnailDataUrl } from "./thumbnail";
+import { renderThumbnailDataUrl, recoverVideoThumbnail } from "./thumbnail";
 
 export interface ProcessedMediaAsset extends Omit<MediaAsset, "id"> {}
 
@@ -160,6 +160,7 @@ export async function processMediaAssets({
 						description: message,
 					});
 				}
+				if (!thumbnailUrl) thumbnailUrl = await recoverVideoThumbnail({ file });
 			} else if (fileType === "audio") {
 				duration = await getMediaDuration({ file });
 			}
