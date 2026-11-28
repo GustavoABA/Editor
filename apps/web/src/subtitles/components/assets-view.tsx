@@ -20,7 +20,7 @@ import type {
 import { transcriptionService } from "@/services/transcription/service";
 import { getLanToken } from "@/lan-sync/client";
 import { decodeAudioToFloat32 } from "@/media/audio";
-import { buildCaptionChunks } from "@/transcription/caption";
+import { buildCaptionChunks, groupTimedWords } from "@/transcription/caption";
 import { insertCaptionChunksAsTextTrack } from "@/subtitles/insert";
 import { parseSubtitleFile } from "@/subtitles/parse";
 import { Spinner } from "@/components/ui/spinner";
@@ -181,6 +181,7 @@ export function Captions() {
 			dispatch({ type: "update_step", step: "Preparando áudio..." });
 			const warnings: string[] = [];
 			let result: { text: string; segments: Array<{ text: string; start: number; end: number }>; language: string };
+			let usedHost = false;
 			const token = getLanToken();
 			try {
 				if (!token) throw new Error("Token LAN não configurado. Conecte-se ao host para usar a CPU do servidor.");
@@ -207,6 +208,7 @@ export function Captions() {
 				const engine = typeof transcript.engine === "string" && transcript.engine.startsWith("faster-whisper/") ? "Whisper CPU" : "Parakeet Redux";
 				activityLog.record({ source: "transcription", message: "Transcrição concluída pelo host: " + engine });
 				if (transcriptionEngine === "parakeet" && engine === "Whisper CPU") warnings.push("Parakeet indisponível nesta CPU; usado Whisper CPU no host.");
+				usedHost = true;
 				result = {
 					text: typeof transcript.text === "string" ? transcript.text : "",
 					segments: transcript.segments as Array<{ text: string; start: number; end: number }>,
@@ -219,11 +221,20 @@ export function Captions() {
 				dispatch({ type: "update_step", step: "Host indisponível; tentando Whisper no navegador..." });
 				try {
 					const { samples } = await decodeAudioToFloat32({ audioBlob, sampleRate: DEFAULT_TRANSCRIPTION_SAMPLE_RATE });
-					result = await transcriptionService.transcribe({
-						audioData: samples,
-						language: selectedLanguage === "auto" ? undefined : selectedLanguage,
-						onProgress: handleProgress,
-					});
+					let timeout: ReturnType<typeof setTimeout> | undefined;
+					try {
+						result = await Promise.race([
+							transcriptionService.transcribe({
+								audioData: samples,
+								language: selectedLanguage === "auto" ? undefined : selectedLanguage,
+								onProgress: handleProgress,
+							}),
+							new Promise<never>((_, reject) => { timeout = setTimeout(() => {
+								transcriptionService.terminate();
+								reject(new Error("Tempo limite do Whisper no navegador excedido."));
+							}, 600_000); }),
+						]);
+					} finally { clearTimeout(timeout); }
 					warnings.push("Transcrição gerada pelo Whisper no navegador.");
 				} catch (browserError) {
 					throw new Error(reason + " | Whisper navegador: " + (browserError instanceof Error ? browserError.message : "falha desconhecida"));
@@ -232,7 +243,7 @@ export function Captions() {
 
 			dispatch({ type: "update_step", step: "Gerando legendas..." });
 			const captionChunks = buildCaptionChunks({
-				segments: result.segments,
+				segments: usedHost ? groupTimedWords({ segments: result.segments, wordsPerChunk: wordsPerCaption }) : result.segments,
 				wordsPerChunk: wordsPerCaption,
 			});
 
