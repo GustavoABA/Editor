@@ -10,14 +10,14 @@ export const baseMetaData: Metadata = {
 		description: SITE_INFO.description,
 		url: SITE_URL,
 		siteName: SITE_INFO.title,
-		locale: "en_US",
+		locale: "pt_BR",
 		type: "website",
 		images: [
 			{
 				url: SITE_INFO.openGraphImage,
 				width: 1200,
 				height: 630,
-				alt: "OpenCut Wordmark",
+				alt: "Cut Editor",
 			},
 		],
 	},
@@ -25,7 +25,6 @@ export const baseMetaData: Metadata = {
 		card: "summary_large_image",
 		title: SITE_INFO.title,
 		description: SITE_INFO.description,
-		creator: "@opencutapp",
 		images: [SITE_INFO.twitterImage],
 	},
 	pinterest: {
