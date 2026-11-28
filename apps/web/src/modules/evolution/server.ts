@@ -12,7 +12,7 @@ type Inbound = NonNullable<ReturnType<typeof incoming>>;
 type Job={id:string;projectId:string;rule:Rule;msg:Inbound;attempts:number;nextAt:number;state:"pending"|"failed";error?:string};
 const jobsDir=path.join(root,"queue");
 // Share the lock across Next route bundles in the same Node process.
-const globalLock=globalThis as typeof globalThis & {cutEditorEvolutionQueue?:Promise<void>};
+const globalLock=globalThis as typeof globalThis & {cutEditorEvolutionQueue?:Promise<void>;cutEditorEvolutionWorking?:boolean};
 async function exclusive<T>(fn:()=>Promise<T>):Promise<T>{
   const previous=globalLock.cutEditorEvolutionQueue??Promise.resolve(); let release!:()=>void;
   globalLock.cutEditorEvolutionQueue=new Promise<void>(r=>{release=r;});
@@ -70,7 +70,9 @@ export async function status(projectId:string){
   const req=await json<{id?:string;createdAt?:number}>(path.join(root,"install.json"),{});
   const pending=req.id && req.id!==h.requestId && Date.now()-Number(req.createdAt)<300_000;
   const config=(await rules())[projectId];
-  return {installation:pending?"queued":h.state,error:h.state==="failed"?h.error:null,
+  const heartbeat=await json<{checkedAt?:number}>(path.join(root,"heartbeat.json"),{});
+  const supervisorOnline=Date.now()-Number(heartbeat.checkedAt)<180_000;
+  return {supervisorOnline,installation:pending?"queued":h.state,error:h.state==="failed"?h.error:null,
     connection:h.state==="installed"?await connection(h):"unavailable",
     enabled:config?.enabled===true,sender:config?.sender??"",items:await items(projectId),queue:(await listJobs()).filter(j=>j.projectId===projectId).map(j=>({id:j.id,state:j.state,attempts:j.attempts,error:j.error??null}))};
 }
@@ -136,13 +138,16 @@ export async function receive(payload:unknown){
 async function processJob(job:Job){
     const {id,projectId,msg}=job;
     const file=path.join(projectDir(projectId),id+".json");
-    if(await json<Item|null>(file,null))return;
+    if(await json<Item|null>(file,null))return true;
     // A crash after finalizing an original but before publishing the inbox
     // should not require downloading the same WhatsApp message again.
     const stored=await getAssetRecord(projectId,id);
     if(stored){
-      await write(file,{id,name:stored.name,mimeType:stored.mimeType,size:stored.size,receivedAt:stored.verifiedAt});
-      return;
+      return exclusive(async()=>{
+        if(!sameRule((await rules())[projectId],job.rule))return false;
+        await write(file,{id,name:stored.name,mimeType:stored.mimeType,size:stored.size,receivedAt:stored.verifiedAt});
+        return true;
+      });
     }
     const existing=await items(projectId);
     if(existing.length>=1000||existing.reduce((sum,x)=>sum+x.size,0)>=MAX_INBOX_BYTES)throw Error("Limite da caixa de entrada.");
@@ -155,6 +160,8 @@ async function processJob(job:Job){
     if(!bytes.length||bytes.length>MAX_MEDIA_BYTES||existing.reduce((sum,x)=>sum+x.size,0)+bytes.length>MAX_INBOX_BYTES)throw Error("Limite de mídia.");
     const type=mime.split("/")[0];
     const name="WhatsApp-"+new Date(msg.timestamp).toISOString().replace(/[:.]/g,"-")+"-"+id.slice(-6)+"."+MIME_EXTENSIONS[mime];
+    return exclusive(async()=>{
+    if(!sameRule((await rules())[projectId],job.rule)||!await readProject(projectId))return false;
     const hashes:string[]=[];
     for(let offset=0;offset<bytes.length;offset+=4*1024*1024){
       const chunk=bytes.subarray(offset,offset+4*1024*1024);
@@ -163,27 +170,35 @@ async function processJob(job:Job){
     }
     await finalizeAsset({projectId,assetId:id,name,type,mimeType:mime,size:bytes.length,parts:hashes.length,chunkSha256:hashes});
     await write(file,{id,name,mimeType:mime,size:bytes.length,receivedAt:new Date().toISOString()});
-
+    return true;
+    });
 }
 export async function work(){
-  return exclusive(async()=>{
-    const jobs=await listJobs();
-    const job=jobs.filter(j=>j.state==="pending"&&j.nextAt<=Date.now()).sort((a,b)=>a.nextAt-b.nextAt)[0];
+  if(globalLock.cutEditorEvolutionWorking)return {processed:false,busy:true};
+  globalLock.cutEditorEvolutionWorking=true;
+  try{
+    const job=await exclusive(async()=>{
+      const jobs=await listJobs();
+      return jobs.filter(j=>j.state==="pending"&&j.nextAt<=Date.now()).sort((a,b)=>a.nextAt-b.nextAt)[0];
+    });
     if(!job)return {processed:false};
     const file=jobPath(job.id);
     if(!sameRule((await rules())[job.projectId],job.rule)||!await readProject(job.projectId)){
-      await rm(file,{force:true});return {processed:true,ignored:true};
+      await exclusive(()=>rm(file,{force:true}));return {processed:true,ignored:true};
     }
     try{
-      await processJob(job);
-      await rm(file,{force:true});
-      return {processed:true,received:true};
+      const received=await processJob(job);
+      await exclusive(()=>rm(file,{force:true}));
+      return {processed:true,received};
     }catch{
       const attempts=job.attempts+1;
-      await write(file,{...job,attempts,nextAt:Date.now()+Math.min(300_000,5000*2**attempts),state:attempts>=5?"failed":"pending",error:"Falha no download ou validação da mídia."});
+      await exclusive(async()=>{
+        if(!sameRule((await rules())[job.projectId],job.rule)){await rm(file,{force:true});return;}
+        await write(file,{...job,attempts,nextAt:Date.now()+Math.min(300_000,5000*2**attempts),state:attempts>=5?"failed":"pending",error:"Falha no download ou validação da mídia."});
+      });
       return {processed:true,retry:attempts<5};
     }
-  });
+  }finally{globalLock.cutEditorEvolutionWorking=false;}
 }
 export async function retryJob(projectId:string,id:unknown,discard=false){
   if(typeof id!=="string")throw Error("ID inválido.");
