@@ -11,6 +11,7 @@ on:
     branches: [main, teste/implementacao]
     paths:
       - "deploy/mobile/**"
+      - "deploy/modules/**"
       - "apps/web/**"
       - "apps/mcp/**"
       - "services/**"
@@ -25,6 +26,7 @@ on:
     branches: [main]
     paths:
       - "deploy/mobile/**"
+      - "deploy/modules/**"
       - "apps/web/**"
       - "apps/mcp/**"
       - "services/local-ai/**"
@@ -57,6 +59,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Bootstrap, monitor and updater unit tests
         run: python3 -m unittest discover -s deploy/mobile -p 'test_*.py' -v
+      - name: Module supervisor unit tests
+        run: python3 -m unittest discover -s deploy/modules -p 'test_*.py' -v
+      - name: Validate optional Evolution Compose configuration
+        env:
+          EVOLUTION_IMAGE: evoapicloud/evolution-api:v2.3.7
+          EVOLUTION_DB_IMAGE: postgres:15
+          EVOLUTION_REDIS_IMAGE: redis:7-alpine
+          EVOLUTION_KEY: ci-placeholder
+          EVOLUTION_DB_PASSWORD: ci-placeholder
+        run: docker compose -f deploy/modules/evolution/compose.yml config --quiet
       - name: Validate full and Lite Compose configuration
         run: |
           docker compose config --quiet

@@ -39,7 +39,16 @@ jobs:
         run: node --check services/hyperframes/server.mjs
       - name: Test provider vault and timeline duration
         working-directory: apps/web
-        run: bun test src/ai/config-store.test.ts src/hyperframes/intervals.test.ts src/transcription/caption.test.ts
+        run: bun test src/ai/config-store.test.ts src/hyperframes/intervals.test.ts src/transcription/caption.test.ts src/modules/evolution/policy.test.ts src/modules/evolution/media-stream.test.ts
+      - name: Ensure FFmpeg and FFprobe for media tests
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+      - name: WhatsApp inbox integration smoke (mock Evolution and real FFmpeg)
+        working-directory: apps/web
+        run: bun run src/modules/evolution/inbox-smoke.ts
       - name: Next.js production compile and typecheck
         working-directory: apps/web
         run: bun run build

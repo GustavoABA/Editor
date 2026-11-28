@@ -16,6 +16,8 @@ import { EffectsView } from "@/effects/components/assets-view";
 import { TransitionsView } from "@/transitions/components/assets-view";
 import { AutomationView } from "@/automation/components/assets-view";
 import { ImporterView } from "./views/importer";
+import { ModulesView, WhatsAppView } from "@/modules/evolution/views";
+import { EvolutionBridge } from "@/modules/evolution/client";
 
 export function AssetsPanel() {
 	const { activeTab } = useAssetsPanelStore();
@@ -23,6 +25,8 @@ export function AssetsPanel() {
 	const viewMap: Record<Tab, React.ReactNode> = {
 		media: <MediaView />,
 		importer: <ImporterView />,
+		modules: <ModulesView />,
+		whatsapp: <WhatsAppView />,
 		sounds: <SoundsView />,
 		text: <TextView />,
 		stickers: <StickersView />,
@@ -40,6 +44,7 @@ export function AssetsPanel() {
 
 	return (
 		<div className="panel bg-background flex h-full rounded-sm border overflow-hidden">
+			<EvolutionBridge />
 			<TabBar />
 			<Separator orientation="vertical" />
 			<div className="flex-1 overflow-hidden">{viewMap[activeTab]}</div>

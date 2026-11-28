@@ -1,4 +1,5 @@
 import type { ElementType } from "react";
+import { Puzzle, MessageCircle } from "lucide-react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
@@ -19,6 +20,8 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 export const TAB_KEYS = [
 	"media",
 	"importer",
+	"modules",
+	"whatsapp",
 	"sounds",
 	"text",
 	"stickers",
@@ -48,6 +51,8 @@ export const tabs = {
 		icon: createHugeiconsIcon({ icon: Download01Icon }),
 		label: "Importar link",
 	},
+	modules: { icon: Puzzle, label: "Extensões" },
+	whatsapp: { icon: MessageCircle, label: "WhatsApp" },
 	sounds: {
 		icon: createHugeiconsIcon({ icon: HeadphonesIcon }),
 		label: "Sounds",

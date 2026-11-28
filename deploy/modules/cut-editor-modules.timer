@@ -1,0 +1,8 @@
+[Unit]
+Description=Process Cut Editor module installation requests
+[Timer]
+OnBootSec=20s
+OnUnitInactiveSec=5s
+Unit=cut-editor-modules.service
+[Install]
+WantedBy=timers.target
