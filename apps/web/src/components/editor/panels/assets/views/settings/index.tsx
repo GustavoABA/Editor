@@ -35,12 +35,13 @@ import { createReframeUpdates, type ReframeMode } from "@/timeline/reframe";
 import { AudioNormalizePanel } from "./audio-normalize";
 import { ShortcutSettings } from "./shortcuts";
 import { LogsSettings } from "./logs";
+import { UpdatesSettings } from "./updates";
 import { BatchCommand, UpdateElementsCommand, UpdateProjectSettingsCommand } from "@/commands";
 
-type SettingsView = "project-info" | "background" | "shortcuts" | "logs";
+type SettingsView = "project-info" | "background" | "shortcuts" | "logs" | "updates";
 
 function isSettingsView(value: string): value is SettingsView {
-	return value === "project-info" || value === "background" || value === "shortcuts" || value === "logs";
+	return value === "project-info" || value === "background" || value === "shortcuts" || value === "logs" || value === "updates";
 }
 
 const PRESET_LABELS: Record<string, string> = {
@@ -257,6 +258,7 @@ Uma única ação de Desfazer reverte a conversão.`)) return;
 						<TabsTrigger value="background">Background</TabsTrigger>
 						<TabsTrigger value="shortcuts">Atalhos</TabsTrigger>
 						<TabsTrigger value="logs">Logs</TabsTrigger>
+						<TabsTrigger value="updates">Atualizações</TabsTrigger>
 					</TabsList>
 				</Tabs>
 			}
@@ -381,6 +383,7 @@ Uma única ação de Desfazer reverte a conversão.`)) return;
 			{view === "background" && <BackgroundContent />}
 			{view === "shortcuts" && <ShortcutSettings />}
 			{view === "logs" && <LogsSettings />}
+			{view === "updates" && <UpdatesSettings />}
 		</PanelView>
 	);
 }
