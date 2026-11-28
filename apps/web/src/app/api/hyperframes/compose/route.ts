@@ -62,6 +62,8 @@ export async function POST(request: Request) {
       maxTokens: 8192,
       signal: request.signal,
       budgetMs: 240_000,
+      // The embedded 0.5B model has a 2048-token context; use a compact task.
+      localMessages: [{ role: "system", content: "Crie um overlay simples e animado com HTML/CSS sem JS, URLs ou iframe. Retorne apenas JSON {\"summary\":\"...\",\"commands\":[{\"type\":\"html_css\",\"payload\":{\"html\":\"...\",\"css\":\"...\"}}]}. Máximo 500 tokens de resposta." }, { role: "user", content: JSON.stringify({ brief: raw.instruction.slice(0,260), speech: raw.transcript.slice(0,320), duration, width:raw.width,height:raw.height }) }],
       validate: (content) => { try { const p = JSON.parse(content); return Array.isArray(p.commands) && p.commands.some((c: { type?: string; payload?: { html?: unknown; css?: unknown } }) => c.type === "html_css" && typeof c.payload?.html === "string" && c.payload.html.trim().length > 0 && c.payload.html.length <= 26000 && typeof c.payload.css === "string" && c.payload.css.length <= 26000); } catch { return false; } },
       format,
       messages: [{
