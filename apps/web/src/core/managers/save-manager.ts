@@ -85,8 +85,8 @@ export class SaveManager {
 		if (this.isSaving) return;
 		if (!this.hasPendingSave) return;
 
-		const activeProject = this.editor.project.getActive();
-		if (!activeProject) return;
+		const activeProject = this.editor.project.getActiveOrNull();
+		if (!activeProject) { this.hasPendingSave = false; this.clearTimer(); return; }
 		if (this.editor.project.getIsLoading()) return;
 		if (this.editor.project.getMigrationState().isMigrating) return;
 
