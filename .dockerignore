@@ -17,3 +17,6 @@ agent-transcripts
 mcps
 terminals
 apps/web/.font-cache
+
+.cut-editor/
+**/__pycache__/
