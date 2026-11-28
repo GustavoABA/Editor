@@ -8,7 +8,37 @@
 >
 > **Implementação inicial já existente na branch de teste:** F10 (arquitetura híbrida LAN: interação e preview imediatos no navegador, upload de mídia em segundo plano ao host, projetos com revisões e checkpoints de 3 min, Ctrl+S, aviso ⚠️ para mídias faltantes, abertura de projetos do host e exportação que tenta reutilizar originais sincronizados). **Ainda experimental, não 100% concluída**; não refazer o que já existe sem auditoria.
 >
-> **PR oficial de validação:** [#2 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/2). **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
+> **PR oficial de validação atual:** [#4 — teste/implementacao](https://github.com/GustavoABA/Editor/pull/4). PR #2 é referência histórica. **PR #1 está encerrado e sua branch antiga `feature/lan-hybrid-sync` não deve receber novas mudanças.**
+
+## Estado atual e próxima fila de correções — 27/11/2026 (horário de Brasília)
+
+> **Fonte de verdade para a próxima sessão do Codex e demais IAs.** A `main` recebeu o merge do [PR #3](https://github.com/GustavoABA/Editor/pull/3), commit `71624d5`. As novas implementações continuam no [PR #4](https://github.com/GustavoABA/Editor/pull/4), branch `teste/implementacao`, ainda aberto. Esta atualização documental na main NÃO equivale à publicação do código do PR #4. Não reimplementar recursos já aprovados; não marcar entrega como homologada sem CI e teste real. Priorizar os bugs abaixo antes de novas features; preservar as prioridades históricas F01–F12 e Sounds adiado.
+
+### Evidência do proprietário (versão anterior ao PR #4)
+- **Aprovado pelo usuário:** thumbnails na importação de vídeos; posição superior, preset Limpa, cor e animação das legendas. Preservar esses comportamentos. Demais presets de legenda ainda precisam de teste.
+- **Funcionou parcialmente:** Whisper navegador gerou texto, mas Auto detect assumiu inglês; legendas ultrapassaram o áudio (~52 s de mídia e ~59 s de timeline). HyperFrames conseguiu analisar fala e música, mas geração HTML/CSS não concluiu. Ngrok exibiu túnel ativo e URL; conexão por cliente MCP ainda não homologada.
+- **Falhou/ausente na instalação testada:** Parakeet Redux CPU, menu de salvar imagem como sticker, substituição Send feedback por Logs, importador dependente de profile Docker. A instalação ainda mostrava UI anterior ao PR #4.
+
+### Fila de correção e aceite (ordem proposta para estabilização)
+
+| Prioridade | Área | Código registrado na branch de teste | Falta corrigir ou validar |
+|---|---|---|---|
+| P0 | Build / Docker | Correção de variável duplicada no ngrok; smoke tests de HTTP/HTTPS, IA, transcrição, MCP | Último CI do commit `af3ece8` falhou nos três workflows. O Fast Build apontou chave JSX solta em `hyperframes-studio.tsx:357` (Unexpected token). Corrigir sintaxe na branch de testes, executar build/typecheck e Docker smoke completos e investigar erros subsequentes. Não mesclar enquanto falhar. |
+| P0 | F11 Captions | Português padrão, timestamps por palavra, remoção do mínimo artificial de 0,8 s, limite pelo último clipe audível, grupos de palavras, fallback Whisper CPU host/navegador | Homologar PT-BR e detecção real de idioma (auto no navegador atualmente usa PT, não é detecção genuína); verificar fala rápida <1s, pausas, cortes, offsets, retiming, 3/5/7 palavras, duração do último cue <= áudio e preview/export. Validar Parakeet em CPU real, pesos e fallback; não exigir API paga. Regenerar legendas antigas após remover a trilha incorreta. |
+| P0 | F03/F04 IA e HyperFrames | Diagnóstico por provedor/modelo/HTTP/tempo, fallback template opcional explícito, cancelamento, composições parciais; prompt local reduzido para contexto 2048 tokens; análise PT | Testar credenciais/modelo NVIDIA configurado e demais provedores reais, 401/403/404/429/timeout/JSON inválido; garantir fallback sem travar, progresso visível, erro legível e Logs sem chaves. Testar múltiplos trechos, retry sem repetir os concluídos, uso do roteiro editado, preview, transparência e render final sincronizado. Template não conta como sucesso de IA. |
+| P1 | F07 Links / iframe na timeline | Prévia embutida e importação direta autorizada; captura consentida de aba para WebM, até 300 s/200 MB; sem dependência do profile importer na UI | **Requisito ainda aberto:** clipe de fonte externa com início, duração, reprodução sincronizada com playhead, pausa/seek/corte e export do intervalo. Exemplo: começar em 0 e cortar em 120 s deve produzir exatamente 120 s. Imagem/página estática permanece visualmente fixa; live usa o início da captura e não presume seek. Prototipar com fontes controladas e autorizadas; preferir cache/captura materializada para export reprodutível, com áudio, sem interface do navegador. Captura atual exige escolha manual de aba, não é reprodução automática durante render; não declarar requisito concluído. Respeitar políticas do provedor, CORS, DRM, X-Frame-Options/CSP e permissões; bloquear export com mensagem explícita se mídia não puder ser materializada. |
+| P1 | F09 MCP externo / ngrok | Botão Copiar configuração MCP para IA, URL /mcp, Streamable HTTP, JSON e instruções; Bearer derivado específico sem expor authtoken ou segredo principal | Validar initialize/tools/list, leitura e edição autorizadas em cliente remoto compatível, token inválido rejeitado, desativação do túnel sem afetar LAN; documentar clientes que aceitam cabeçalhos. Verificar escopo, revogação/rotação da credencial e segurança do túnel. Não prometer conexão universal só colando texto em um chat. |
+| P1 | F05 Stickers / identidade / Logs | Menu + Sticker, conversão PNG e biblioteca Salvos; página inicial, Gustavo, foto provisória, créditos e Sponsors, Blog desativado, roadmap lendo features.md, imagem Docker cut-editor-web:local, Logs no cabeçalho | Validar menu contextual PNG/JPEG/WebP, persistência entre projetos/reload (atualmente local ao navegador), scroll, remover Send feedback na instalação atualizada, copiar/baixar logs, rotas públicas e nome Docker sem perder volumes. Foto real a fornecer pelo mantenedor. |
+| P1 | Automação/LAN | Backoff após 401/403, prevenção de save sem projeto ativo, remoção de telemetria herdada; LAN já incorporada parcialmente na main | Corrigir causa dos 401 de sessions/commands/n8n media (backoff não resolve autorização), manter autenticação, validar HTTPS, PC↔celular, originais, retomada de upload, persistência e render. |
+
+### Portão de liberação
+- [ ] Corrigir bloqueio JSX e quaisquer novos erros de build. Conferir [Fast Build](https://github.com/GustavoABA/Editor/actions/runs/46089726725), [Docker smoke](https://github.com/GustavoABA/Editor/actions/runs/46089726709) e [Bun CI](https://github.com/GustavoABA/Editor/actions/runs/46089726698) do último commit funcional verificado.
+- [ ] CI verde para o HEAD funcional do PR #4; validar imagem Docker, saúde dos serviços e LAN no host sem apagar volumes.
+- [ ] Homologar os fluxos acima com projeto descartável, registrar versão, testes e evidências no features.md; atualizar status em ambas as branches sem confundir implementação com implantação.
+- [ ] Só depois promover o código à main conforme autorização do mantenedor. Não alterar thumbnails aprovadas nem Sounds neste ciclo.
+
+
+---
 
 ## Situação da implementação — branch de teste (19/11/2026)
 
