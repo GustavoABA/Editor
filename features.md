@@ -28,6 +28,14 @@
 - Host: canonicalização dos nomes Docker Hub, validação de repositório dos pins, heartbeat e execução periódica da fila. `provision.py` provisiona timer systemd uma vez, explicitamente autorizado em checkout confiável; integração universal F13/Android pendente. Limite inicial 32 MiB mantido (base64), áudio original preservado.
 - Novos testes: Python supervisor e smoke de inbox com HTTP Evolution simulado, validação Compose opcional em CI. Não declarar aprovados sem logs. Próximos: homologar supervisor e pareamento real, áudio OGG/iOS, expansão de limite com transferência streaming, segurança granular, backup Evolution e boot mobile. Main não alterada.
 
+### Terceiro lote F30/F31 — arquivos maiores e prévia de áudio (27/11/2026)
+
+- Evidência: [Fast Build do segundo lote](https://github.com/GustavoABA/Editor/actions/runs/46100058813/job/140840288043) aprovado, incluindo smoke de inbox simulado e compilação Next. Não equivale a integração real.
+- Decodificador incremental `media-stream.ts`: Base64 JSON da Evolution gravado em disco por partes, metadados limitados, validação e limpeza; chunks e SHA-256 para originais; download do módulo via stream. A própria Evolution ainda pode alocar base64 integral. Arquivo padrão 32 MiB, configuração de host `EVOLUTION_MAX_MEDIA_MIB` de 1 a 128; UI mostra limite. Não presumir desempenho/limites upstream.
+- Proxy LAN existente reutilizado para áudio OGG/WebM e mídias acima de 24 MiB (exceto GIF); AAC/M4A para áudio, original permanece no host; cliente marca remoteProxy/originalSize/originalMimeType. Homologação iOS e render final pendente.
+- Testes novos: 33 MiB sintéticos em streaming, fragmentação arbitrária, rejeição de JSON/base64 inválidos, limites e cleanup; smoke com Evolution simulada e FFmpeg/FFprobe real para OGG→AAC e preservação do original. CI configurado; resultado deve ser confirmado.
+- Próxima prioridade: homologação real do pareamento por número e transferência, iOS/ARM64, backup dos volumes Evolution e integração de supervisor no bootstrap final F13. Sem merge até aprovação do proprietário.
+
 ## F13 — Servidor Docker Mobile autônomo e atualização automática (PRIORIDADE P0)
 
 **Decisão do proprietário — 27/11/2026:** F13 passa a ser a próxima feature prioritária, imediatamente após corrigir e homologar os bloqueios atuais do PR #4. Antecede novas funcionalidades e a retomada da ordem histórica F01–F12. Não é necessário concluir todo o backlog para iniciar F13; apenas estabilizar o build, os serviços essenciais e os fluxos em correção. Sounds permanece adiado. **Estado: EM IMPLEMENTAÇÃO na teste/implementacao (F13-A/B/C/D/E/F/G/H), não homologado.**
