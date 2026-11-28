@@ -8,7 +8,6 @@ import secrets
 import subprocess
 import sys
 import time
-from urllib.parse import urlsplit
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/"deploy/mobile"))
@@ -28,8 +27,34 @@ def web(*args,**kwargs):
     return run("docker","compose","exec","-T","web","node","-e",*args,**kwargs)
 def publish(state,**extra):
     web(WRITE_SCRIPT,input=json.dumps({"state":state,**extra}),timeout=20)
+def canonical_repo(repo):
+    parts=repo.split("/")
+    if len(parts)==1: return "docker.io/library/"+repo
+    if parts[0] in ("docker.io","index.docker.io"):
+        rest="/".join(parts[1:])
+        return "docker.io/"+("library/" if "/" not in rest else "")+rest
+    if "." not in parts[0] and ":" not in parts[0] and parts[0]!="localhost":
+        return "docker.io/"+repo
+    return repo
+
+def catalog_images():
+    data=json.loads(CATALOG.read_text())
+    if data.get("schema")!=1 or len(data["modules"])!=1 or data["modules"][0]["id"]!="evolution":
+        raise ValueError("Unknown catalog")
+    return data["modules"][0]["images"]
+
+def pinned_image(tag, digests):
+    repo=canonical_repo(tag.rsplit(":",1)[0])
+    matches=set()
+    for value in digests:
+        name,sep,digest=value.partition("@")
+        if sep and canonical_repo(name)==repo and re.fullmatch(r"sha256:[a-f0-9]{64}",digest):
+            matches.add(repo+"@"+digest)
+    if len(matches)!=1: raise RuntimeError("Could not pin image digest")
+    return matches.pop()
+
 def approved_images():
-    catalog=json.loads(CATALOG.read_text())["modules"][0]["images"]
+    catalog=catalog_images()
     result={}
     platform=updater.docker_platform()
     for key,tag in catalog.items():
@@ -38,18 +63,17 @@ def approved_images():
         info=json.loads(run("docker","image","inspect",tag,capture=True,timeout=30))[0]
         if info.get("Os")+"/"+info.get("Architecture")!=platform:
             raise RuntimeError("Architecture mismatch")
-        repo=tag.rsplit(":",1)[0]
-        matches=[d for d in info.get("RepoDigests",[]) if re.fullmatch(re.escape(repo)+r"@sha256:[a-f0-9]{64}",d)]
-        if len(matches)!=1: raise RuntimeError("Could not pin image digest")
-        result[key]=matches[0]
+        result[key]=pinned_image(tag,info.get("RepoDigests",[]))
     return result
 def config():
     if ENV.exists():
         data=dict(line.split("=",1) for line in ENV.read_text().splitlines())
         if any(not re.fullmatch(r"[a-f0-9]{64}",data.get(k,"")) for k in ("EVOLUTION_KEY","EVOLUTION_DB_PASSWORD","WEBHOOK_SECRET")):
             raise ValueError("Invalid module secrets")
-        for k in ("EVOLUTION_IMAGE","EVOLUTION_DB_IMAGE","EVOLUTION_REDIS_IMAGE"):
-            if not re.fullmatch(r"[a-z0-9./_-]+@sha256:[a-f0-9]{64}",data.get(k,"")): raise ValueError("Invalid image pin")
+        for k,tag in catalog_images().items():
+            value=data.get(k,"")
+            name,sep,digest=value.partition("@")
+            if not sep or canonical_repo(name)!=canonical_repo(tag.rsplit(":",1)[0]) or not re.fullmatch(r"sha256:[a-f0-9]{64}",digest): raise ValueError("Invalid image pin")
         return data
     data=approved_images()
     data.update({k:secrets.token_hex(32) for k in ("EVOLUTION_KEY","EVOLUTION_DB_PASSWORD","WEBHOOK_SECRET")})
@@ -74,21 +98,35 @@ def install(request_id):
         except subprocess.SubprocessError: time.sleep(3)
     else: raise RuntimeError("Evolution API not ready")
     publish("installed",requestId=request_id,apiKey=data["EVOLUTION_KEY"],webhookSecret=data["WEBHOOK_SECRET"])
+def heartbeat():
+    script="const fs=require('node:fs');const p='"+BASE+"';fs.mkdirSync(p,{recursive:true});fs.writeFileSync(p+'/heartbeat.tmp',JSON.stringify({checkedAt:Date.now()}),{mode:384});fs.renameSync(p+'/heartbeat.tmp',p+'/heartbeat.json')"
+    web(script,timeout=20)
+
+def process_media():
+    script="const token=process.env.OPENCUT_AUTOMATION_TOKEN;if(!token)process.exit(1);fetch('http://127.0.0.1:3000/api/modules/evolution/worker',{method:'POST',headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(110000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+    web(script,timeout=120)
+
 def tick():
     with updater.lock():
         if updater.JOURNAL.exists(): return
+        heartbeat()
         request=json.loads(web(READ_SCRIPT,capture=True,timeout=20))
         if not isinstance(request,dict): return
         rid=request.get("id")
-        if request.get("action")!="install" or not isinstance(rid,str) or not re.fullmatch(r"[a-f0-9-]{36}",rid): return
+        if request.get("action")!="install" or not isinstance(rid,str) or not re.fullmatch(r"[a-f0-9-]{36}",rid):
+            if ENV.exists(): process_media()
+            return
         STATE.mkdir(mode=0o700,parents=True,exist_ok=True)
         last=STATE/"last-request.json"
-        if last.exists() and json.loads(last.read_text()).get("id")==rid: return
+        if last.exists() and json.loads(last.read_text()).get("id")==rid:
+            if ENV.exists(): process_media()
+            return
         try:
             install(rid)
         except (RuntimeError,ValueError,OSError,subprocess.SubprocessError) as e:
             publish("failed",requestId=rid,error=type(e).__name__)
         updater.write(last,{"id":rid})
+        if ENV.exists(): process_media()
 if __name__=="__main__":
     try: tick()
     except (RuntimeError,ValueError,OSError,subprocess.SubprocessError) as e:
