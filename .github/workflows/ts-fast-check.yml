@@ -39,7 +39,7 @@ jobs:
         run: node --check services/hyperframes/server.mjs
       - name: Test provider vault and timeline duration
         working-directory: apps/web
-        run: bun test src/ai/config-store.test.ts src/hyperframes/intervals.test.ts src/transcription/caption.test.ts src/modules/evolution/policy.test.ts
+        run: bun test src/ai/config-store.test.ts src/hyperframes/intervals.test.ts src/transcription/caption.test.ts src/modules/evolution/policy.test.ts src/modules/evolution/media-stream.test.ts
       - name: WhatsApp inbox integration smoke (mock Evolution)
         working-directory: apps/web
         run: bun run src/modules/evolution/inbox-smoke.ts
