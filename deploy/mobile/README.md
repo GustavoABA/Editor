@@ -1,6 +1,6 @@
 # Cut Editor — F13, primeira etapa experimental
 
-**Status:** implementação inicial na branch teste/implementacao. Não é uma release estável, nem um instalador final para Android. O verificador é somente leitura e não aplica atualizações. Nenhum acesso Docker foi concedido ao Editor web/MCP.
+**Status:** implementação inicial na branch teste/implementacao. Não é uma release estável, nem um instalador final para Android. O monitor é somente leitura; updater.py oferece staging e ativação manual experimental de release assinada. Instalação automática desabilitada. Nenhum acesso Docker foi concedido ao Editor web/MCP.
 
 ## Pré-requisitos
 
@@ -64,5 +64,47 @@ O monitor consulta a release pública mais recente do repositório e procura cut
 ## CI / GHCR
 
 O workflow F13 Docker multiarch candidates valida testes Python e Compose, e constrói web, local-ai, parakeet e MCP para linux/amd64 e linux/arm64. Em PR não publica imagens. Após o workflow chegar à main, o disparo manual com publish_candidate pode publicar tags candidate-SHA no GHCR e reunir manifesto de candidatos. O manifesto é artefato de CI, NÃO release estável; candidato parcial ou falho não pode ser consumido pelo updater.
+
+## Atualizador experimental (F13-E/F, ativação manual)
+
+O administrador precisa instalar em `.cut-editor/trusted-release.pem` a chave pública de assinatura obtida por canal confiável. Nunca usar a chave privada no host de distribuição. Ainda não existe uma release estável assinada publicada pelo workflow. A geração e promoção da release estável, o gate CI e a gestão de chaves são pendentes; não usar manifestos de candidatos.
+
+O formato exigido é o manifesto estável schema 1, com imagens por digest, hashes dos três arquivos Compose/Caddy/Lite, plataformas, SHA de origem, sequência inteira crescente, `dataSchema` e `rollbackSafe: true`. A assinatura é binária RSA/SHA-256 verificada por OpenSSL. O protótipo só aceita releases com a mesma topologia e schema; mudanças exigem migração manual. Não presumir compatibilidade sem teste.
+
+```sh
+# Consultar estado, sem alterar containers
+python3 deploy/mobile/updater.py status
+# Baixar imagens somente de release assinada, quando existir
+python3 deploy/mobile/updater.py stage-latest
+# Alternativa: artefatos locais assinados
+python3 deploy/mobile/updater.py stage --manifest /caminho/manifest.json --signature /caminho/manifest.sig
+```
+
+No modo Lite, incluir --lite nos comandos de staging, backup, ativação e inicialização; não trocar perfil durante uma instalação gerenciada. Staging valida assinatura, topologia, sequência, arquitetura e digest; não recria containers. Para primeira homologação use host descartável.
+
+### Backup e ativação
+
+Feche todos os clientes, finalize render/uploads e sincronize/salve os projetos antes de parar os containers. O mecanismo automático de exclusão de novas sessões ainda não existe. Não reabra o Editor até acabar a manutenção. Use o mesmo nome Compose, perfil e .env da instalação. Exemplo perfil completo:
+
+```sh
+docker compose stop
+python3 deploy/mobile/backup.py /caminho/privado/backup-novo --maintenance-confirmed
+python3 deploy/mobile/host.py start
+# O primeiro upgrade exige identificar o schema do baseline após auditoria.
+# Substitua SCHEMA_CONFIRMADO pelo identificador efetivamente validado.
+python3 deploy/mobile/updater.py activate --maintenance-confirmed --backup-receipt /caminho/privado/backup-novo/receipt.json --baseline-schema SCHEMA_CONFIRMADO
+```
+
+O backup usa a imagem PostgreSQL existente somente para executar tar com volumes montados em leitura, sem rede, após verificar que não há containers ativos do projeto ou usando os volumes. Arquiva .env e configurações: os arquivos contêm segredos, guarde em armazenamento privado e preferencialmente criptografado. Não contém dados exclusivos do navegador. Verifica leitura dos arquivos tar e hashes; ainda não comprova restauração integral. O backup deve ser feito imediatamente antes da ativação, sem reabrir clientes ou executar jobs entre etapas.
+
+A ativação valida o recibo, projeto Compose e configuração, guarda tags locais das imagens em execução, registra transação e recria apenas web/MCP e, no perfil completo, IA e transcrição. O Compose não usa build nem pull durante a troca. Healthchecks básicos verificam web, MCP e motores ativos; ainda não validam edição/export real. Se falhar, tenta voltar às imagens antigas quando schema compatível. Não restaura banco automaticamente. Se interrompido, o bootstrap recusa iniciar uma transação não resolvida; o Docker daemon pode reiniciar containers sozinho conforme restart policy, portanto a recuperação após perda de energia ainda precisa de homologação.
+
+```sh
+# Se houver transação interrompida e após fechar clientes:
+python3 deploy/mobile/updater.py recover --maintenance-confirmed
+python3 deploy/mobile/updater.py status
+```
+
+O override ativo permanece local em .cut-editor e é reaplicado pelo host.py no boot. Não apagar esse diretório, tags de rollback ou backups. Não executar docker compose diretamente para recriar uma instalação gerenciada sem o override. Ainda não há aplicação automática por timer; o timer existente apenas verifica versões públicas.
 
 Próximas etapas: homologar builds (inclusive imagens de terceiros, runtime e ARM64 real), fixar digests de todas as dependências e bundle Compose, gate estável automatizado após testes, assinatura/verificação, comparação com versão instalada, transação de download/instalação, backup e rollback seguros, coordenação com sessões e jobs ativos, painel autenticado e testes de energia/rede. Não habilitar auto-instalação até essas etapas.
