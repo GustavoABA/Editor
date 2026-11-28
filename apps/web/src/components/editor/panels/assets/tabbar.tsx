@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/ui";
+import { useEvolutionStore } from "@/modules/evolution/client";
 import {
 	TAB_KEYS,
 	tabs,
@@ -16,6 +17,8 @@ import {
 
 export function TabBar() {
 	const { activeTab, setActiveTab } = useAssetsPanelStore();
+	const installed = useEvolutionStore(s => s.status?.installation === "installed");
+	useEffect(() => { if (!installed && activeTab === "whatsapp") setActiveTab("modules"); }, [installed, activeTab, setActiveTab]);
 	const [showTopFade, setShowTopFade] = useState(false);
 	const [showBottomFade, setShowBottomFade] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,7 +54,7 @@ export function TabBar() {
 				ref={scrollRef}
 				className="scrollbar-hidden relative flex size-full p-1 flex-col items-center justify-start gap-0.5 overflow-y-auto"
 			>
-				{TAB_KEYS.map((tabKey) => {
+				{TAB_KEYS.filter(key => key !== "whatsapp" || installed).map((tabKey) => {
 					const tab = tabs[tabKey];
 					return (
 						<Tooltip key={tabKey} delayDuration={10}>
