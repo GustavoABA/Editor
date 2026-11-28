@@ -165,8 +165,7 @@ export function HyperFramesStudio() {
           duration: Number(mediaTimeToSeconds({ time: element.duration }).toFixed(2)),
         })).slice(0, 40),
       );
-      const config = await configuredRequest("GET");
-      setRouting(config);
+      try { const config = await configuredRequest("GET"); setRouting(config); } catch { setAttempts(previous=>[...previous,"Não foi possível consultar a configuração. Tentando composição pelo roteador do host."]); }
       const next: CompositionPart[] = [];
       for (const [index, interval] of intervals.entries()) {
         setDetails(`Gerando trecho ${index+1}/${intervals.length} · ${formatTimelineDuration(interval.start)}...`);
@@ -215,7 +214,8 @@ export function HyperFramesStudio() {
     if (!intervals.length) return toast.error("Escolha um intervalo válido dentro da timeline.");
     const existing = selectedSource();
     const planned: CompositionPart[] = parts.length ? parts.map((p,i)=>i===partIndex?{...p,...draft}:p) : intervals.map(interval=>({...draft,...interval}));
-    if (parts.length && (Math.abs(planned[0].start-start)>0.001 || Math.abs(planned.reduce((sum,p)=>sum+p.duration,0)-effectiveDuration)>0.001)) return toast.error("O intervalo mudou. Gere novamente a composição antes de aplicar.");
+    if (parts.length && (planned.length > intervals.length || planned.some((p,i)=>!intervals[i] || Math.abs(p.start-intervals[i].start)>0.001 || Math.abs(p.duration-intervals[i].duration)>0.001))) return toast.error("O intervalo mudou. Gere novamente a composição antes de aplicar.");
+    if (parts.length && parts.length < intervals.length && !window.confirm(`Aplicar apenas ${parts.length} de ${intervals.length} trechos concluídos?`)) return;
     setStage("rendering");
     try {
       const rendered: Array<{ part: CompositionPart; mediaId: string }> = [];
@@ -302,7 +302,7 @@ export function HyperFramesStudio() {
           </button>
         </div>
         <textarea aria-label="Transcrição semântica editável" value={transcript}
-          onChange={e=>setTranscript(e.target.value)} maxLength={7000}
+          onChange={e=>{setTranscript(e.target.value);setSegments([]);}} maxLength={7000}
           placeholder="Transcrição editável. Você também pode colar o roteiro aqui."
           className="bg-background w-full min-h-20 rounded border p-2 text-xs" />
         <p className="text-muted-foreground text-[11px]">
