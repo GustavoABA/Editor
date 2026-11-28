@@ -1055,3 +1055,8 @@ Solicitação do mantenedor Gustavo. Implementação registrada em teste/impleme
 - Stickers: menu de imagem + Sticker; Logs substitui Send feedback (alterações no PR #4, ainda não implantadas na main). Não alterar thumbnails aprovadas.
 - Diagnósticos: salvar sem projeto ativo não deve lançar exceção; reduzir polling de automação após 401/403, sem desativar autenticação; remover telemetria herdada.
 - [ ] Validar transcrição PT-BR e sincronismo com fala rápida, 3/5/7 palavras, arquivos diretos e embeds, menu Sticker, logs, CI e Docker no host.
+
+## HyperFrames, MCP e mídia externa — revisão de homologação
+- HyperFrames: histórico de tentativas por provedor/modelo, motivo HTTP/JSON/timeout, limite por requisição, cancelar, preservar trechos concluídos, fallback de template explícito e identificável. Português explícito na análise de fala. Validar com provedor real e render WebM.
+- MCP ngrok: botão de copiar instruções e JSON de conexão Streamable HTTP com Authorization Bearer específico para MCP, derivado do segredo do host (não envia o segredo principal nem o authtoken). Validar initialize/tools/list a partir de cliente compatível e autenticação negativa.
+- Links: prévia iframe e captura de aba com consentimento em HTTPS/localhost, limite de duração (até 300s) e tamanho (200 MB), importação WebM editável. Reprodução/corte/exportação usam arquivo gravado, sem depender de live ou iframe durante render. Não contornar DRM, restrições de incorporação ou permissão de captura. Reprodução automática de iframe diretamente no render não homologada.
