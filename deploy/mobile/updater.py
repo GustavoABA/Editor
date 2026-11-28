@@ -182,7 +182,7 @@ def snapshot(args, services):
         image = info["Image"]
         if not re.fullmatch(r"sha256:[0-9a-f]{64}",image):
             raise ValueError("ID da imagem anterior inválido.")
-        tag = "cut-editor-rollback/"+service+":"+image[7:23]
+        tag = "cut-editor-rollback/"+service+":"+image[7:]
         run("docker","image","tag",image,tag,timeout=30)
         images[service] = tag
     return images
@@ -217,8 +217,14 @@ def restore(journal):
 def activate(lite, receipt, baseline_schema):
     if JOURNAL.exists():
         raise RuntimeError("Transação interrompida; execute recover.")
-    if not receipt.is_file() or receipt.stat().st_size == 0:
-        raise RuntimeError("Informe um comprovante local de backup completo e restaurável.")
+    from backup import verify_receipt
+    backup = verify_receipt(receipt)
+    config = json.loads(run(*compose(lite,active_override(lite)),"config","--format","json",capture=True,timeout=30))
+    if backup["project"] != config["name"]:
+        raise RuntimeError("Backup pertence a outro projeto Compose.")
+    for filename, source in {"config-env":".env","config-docker-compose.yml":"docker-compose.yml","config-Caddyfile":"Caddyfile","config-compose.lite.yml":"deploy/mobile/compose.lite.yml"}.items():
+        if backup["files"][filename] != digest(ROOT/source):
+            raise RuntimeError("Configuração mudou após backup: "+source)
     staged = read(STAGED)
     if staged["lite"] != lite:
         raise RuntimeError("Perfil difere da etapa de download.")
