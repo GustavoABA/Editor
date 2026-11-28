@@ -79,6 +79,16 @@ class UpdateTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     updater.active_override(False)
 
+    def test_activity_blocks_activation(self):
+        idle={"state":"no-observed-activity","recentSessions":0,"activeRenders":0}
+        with patch.object(updater,"run",return_value=json.dumps(idle)):
+            updater.require_no_observed_activity(["docker","compose"])
+        for value in ({**idle,"state":"busy"},{**idle,"activeRenders":1},{**idle,"recentSessions":None},{"state":"unknown"}):
+            with patch.object(updater,"run",return_value=json.dumps(value)), self.assertRaises(RuntimeError):
+                updater.require_no_observed_activity(["docker","compose"])
+        with patch.object(updater,"run",side_effect=subprocess.CalledProcessError(1,["docker"])), self.assertRaises(RuntimeError):
+            updater.require_no_observed_activity(["docker","compose"])
+
     def test_failed_rollback_keeps_journal(self):
         with tempfile.TemporaryDirectory() as d:
             state=Path(d)
