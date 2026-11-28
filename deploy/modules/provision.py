@@ -21,7 +21,8 @@ def provision(root=ROOT, destination=Path("/etc/systemd/system")):
     if os.geteuid()!=0: raise RuntimeError("Execute como administrador do host.")
     if not Path("/run/systemd/system").is_dir(): raise RuntimeError("Host sem systemd ativo; use o agendador compatível.")
     # A root-operated Docker supervisor must only execute a trusted checkout.
-    for file in (root, root/"deploy",root/"deploy/modules",root/"deploy/mobile"):
+    trusted=(root,*root.parents,root/"deploy",root/"deploy/modules",root/"deploy/mobile",root/"deploy/modules/evolution",root/"deploy/modules/supervisor.py",root/"deploy/modules/catalog.json",root/"deploy/modules/evolution/compose.yml",root/"deploy/mobile/updater.py",root/"deploy/mobile/release_monitor.py",root/"deploy/mobile/status_export.py",*(root/"deploy/modules"/n for n in UNITS))
+    for file in trusted:
         if file.is_symlink() or file.stat().st_uid!=0 or file.stat().st_mode & 0o022:
             raise RuntimeError("O checkout privilegiado deve ser root-owned e não gravável por grupo/outros.")
     for name in UNITS:
