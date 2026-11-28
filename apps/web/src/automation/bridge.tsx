@@ -24,6 +24,7 @@ import { extractTimelineAudio } from "@/media/mediabunny";
 import { decodeAudioToFloat32 } from "@/media/audio";
 import { findAudioPeaks } from "@/automation/audio-peaks";
 import { getAutomationSessionId } from "@/automation/session";
+import { activityLog } from "@/diagnostics/activity-log";
 
 type AutomationCommand = {
 	id: string;
@@ -367,11 +368,21 @@ export function AutomationBridge() {
 		const sessionId = getAutomationSessionId();
 		let cancelled = false;
 		let isPolling = false;
+		let isHeartbeating = false;
+		let sessionReady = false;
+		let retryAfter = 0;
+		const markFailure = (status: number) => {
+			sessionReady = false;
+			retryAfter = Date.now() + (status === 401 || status === 403 ? 60_000 : 15_000);
+			activityLog.record({ source: "automation", level: "warn", message: `Automação indisponível (HTTP ${status}); nova tentativa com intervalo maior.` });
+		};
 
 		const heartbeat = async () => {
 			const project = editor.project.getActiveOrNull();
-			if (!project || cancelled) return;
-			await fetch("/api/automation/sessions", {
+			if (!project || cancelled || isHeartbeating || Date.now() < retryAfter) return;
+			isHeartbeating = true;
+			try {
+			const response = await fetch("/api/automation/sessions", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -382,16 +393,20 @@ export function AutomationBridge() {
 					snapshot: buildSnapshot({ editor }),
 				}),
 			});
+			if (response.ok) { sessionReady = true; retryAfter = 0; }
+			else markFailure(response.status);
+			} catch { markFailure(0); } finally { isHeartbeating = false; }
 		};
 
 		const poll = async () => {
-			if (cancelled || isPolling) return;
+			if (cancelled || isPolling || !sessionReady || Date.now() < retryAfter || !editor.project.getActiveOrNull()) return;
 			isPolling = true;
 			try {
 				const response = await fetch(
 					`/api/automation/commands?sessionId=${encodeURIComponent(sessionId)}`,
 					{ cache: "no-store" },
 				);
+				if (!response.ok) { markFailure(response.status); return; }
 				const payload: unknown = await response.json();
 				if (
 					!response.ok ||
@@ -422,7 +437,7 @@ export function AutomationBridge() {
 						});
 					}
 				}
-			} finally {
+			} catch { markFailure(0); } finally {
 				isPolling = false;
 			}
 		};
