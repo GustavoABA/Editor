@@ -165,7 +165,7 @@ async function processJob(job:Job){
     const size=media.size;
     const type=mime.split("/")[0];
     const name="WhatsApp-"+new Date(msg.timestamp).toISOString().replace(/[:.]/g,"-")+"-"+id.slice(-6)+"."+MIME_EXTENSIONS[mime];
-    return exclusive(async()=>{
+    return await exclusive(async()=>{
     if(!sameRule((await rules())[projectId],job.rule)||!await readProject(projectId))return false;
     const hashes:string[]=[];
     const handle=await open(target,"r");
