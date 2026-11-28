@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import updater
+import status_export
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -123,6 +124,7 @@ def main():
     print("LAN HTTP:", "http://" + host + ":3100")
     print("LAN HTTPS:", "https://" + host, "(CA local precisa ser confiável)")
     if args.action == "start":
+        status_export.PUBLIC.mkdir(mode=0o755,exist_ok=True)
         with updater.lock():
             override = updater.active_override(args.lite)
             if override:
@@ -135,6 +137,7 @@ def main():
             options = ["--build"] if args.build else ["--no-build", "--pull", "never"]
             docker(*compose, "up", "-d", *options)
             docker(*compose, "ps")
+            status_export.export(updater.STATE)
 
 if __name__ == "__main__":
     try:
