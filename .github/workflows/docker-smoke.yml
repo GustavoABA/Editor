@@ -8,6 +8,7 @@ on:
       - "rust/crates/autocut/**"
       - "services/hyperframes/**"
       - "services/local-ai/**"
+      - "services/parakeet/**"
       - "docker-compose.yml"
       - "Caddyfile"
       - "features.md"
@@ -21,6 +22,7 @@ on:
       - "rust/crates/autocut/**"
       - "services/hyperframes/**"
       - "services/local-ai/**"
+      - "services/parakeet/**"
       - "docker-compose.yml"
       - "Caddyfile"
       - "features.md"
@@ -35,7 +37,7 @@ concurrency:
 jobs:
   production-container:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       BETTER_AUTH_SECRET: docker-smoke-secret-only-at-least-32-characters
       UPSTASH_REDIS_REST_TOKEN: docker-smoke-redis-token
@@ -55,10 +57,10 @@ jobs:
           docker compose --profile importer config --quiet
 
       - name: Build production image and embedded AI fallback
-        run: docker compose build web local-ai
+        run: docker compose build web local-ai parakeet
 
       - name: Start required services
-        run: docker compose up -d db redis serverless-redis-http local-ai web
+        run: docker compose up -d db redis serverless-redis-http local-ai web parakeet
 
       - name: Wait for the Editor health endpoint
         run: |
@@ -88,6 +90,26 @@ jobs:
             sleep 3
           done
           exit 1
+
+      - name: Verify CPU transcription end to end
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y espeak-ng
+          espeak-ng -v pt-br -w /tmp/editor-speech.wav "Olá mundo. Este é um teste de legenda."
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent -H "x-lan-sync-token: $OPENCUT_LAN_SYNC_TOKEN" http://127.0.0.1:3100/api/transcription/parakeet | grep -q '"available":true'; then
+              break
+            fi
+            sleep 3
+          done
+          curl --fail --silent --show-error --max-time 610 \
+            -H "x-lan-sync-token: $OPENCUT_LAN_SYNC_TOKEN" \
+            -H "x-transcription-engine: whisper" \
+            -H "x-transcription-language: pt" \
+            -H "Content-Type: audio/wav" --data-binary @/tmp/editor-speech.wav \
+            http://127.0.0.1:3100/api/transcription/parakeet > /tmp/editor-transcript.json
+          python3 -c 'import json; d=json.load(open("/tmp/editor-transcript.json")); assert d["engine"].startswith("faster-whisper/") and d["segments"] and all(s["end"] >= s["start"] for s in d["segments"])'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3100/api/transcription/parakeet)" = 401
 
       - name: Validate Caddy configuration and trusted LAN HTTPS
         run: |
