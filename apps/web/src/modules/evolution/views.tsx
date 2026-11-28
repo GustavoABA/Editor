@@ -60,7 +60,7 @@ export function WhatsAppView(){
       {status?.queue.map(job=><div key={job.id} className="rounded border p-2 space-y-2"><p>{job.state==="failed"?"Falha após tentativas":"Aguardando processamento"} · Tentativas: {job.attempts}</p>{job.error&&<p className="text-muted-foreground">{job.error}</p>}{job.state==="failed"&&<div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={()=>void action({action:"retry",id:job.id})}>Tentar novamente</Button><Button size="sm" variant="outline" disabled={busy} onClick={()=>{if(window.confirm("Descartar somente este recebimento pendente?"))void action({action:"discard",id:job.id});}}>Descartar</Button></div>}</div>)}
       <h3 className="font-medium text-sm">Mídias recebidas ({status?.items.length??0})</h3>
       {status?.items.map(item=><div key={item.id} className="rounded border p-2 break-all">{item.name}<span className="block text-muted-foreground">{(item.size/1024/1024).toFixed(1)} MB</span></div>)}
-      <p className="text-muted-foreground">Limite inicial: 32 MiB por arquivo; textos, grupos e formatos não editáveis são ignorados.</p>
+      <p className="text-muted-foreground">Limite atual: {Math.round((status?.maxMediaBytes??32*1024*1024)/1024/1024)} MiB por arquivo. Áudios OGG usam prévia AAC; originais são preservados no host. Textos, grupos e formatos não editáveis são ignorados.</p>
     </div>
   </PanelView>;
 }
