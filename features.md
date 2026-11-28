@@ -1048,3 +1048,10 @@ Solicitação do mantenedor Gustavo. Implementação registrada em teste/impleme
 - Parakeet Redux/Photon preferencial quando o caminho CPU é compatível; fallback Faster Whisper CPU INT8 no host e Whisper navegador se host indisponível. Preserva autenticação LAN.
 - Interface exibe motor, mensagens específicas, logs e agrupamento de palavras por timestamp.
 - [ ] Validar CI com fala sintetizada em português, primeira descarga de pesos e CPU real do servidor. Não homologado até teste real.
+
+## Ajustes de homologação — Captions, links e diagnósticos (27/11/2026)
+- Captions: português explícito como padrão, Whisper navegador selecionável sem host, timestamps por palavra, grupos de 3/5/7 sem duração mínima artificial e limite no último clipe audível (exclui legendas anteriores).
+- Links: a aba Importar link exibe o player/iframe dentro do editor, sem exigir downloader ou profile Docker; arquivos diretos autorizados podem ser importados; embeds externos são somente referência/preview, sem exportação automática.
+- Stickers: menu de imagem + Sticker; Logs substitui Send feedback (alterações no PR #4, ainda não implantadas na main). Não alterar thumbnails aprovadas.
+- Diagnósticos: salvar sem projeto ativo não deve lançar exceção; reduzir polling de automação após 401/403, sem desativar autenticação; remover telemetria herdada.
+- [ ] Validar transcrição PT-BR e sincronismo com fala rápida, 3/5/7 palavras, arquivos diretos e embeds, menu Sticker, logs, CI e Docker no host.
