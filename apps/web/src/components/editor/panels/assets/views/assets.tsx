@@ -338,7 +338,7 @@ function MediaItemWithContextMenu({
 							toast.success("Imagem salva em Stickers → Salvos");
 							useStickersStore.getState().setSelectedCategory({ category: "saved" });
 						}).catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Falha ao salvar sticker"));
-					}}>Salvar como sticker</ContextMenuItem>
+					}}>+ Sticker</ContextMenuItem>
 				)}
 				<ContextMenuItem
 					variant="destructive"
